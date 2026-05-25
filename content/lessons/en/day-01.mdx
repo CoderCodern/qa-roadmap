@@ -52,9 +52,16 @@ print("All checks passed.")
 ## Exercise
 
 <ExerciseBox>
+<En>
 - [ ] List 3 things you do every day on a website or app that a tester might want to verify
 - [ ] Think of one test that would be easy to automate and one that would be hard — explain why
 - [ ] Write down what you think the biggest risk is if software ships without testing
+</En>
+<Vi>
+- [ ] Liệt kê 3 thao tác bạn làm hàng ngày trên website hoặc ứng dụng mà tester có thể muốn kiểm tra
+- [ ] Nghĩ ra một bài test dễ tự động hóa và một bài khó — giải thích tại sao
+- [ ] Ghi lại rủi ro lớn nhất bạn nghĩ sẽ xảy ra nếu phần mềm phát hành mà không có kiểm thử
+</Vi>
 </ExerciseBox>
 
 ## Quiz
@@ -62,36 +69,60 @@ print("All checks passed.")
 <Quiz questions={[
   {
     q: "What is the primary goal of software testing?",
+    qVi: "Mục tiêu chính của kiểm thử phần mềm là gì?",
     choices: [
       "To write more code faster",
       "To find defects before users do",
       "To slow down the development process",
       "To replace developers"
     ],
+    choicesVi: [
+      "Viết code nhanh hơn",
+      "Phát hiện lỗi trước người dùng",
+      "Làm chậm quá trình phát triển",
+      "Thay thế lập trình viên"
+    ],
     answer: 1,
-    explain: "Testing aims to identify defects early so they can be fixed before reaching end users, reducing cost and protecting the user experience."
+    explain: "Testing aims to identify defects early so they can be fixed before reaching end users, reducing cost and protecting the user experience.",
+    explainVi: "Kiểm thử nhằm phát hiện lỗi sớm để sửa trước khi đến tay người dùng, giảm chi phí và bảo vệ trải nghiệm người dùng."
   },
   {
     q: "Which statement about automated testing is TRUE?",
+    qVi: "Phát biểu nào về kiểm thử tự động là ĐÚNG?",
     choices: [
       "It completely replaces manual testing",
       "It is always more expensive than manual testing",
       "It can run the same checks repeatedly and consistently",
       "It requires no maintenance once written"
     ],
+    choicesVi: [
+      "Nó hoàn toàn thay thế kiểm thử thủ công",
+      "Nó luôn tốn kém hơn kiểm thử thủ công",
+      "Nó có thể chạy các kiểm tra giống nhau một cách lặp lại và nhất quán",
+      "Không cần bảo trì sau khi đã viết"
+    ],
     answer: 2,
-    explain: "Automated tests excel at running the same scenarios repeatedly with no human fatigue — but they still require maintenance when the application changes."
+    explain: "Automated tests excel at running the same scenarios repeatedly with no human fatigue — but they still require maintenance when the application changes.",
+    explainVi: "Kiểm thử tự động xuất sắc trong việc chạy cùng kịch bản nhiều lần mà không mệt mỏi — nhưng vẫn cần bảo trì khi ứng dụng thay đổi."
   },
   {
     q: "What type of testing is best for checking whether a UI looks visually correct?",
+    qVi: "Loại kiểm thử nào phù hợp nhất để kiểm tra giao diện người dùng trông có đúng không?",
     choices: [
       "Automated unit tests",
       "Manual or visual regression testing",
       "Load testing",
       "API testing"
     ],
+    choicesVi: [
+      "Unit test tự động",
+      "Kiểm thử thủ công hoặc kiểm thử hồi quy trực quan",
+      "Kiểm thử tải",
+      "Kiểm thử API"
+    ],
     answer: 1,
-    explain: "Visual correctness and aesthetics are best evaluated by humans (or visual regression tools), not by simple pass/fail automated assertions."
+    explain: "Visual correctness and aesthetics are best evaluated by humans (or visual regression tools), not by simple pass/fail automated assertions.",
+    explainVi: "Tính đúng đắn về mặt hình ảnh được đánh giá tốt nhất bởi con người (hoặc công cụ hồi quy trực quan), không phải bởi các xác nhận tự động đơn giản."
   }
 ]} />
 

@@ -100,9 +100,16 @@ for phase, activities in sdlc_stlc_mapping.items():
 ## Exercise
 
 <ExerciseBox>
+<En>
 - [ ] Draw a simple timeline showing where STLC phases fit within a 2-week Agile sprint
 - [ ] List 3 questions a QA engineer should ask during the Requirements phase to improve testability
 - [ ] Explain to a friend what would go wrong if testing only started after development was complete
+</En>
+<Vi>
+- [ ] Vẽ dòng thời gian đơn giản cho thấy các giai đoạn STLC nằm ở đâu trong một sprint Agile 2 tuần
+- [ ] Liệt kê 3 câu hỏi QA engineer nên hỏi trong giai đoạn Yêu cầu để cải thiện khả năng kiểm thử
+- [ ] Giải thích cho một người bạn điều gì sẽ xảy ra nếu kiểm thử chỉ bắt đầu sau khi phát triển xong
+</Vi>
 </ExerciseBox>
 
 ## Quiz
@@ -110,25 +117,41 @@ for phase, activities in sdlc_stlc_mapping.items():
 <Quiz questions={[
   {
     q: "At which SDLC phase should QA ideally begin involvement?",
+    qVi: "QA nên tham gia vào giai đoạn nào của SDLC lý tưởng nhất?",
     choices: [
       "Testing phase only",
       "After deployment",
       "Requirements phase",
       "Development phase"
     ],
+    choicesVi: [
+      "Chỉ giai đoạn Kiểm thử",
+      "Sau khi triển khai",
+      "Giai đoạn Yêu cầu",
+      "Giai đoạn Phát triển"
+    ],
     answer: 2,
-    explain: "QA should be involved from Requirements to catch ambiguities early. Fixing a requirement error costs far less than fixing a coded feature or deployed bug."
+    explain: "QA should be involved from Requirements to catch ambiguities early. Fixing a requirement error costs far less than fixing a coded feature or deployed bug.",
+    explainVi: "QA nên tham gia từ giai đoạn Yêu cầu để phát hiện sự mơ hồ sớm. Sửa một lỗi yêu cầu rẻ hơn nhiều so với sửa tính năng đã code hoặc bug đã triển khai."
   },
   {
     q: "What is the output of the 'Test Planning' phase in STLC?",
+    qVi: "Đầu ra của giai đoạn 'Lập kế hoạch Kiểm thử' trong STLC là gì?",
     choices: [
       "Bug reports",
       "A test plan document defining scope, strategy, resources, and timeline",
       "Deployed code",
       "Executed test cases"
     ],
+    choicesVi: [
+      "Báo cáo bug",
+      "Tài liệu kế hoạch kiểm thử xác định phạm vi, chiến lược, nguồn lực và lịch trình",
+      "Code đã triển khai",
+      "Các test case đã thực thi"
+    ],
     answer: 1,
-    explain: "The Test Plan is the primary deliverable of Test Planning — it guides the entire testing effort and aligns stakeholders on scope and approach."
+    explain: "The Test Plan is the primary deliverable of Test Planning — it guides the entire testing effort and aligns stakeholders on scope and approach.",
+    explainVi: "Kế hoạch kiểm thử là sản phẩm chính của Lập kế hoạch Kiểm thử — nó hướng dẫn toàn bộ nỗ lực kiểm thử và điều chỉnh các bên liên quan về phạm vi và cách tiếp cận."
   }
 ]} />
 

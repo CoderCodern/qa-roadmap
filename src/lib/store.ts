@@ -13,9 +13,9 @@ export type ProgressState = {
   streak: number
   longestStreak: number
   language: Language
-  /** AI-generated example answers keyed by dayId — saved after first use. */
-  aiAnswers: Record<number, string>
-  /** Tracks which days have consumed their one AI hint. */
+  /** AI-generated bilingual answers keyed by dayId — saved after first use. */
+  aiAnswers: Record<number, { en: string; vi: string }>
+  /** Tracks which days have consumed their one AI review. */
   aiHintUsed: Record<number, boolean>
   /** True after localStorage has been rehydrated; used to avoid pre-hydration lock flicker. */
   hydrated: boolean
@@ -25,7 +25,7 @@ export type ProgressState = {
   setLanguage: (lang: Language) => void
   setHydrated: () => void
   setDevPreview: (val: boolean) => void
-  setAiAnswer: (dayId: number, answer: string) => void
+  setAiAnswer: (dayId: number, answer: { en: string; vi: string }) => void
   markAiHintUsed: (dayId: number) => void
   reset: () => void
 }

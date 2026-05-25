@@ -5,19 +5,9 @@
 /* ─── Language Switching ─── */
 [data-lang="vi"] .lang-en { display: none; }
 [data-lang="en"] .lang-vi { display: none; }
-:not([data-lang]) .lang-vi { display: none; }
+html:not([data-lang]) .lang-vi { display: none; }
 
-/* ─── Code Blocks (rehype-pretty-code dual theme) ─── */
-[data-rehype-pretty-code-figure] [data-theme='dark'] {
-  display: none;
-}
-.dark [data-rehype-pretty-code-figure] [data-theme='dark'] {
-  display: block;
-}
-.dark [data-rehype-pretty-code-figure] [data-theme='light'] {
-  display: none;
-}
-
+/* ─── Code Blocks (rehype-pretty-code) ─── */
 [data-rehype-pretty-code-figure] pre {
   @apply overflow-x-auto rounded-xl p-4 text-sm leading-relaxed;
 }

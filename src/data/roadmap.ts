@@ -6,6 +6,8 @@ export type Day = {
   blurbVi: string
   estMinutes: number
   tags: string[]
+  /** false = content not ready yet; omit or true = published to users */
+  available?: boolean
 }
 
 export type Phase = {

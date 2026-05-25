@@ -1,4 +1,14 @@
-import { PHASES } from '@/data/roadmap'
+import { PHASES, getAllDays } from '@/data/roadmap'
+
+/**
+ * Returns true if the developer has marked this day as available (published).
+ * When devPreview is true, always returns true so developers can test unpublished content.
+ */
+export function isDayAvailable(dayId: number, devPreview = false): boolean {
+  if (devPreview) return true
+  const day = getAllDays().find((d) => d.id === dayId)
+  return day?.available !== false
+}
 
 /** Returns true if enough lessons were completed in the previous phase to start phase `phaseId`. */
 export function isPhaseUnlocked(phaseId: number, completed: number[]): boolean {
@@ -31,6 +41,7 @@ export type PhaseLockInfo =
 
 export type DayLockInfo =
   | { locked: false }
+  | { locked: true; type: 'coming-soon' }
   | { locked: true; type: 'prev-day'; prevDayId: number }
   | { locked: true; type: 'phase'; phaseTitle: string; phaseTitleVi: string; done: number; needed: number }
 
@@ -48,7 +59,8 @@ export function getPhaseLockInfo(phaseId: number, completed: number[]): PhaseLoc
   }
 }
 
-export function getDayLockInfo(dayId: number, completed: number[]): DayLockInfo {
+export function getDayLockInfo(dayId: number, completed: number[], devPreview = false): DayLockInfo {
+  if (!isDayAvailable(dayId, devPreview)) return { locked: true, type: 'coming-soon' }
   if (isDayUnlocked(dayId, completed)) return { locked: false }
   const phase = PHASES.find((p) => p.days.some((d) => d.id === dayId))
   if (!phase) return { locked: true, type: 'prev-day', prevDayId: dayId - 1 }

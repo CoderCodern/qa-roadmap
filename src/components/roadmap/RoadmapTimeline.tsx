@@ -2,11 +2,11 @@
 
 import { useProgressStore } from '@/lib/store'
 import { PHASES } from '@/data/roadmap'
-import { getPhaseLockInfo, isDayUnlocked } from '@/lib/unlock'
+import { getPhaseLockInfo, isDayUnlocked, isDayAvailable } from '@/lib/unlock'
 import { PhaseCard } from './PhaseCard'
 
 export function RoadmapTimeline() {
-  const { completed, hydrated } = useProgressStore()
+  const { completed, hydrated, devPreview } = useProgressStore()
 
   // Before localStorage is rehydrated, treat everything as unlocked so the
   // UI doesn't flash a fully-locked state on first render.
@@ -23,6 +23,12 @@ export function RoadmapTimeline() {
             .map((d) => d.id)
         )
 
+        const comingSoonDayIds = new Set<number>(
+          phase.days
+            .filter((d) => !isDayAvailable(d.id, devPreview))
+            .map((d) => d.id)
+        )
+
         return (
           <PhaseCard
             key={phase.id}
@@ -30,6 +36,7 @@ export function RoadmapTimeline() {
             completedDays={hydrated ? completed : []}
             lockInfo={lockInfo}
             lockedDayIds={lockedDayIds}
+            comingSoonDayIds={comingSoonDayIds}
           />
         )
       })}

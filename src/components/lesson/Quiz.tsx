@@ -58,10 +58,10 @@ export function Quiz({ questions }: QuizProps) {
                         disabled={submitted}
                         className={cn(
                           'w-full rounded-lg border px-4 py-2.5 text-left text-sm transition-colors',
-                          !submitted && !isSelected && 'border-gray-200 hover:border-brand-300 hover:bg-brand-50 dark:border-gray-700 dark:hover:border-brand-600 dark:hover:bg-brand-950/30',
-                          !submitted && isSelected && 'border-brand-400 bg-brand-50 text-brand-800 dark:border-brand-500 dark:bg-brand-950/40 dark:text-brand-200',
-                          isCorrectChoice && 'border-emerald-400 bg-emerald-50 text-emerald-800 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-200',
-                          isWrongChoice && 'border-red-400 bg-red-50 text-red-800 dark:border-red-600 dark:bg-red-950/40 dark:text-red-200',
+                          !submitted && !isSelected && 'border-gray-200 hover:border-brand-300 hover:bg-brand-50 dark:border-gray-700 dark:hover:border-brand-500 dark:hover:bg-brand-950/40',
+                          !submitted && isSelected && 'border-brand-500 bg-brand-50 text-brand-800 dark:border-brand-400 dark:bg-brand-700/50 dark:text-brand-100',
+                          isCorrectChoice && 'border-emerald-400 bg-emerald-50 text-emerald-800 dark:border-emerald-500 dark:bg-emerald-900/50 dark:text-emerald-100',
+                          isWrongChoice && 'border-red-400 bg-red-50 text-red-800 dark:border-red-500 dark:bg-red-900/50 dark:text-red-100',
                         )}
                       >
                         {choice}

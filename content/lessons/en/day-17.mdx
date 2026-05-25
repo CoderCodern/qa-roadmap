@@ -1,0 +1,189 @@
+---
+id: 17
+title: "Lists & tuples"
+phase: 2
+estMinutes: 60
+tags: ["python", "data-structures"]
+---
+
+## Intro
+
+<En>
+Lists and tuples are Python's two core sequence types. In testing, you'll use lists constantly — to hold test cases, store API response items, collect failures, and iterate. Tuples appear in fixtures, coordinate pairs, and any time you want an ordered collection that should not change. Knowing which to use, and how to work with them efficiently, is essential for clean test code.
+</En>
+<Vi>
+List và tuple là hai kiểu chuỗi cốt lõi của Python. Trong kiểm thử, bạn sẽ dùng list liên tục — để chứa test case, lưu trữ các mục API response, thu thập lỗi và lặp qua. Tuple xuất hiện trong fixture, cặp tọa độ, và bất cứ khi nào bạn muốn một tập hợp có thứ tự mà không nên thay đổi. Biết cái nào để dùng và cách làm việc với chúng hiệu quả là thiết yếu cho code test gọn sạch.
+</Vi>
+
+## Concept
+
+<En>
+**List — mutable, ordered:**
+```python
+items = [1, 2, 3]
+items.append(4)      # add to end
+items.insert(0, 0)   # insert at index
+items.remove(2)      # remove first occurrence of value
+items.pop()          # remove and return last item
+items.sort()         # sort in place
+```
+
+**Tuple — immutable, ordered:**
+```python
+point = (10, 20)     # parentheses optional
+x, y = point         # unpacking
+pair = "alice", "admin"  # no parentheses needed
+```
+
+**Slicing** works on both:
+```python
+first_three = items[:3]
+last_two = items[-2:]
+reversed_list = items[::-1]
+```
+
+**Key list methods for QA:**
+
+| Method | Use case |
+|--------|---------|
+| `len(items)` | Check item count in response |
+| `items[0]` | Get first result |
+| `items[-1]` | Get last result |
+| `x in items` | Membership check |
+| `sorted(items)` | Sort without mutation |
+| `list(filter(fn, items))` | Filter a list |
+| `[x for x in items if cond]` | List comprehension filter |
+
+**When to use which:**
+- Use **list** when the collection will grow, shrink, or be mutated.
+- Use **tuple** for fixed-size records (test case row), return values, or dict keys.
+</En>
+<Vi>
+**List — có thể thay đổi, có thứ tự:**
+```python
+items = [1, 2, 3]
+items.append(4)      # thêm vào cuối
+items.insert(0, 0)   # chèn tại chỉ số
+items.remove(2)      # xoá lần xuất hiện đầu tiên
+items.pop()          # xoá và trả về item cuối
+items.sort()         # sắp xếp tại chỗ
+```
+
+**Tuple — không thể thay đổi, có thứ tự:**
+```python
+point = (10, 20)
+x, y = point         # giải nén
+```
+
+**Slicing** hoạt động trên cả hai:
+```python
+first_three = items[:3]
+last_two = items[-2:]
+```
+
+**Khi nào dùng cái nào:**
+- Dùng **list** khi tập hợp sẽ tăng, giảm hoặc bị thay đổi.
+- Dùng **tuple** cho bản ghi kích thước cố định (hàng test case), giá trị trả về hoặc key dict.
+</Vi>
+
+## Code / Demo
+
+```python
+# Lists and tuples in QA automation
+
+# Parametrised test data as list of tuples
+test_cases = [
+    ("user@example.com", "ValidPass1", True),
+    ("user@example.com", "wrongpass", False),
+    ("notanemail", "ValidPass1", False),
+    ("", "", False),
+]
+
+def simulate_login(email: str, password: str) -> bool:
+    return email == "user@example.com" and password == "ValidPass1"
+
+failures = []
+for email, password, expected in test_cases:
+    result = simulate_login(email, password)
+    if result != expected:
+        failures.append(f"FAIL: login({email!r}) → expected={expected}, actual={result}")
+
+assert not failures, "\n".join(failures)
+print(f"All {len(test_cases)} login test cases passed!")
+
+# Working with API response items list
+response_items = [
+    {"id": 1, "status": "active"},
+    {"id": 2, "status": "inactive"},
+    {"id": 3, "status": "active"},
+]
+
+# Length check
+assert len(response_items) == 3
+
+# First / last item
+first = response_items[0]
+assert first["id"] == 1
+
+# Filter with list comprehension
+active_items = [item for item in response_items if item["status"] == "active"]
+assert len(active_items) == 2
+
+# Check membership
+statuses = [item["status"] for item in response_items]
+assert "active" in statuses
+assert "deleted" not in statuses
+
+# Sorting
+scores = [85, 42, 91, 67]
+top = sorted(scores, reverse=True)[:2]
+assert top == [91, 85]
+print(f"Top 2 scores: {top}")
+
+# Tuple unpacking in loops
+headers = [("Content-Type", "application/json"), ("Authorization", "Bearer abc123")]
+for name, value in headers:
+    print(f"  {name}: {value}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Given a list of API response dicts with `id`, `name`, and `active` fields, write code to: count active items, get the names of inactive ones, and assert no item has a negative id
+- [ ] Create a list of tuples representing BVA test cases for a field that accepts 1–99. Each tuple should be `(input_value, expected_valid)`. Loop through and test all of them
+- [ ] Use slicing to get the first, last, and middle elements of a list of 7 items
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the key difference between a list and a tuple in Python?",
+    choices: [
+      "Tuples can hold more items than lists",
+      "Lists are mutable (changeable) while tuples are immutable",
+      "Tuples support indexing but lists do not",
+      "Lists can only contain strings"
+    ],
+    answer: 1,
+    explain: "Lists can be modified after creation (append, remove, sort). Tuples cannot — once created, their contents are fixed. This makes tuples safe to use as dict keys and for fixed records."
+  },
+  {
+    q: "What does `items[-1]` return?",
+    choices: [
+      "An IndexError",
+      "The item at index -1 (an invalid index)",
+      "The last item in the list",
+      "The first item in the list"
+    ],
+    answer: 2,
+    explain: "Negative indexing counts from the end. -1 is the last item, -2 is second-to-last, and so on. This is idiomatic Python for accessing the end of a sequence."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Lists — docs.python.org", url: "https://docs.python.org/3/tutorial/datastructures.html" },
+  { title: "Real Python — Lists and Tuples", url: "https://realpython.com/" }
+]} />

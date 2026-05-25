@@ -1,0 +1,177 @@
+---
+id: 27
+title: "Screenshots & visual testing"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "screenshots"]
+---
+
+## Intro
+
+<En>
+Screenshots serve two purposes in test automation: debugging (capturing what the page looked like when a test failed) and visual regression testing (detecting unintended visual changes). Playwright has first-class support for both — you can capture screenshots on demand and use snapshot assertions to detect pixel-level changes.
+</En>
+<Vi>
+Ảnh chụp màn hình phục vụ hai mục đích trong tự động hoá test: gỡ lỗi (chụp lại giao diện trang khi test thất bại) và kiểm thử hồi quy trực quan (phát hiện các thay đổi trực quan không mong muốn). Playwright có hỗ trợ hạng nhất cho cả hai — bạn có thể chụp ảnh theo nhu cầu và dùng snapshot assertion để phát hiện thay đổi ở mức pixel.
+</Vi>
+
+## Concept
+
+<En>
+**Types of screenshots:**
+
+| Type | Code | Use for |
+|------|------|---------|
+| Full page | `page.screenshot(path="full.png", full_page=True)` | Capture entire scrollable page |
+| Viewport | `page.screenshot(path="view.png")` | Visible area only |
+| Element | `locator.screenshot(path="element.png")` | Single component |
+| Clip region | `page.screenshot(clip={"x":0,"y":0,"width":400,"height":300})` | Specific area |
+
+**Screenshot on test failure — conftest.py pattern:**
+```python
+@pytest.fixture(autouse=True)
+def screenshot_on_failure(page: Page, request):
+    yield
+    if request.node.rep_call.failed:
+        page.screenshot(path=f"screenshots/{request.node.name}.png")
+```
+
+**Visual snapshot testing:**
+```python
+# First run creates baseline PNG files
+expect(page).to_have_screenshot("homepage.png")
+
+# Subsequent runs compare against the baseline
+# Test fails if pixels differ beyond tolerance
+expect(page).to_have_screenshot("homepage.png", threshold=0.1)
+```
+
+**When to use visual testing:**
+- Critical UI components (login form, checkout, hero section)
+- After design changes — verify nothing else shifted
+- Cross-browser rendering differences
+
+**Updating baselines:** When the UI intentionally changes, update snapshots:
+```bash
+pytest --update-snapshots
+```
+</En>
+<Vi>
+**Các loại ảnh chụp màn hình:**
+
+| Loại | Code | Dùng cho |
+|------|------|---------|
+| Toàn trang | `page.screenshot(path="full.png", full_page=True)` | Chụp toàn bộ trang có thể cuộn |
+| Viewport | `page.screenshot(path="view.png")` | Chỉ vùng hiển thị |
+| Phần tử | `locator.screenshot(path="element.png")` | Một component đơn lẻ |
+
+**Chụp ảnh khi test thất bại — pattern conftest.py:**
+```python
+@pytest.fixture(autouse=True)
+def screenshot_on_failure(page: Page, request):
+    yield
+    if request.node.rep_call.failed:
+        page.screenshot(path=f"screenshots/{request.node.name}.png")
+```
+
+**Kiểm thử snapshot trực quan:**
+```python
+# Lần chạy đầu tạo file PNG baseline
+expect(page).to_have_screenshot("homepage.png")
+# Các lần chạy tiếp theo so sánh với baseline
+```
+
+**Cập nhật baseline khi UI thay đổi có chủ đích:**
+```bash
+pytest --update-snapshots
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_screenshots.py
+import pytest
+from pathlib import Path
+from playwright.sync_api import Page, expect
+
+SCREENSHOTS_DIR = Path("screenshots")
+SCREENSHOTS_DIR.mkdir(exist_ok=True)
+
+def test_capture_full_page(page: Page):
+    page.goto("https://example.com")
+    screenshot_path = SCREENSHOTS_DIR / "full_page.png"
+    page.screenshot(path=str(screenshot_path), full_page=True)
+    assert screenshot_path.exists()
+    print(f"Saved full-page screenshot: {screenshot_path}")
+
+def test_capture_element(page: Page):
+    page.goto("https://example.com")
+    heading = page.locator("h1")
+    screenshot_path = SCREENSHOTS_DIR / "heading_element.png"
+    heading.screenshot(path=str(screenshot_path))
+    assert screenshot_path.exists()
+    print(f"Saved element screenshot: {screenshot_path}")
+
+def test_capture_on_assertion_failure(page: Page, request):
+    page.goto("https://example.com")
+    try:
+        # Intentionally wrong assertion to trigger screenshot
+        expect(page).to_have_title("This title does not exist", timeout=1000)
+    except AssertionError:
+        screenshot_path = SCREENSHOTS_DIR / f"failure_{request.node.name}.png"
+        page.screenshot(path=str(screenshot_path))
+        print(f"Failure screenshot saved: {screenshot_path}")
+        # Re-raise so pytest still marks the test as failed
+        raise
+
+# conftest.py addition — auto-capture on any test failure:
+# @pytest.fixture(autouse=True)
+# def capture_on_failure(page: Page, request):
+#     yield
+#     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
+#         Path("screenshots").mkdir(exist_ok=True)
+#         page.screenshot(path=f"screenshots/{request.node.name}.png")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a test that captures a full-page screenshot before and after adding an item to the TodoMVC list, saving both with descriptive filenames
+- [ ] Add a `conftest.py` fixture with `autouse=True` that captures a screenshot whenever any test fails — verify it works by writing an intentionally failing test
+- [ ] Use `locator.screenshot()` to capture just the heading of a page and verify the file was created at the expected path
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What does `full_page=True` do in `page.screenshot()`?",
+    choices: [
+      "Captures every page in the browser history",
+      "Captures the entire scrollable document, not just the visible viewport",
+      "Includes the browser chrome (URL bar) in the screenshot",
+      "Takes screenshots of all open tabs"
+    ],
+    answer: 1,
+    explain: "By default, page.screenshot() captures only the visible viewport. With full_page=True it scrolls through the entire document and stitches a full-height image — useful for verifying long pages or content below the fold."
+  },
+  {
+    q: "What happens on the first run of `expect(page).to_have_screenshot('home.png')`?",
+    choices: [
+      "The test always passes on the first run",
+      "A baseline PNG file is created — subsequent runs compare against it",
+      "The test fails because no baseline exists",
+      "Playwright downloads a reference image from the internet"
+    ],
+    answer: 1,
+    explain: "The first run creates the baseline snapshot file. From then on, each run compares the current screenshot against the baseline. If they differ (beyond the configured threshold), the test fails and a diff image is saved."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Screenshots Guide", url: "https://playwright.dev/python/docs/screenshots" },
+  { title: "Playwright Visual Comparisons", url: "https://playwright.dev/python/docs/test-snapshots" }
+]} />

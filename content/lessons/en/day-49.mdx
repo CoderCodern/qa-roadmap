@@ -1,0 +1,183 @@
+---
+id: 49
+title: "Phase 4 review"
+phase: 4
+estMinutes: 60
+tags: ["api-testing", "review"]
+---
+
+## Intro
+
+<En>
+You've covered two weeks of API testing — from HTTP fundamentals and Postman exploration to automated Python test suites. Today consolidates the key skills and prepares you for the Capstone phase, where you will integrate everything into a single, professional-grade test framework.
+</En>
+<Vi>
+Bạn đã học hai tuần kiểm thử API — từ các nguyên tắc HTTP cơ bản và khám phá Postman đến các bộ test Python tự động. Hôm nay củng cố các kỹ năng chính và chuẩn bị cho bạn cho giai đoạn Capstone, nơi bạn sẽ tích hợp mọi thứ vào một framework test chuyên nghiệp duy nhất.
+</Vi>
+
+## Concept
+
+<En>
+**Phase 4 recap — the essential skills:**
+
+| Skill | Key insight |
+|-------|-------------|
+| HTTP | Method + URL + headers + body → status + body + headers |
+| REST | Stateless, resource URLs, HTTP verbs convey intent |
+| Status codes | 2xx = success, 4xx = client error, 5xx = server error |
+| Postman | Explore first, then automate — environments enable reuse |
+| requests | Session for shared headers; json= serialises automatically |
+| pytest + requests | ApiClient wraps Session; fixtures share setup |
+| JSON Schema | validate() catches type/presence/range errors in one call |
+| Negative testing | Missing fields, wrong types, BVA, security payloads |
+| Mocking | responses library intercepts requests — test offline |
+| API + UI | API setup is 50-100x faster than UI setup |
+| CI | No browser install needed; --junit-xml for CI parsing |
+
+**The API testing checklist for any endpoint:**
+- [ ] Status code is correct for the HTTP method and scenario
+- [ ] Response body validates against the schema
+- [ ] All required fields are present and non-null
+- [ ] Field types are correct (int, str, bool, list, object)
+- [ ] Business rules are satisfied (email format, valid roles, positive IDs)
+- [ ] Error cases return 4xx with a meaningful message (not 500)
+- [ ] Response time is within acceptable limits
+- [ ] Sensitive data is not leaked in error responses
+</En>
+<Vi>
+**Tóm tắt Phase 4 — các kỹ năng thiết yếu:**
+
+| Kỹ năng | Điểm mấu chốt |
+|-------|-------------|
+| HTTP | Method + URL + headers + body → status + body + headers |
+| REST | Stateless, URL tài nguyên, HTTP verb truyền đạt ý định |
+| Status code | 2xx = thành công, 4xx = lỗi client, 5xx = lỗi server |
+| Postman | Khám phá trước, sau đó tự động — environment cho phép tái sử dụng |
+| requests | Session cho header dùng chung; json= tuần tự hoá tự động |
+| JSON Schema | validate() bắt lỗi type/hiện diện/phạm vi trong một lần gọi |
+| Negative testing | Thiếu trường, sai type, BVA, payload bảo mật |
+| Mocking | Thư viện responses chặn requests — test offline |
+| API + UI | API setup nhanh hơn 50-100 lần so với UI setup |
+
+**Checklist kiểm thử API cho bất kỳ endpoint nào:**
+- [ ] Status code đúng cho method HTTP và kịch bản
+- [ ] Body response xác thực với schema
+- [ ] Tất cả trường bắt buộc có mặt và không null
+- [ ] Kiểu trường đúng
+- [ ] Quy tắc nghiệp vụ được đáp ứng
+- [ ] Trường hợp lỗi trả về 4xx với thông báo có ý nghĩa
+- [ ] Thời gian response trong giới hạn chấp nhận được
+</Vi>
+
+## Code / Demo
+
+```python
+# A complete, well-structured API test demonstrating all Phase 4 patterns
+
+import pytest
+import requests
+from jsonschema import validate, ValidationError
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# Schema — defined once, reused across tests
+COMMENT_SCHEMA = {
+    "type": "object",
+    "required": ["id", "postId", "name", "email", "body"],
+    "properties": {
+        "id":     {"type": "integer", "minimum": 1},
+        "postId": {"type": "integer", "minimum": 1},
+        "name":   {"type": "string",  "minLength": 1},
+        "email":  {"type": "string"},
+        "body":   {"type": "string",  "minLength": 1},
+    },
+}
+
+@pytest.fixture(scope="session")
+def session() -> requests.Session:
+    s = requests.Session()
+    s.headers["Content-Type"] = "application/json"
+    return s
+
+# Happy path
+def test_get_comment_by_id(session: requests.Session):
+    response = session.get(f"{BASE_URL}/comments/1")
+    assert response.status_code == 200
+    validate(instance=response.json(), schema=COMMENT_SCHEMA)
+
+# Parametrized positive test
+@pytest.mark.parametrize("post_id,expected_count", [
+    (1, 5),
+    (2, 5),
+])
+def test_comments_per_post(session: requests.Session, post_id: int, expected_count: int):
+    response = session.get(f"{BASE_URL}/posts/{post_id}/comments")
+    assert response.status_code == 200
+    comments = response.json()
+    assert len(comments) == expected_count
+    for comment in comments:
+        assert comment["postId"] == post_id
+        validate(instance=comment, schema=COMMENT_SCHEMA)
+
+# Negative test
+def test_comment_not_found(session: requests.Session):
+    response = session.get(f"{BASE_URL}/comments/99999")
+    assert response.status_code == 404
+
+# Performance assertion
+def test_response_time(session: requests.Session):
+    import time
+    start = time.time()
+    session.get(f"{BASE_URL}/comments/1")
+    assert time.time() - start < 3.0, "Response too slow"
+
+# Business rule — every comment has a valid email-ish field
+def test_all_comments_have_email(session: requests.Session):
+    response = session.get(f"{BASE_URL}/comments", params={"_limit": 10})
+    assert response.status_code == 200
+    for comment in response.json():
+        assert "@" in comment["email"], f"Invalid email: {comment['email']}"
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Without looking at previous lessons, implement a complete API test for the `/albums` endpoint of JSONPlaceholder: schema, positive tests for get-one and get-all, parametrized tests for 5 IDs, and a negative test for a non-existent ID
+- [ ] Review your JSONPlaceholder project from Days 47-48 and add the API testing checklist items you haven't covered yet (response time, header checks, edge cases)
+- [ ] Explain to someone else (or write a short summary) the difference between mocking with `responses` and testing against a real API — when would you use each and why?
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the most important thing to verify in a negative API test?",
+    choices: [
+      "That the server returns 200 with an error flag",
+      "That the status code is 4xx (not 5xx) and the error message is helpful without leaking internals",
+      "That the request body was rejected",
+      "That the response time is under 1 second"
+    ],
+    answer: 1,
+    explain: "A 500 means the server crashed — a bug. A 4xx means the server handled the invalid input gracefully. The error message should help the client fix the request without revealing stack traces, SQL, or internal structure that attackers could exploit."
+  },
+  {
+    q: "What is the advantage of `scope='session'` for an API client fixture?",
+    choices: [
+      "Tests cannot run without session scope",
+      "One requests.Session is created for the entire test run — reusing HTTP connections and auth headers without repeated setup",
+      "It makes tests run in alphabetical order",
+      "Session scope prevents rate limiting"
+    ],
+    answer: 1,
+    explain: "With scope='session', the ApiClient is instantiated once. The underlying requests.Session pools HTTP connections — subsequent requests to the same host reuse the existing TCP connection, making the test suite faster."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "JSONPlaceholder — free test API", url: "https://jsonplaceholder.typicode.com/" },
+  { title: "requests library docs", url: "https://requests.readthedocs.io/" },
+  { title: "Ministry of Testing", url: "https://www.ministryoftesting.com/" }
+]} />

@@ -1,0 +1,196 @@
+---
+id: 21
+title: "CLI calculator project"
+phase: 2
+estMinutes: 90
+tags: ["python", "project", "review"]
+---
+
+## Intro
+
+<En>
+Today you build your first complete Python project: a command-line calculator with a full test suite. This is not just a coding exercise — it forces you to apply everything from Phase 2 in one cohesive project: functions, modules, classes, exceptions, file I/O, and Python's `pytest` library. By the end you will have run your first real pytest suite.
+</En>
+<Vi>
+Hôm nay bạn xây dựng dự án Python hoàn chỉnh đầu tiên: một máy tính dòng lệnh với bộ test đầy đủ. Đây không chỉ là bài tập code — nó buộc bạn áp dụng mọi thứ từ Phase 2 trong một dự án gắn kết: hàm, module, class, ngoại lệ, file I/O và thư viện `pytest` của Python. Cuối ngày bạn sẽ đã chạy bộ pytest thực sự đầu tiên của mình.
+</Vi>
+
+## Concept
+
+<En>
+**Project structure:**
+```
+calculator/
+├── calculator.py       # core logic module
+├── cli.py              # command-line interface
+└── tests/
+    ├── __init__.py
+    └── test_calculator.py  # pytest test file
+```
+
+**pytest basics:**
+- Any file named `test_*.py` or `*_test.py` is discovered automatically.
+- Any function named `test_*` is a test.
+- Use `assert` for assertions — pytest rewrites them for readable failure output.
+- Run all tests: `pytest tests/`
+- Run with verbose output: `pytest -v`
+- Run a single test: `pytest tests/test_calculator.py::test_add`
+
+**What makes a good pytest test:**
+- Clear name describing what's being tested (`test_divide_raises_on_zero`)
+- AAA pattern: Arrange, Act, Assert
+- One logical concept per test
+- `pytest.raises(ExceptionType)` to assert that an exception is raised
+
+**Installing pytest:**
+```bash
+pip install pytest
+```
+</En>
+<Vi>
+**Cấu trúc dự án:**
+```
+calculator/
+├── calculator.py       # module logic cốt lõi
+├── cli.py              # giao diện dòng lệnh
+└── tests/
+    ├── __init__.py
+    └── test_calculator.py  # file test pytest
+```
+
+**Cơ bản về pytest:**
+- Bất kỳ file nào có tên `test_*.py` hoặc `*_test.py` đều được tự động phát hiện.
+- Bất kỳ hàm nào có tên `test_*` đều là một test.
+- Dùng `assert` cho assertion — pytest viết lại chúng cho đầu ra lỗi dễ đọc.
+- Chạy tất cả test: `pytest tests/`
+- Chạy với đầu ra chi tiết: `pytest -v`
+
+**Cài đặt pytest:**
+```bash
+pip install pytest
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# calculator.py — the core module
+
+class CalculatorError(Exception):
+    pass
+
+def add(a: float, b: float) -> float:
+    return a + b
+
+def subtract(a: float, b: float) -> float:
+    return a - b
+
+def multiply(a: float, b: float) -> float:
+    return a * b
+
+def divide(a: float, b: float) -> float:
+    if b == 0:
+        raise CalculatorError("Division by zero is not allowed")
+    return a / b
+
+def calculate(operation: str, a: float, b: float) -> float:
+    ops = {
+        "+": add,
+        "-": subtract,
+        "*": multiply,
+        "/": divide,
+    }
+    if operation not in ops:
+        raise CalculatorError(f"Unknown operation: '{operation}'")
+    return ops[operation](a, b)
+```
+
+```python
+# tests/test_calculator.py — the pytest test file
+
+import pytest
+from calculator import add, subtract, multiply, divide, calculate, CalculatorError
+
+# --- add ---
+def test_add_positive_numbers():
+    assert add(2, 3) == 5
+
+def test_add_negative_numbers():
+    assert add(-1, -4) == -5
+
+def test_add_floats():
+    assert add(0.1, 0.2) == pytest.approx(0.3)  # float precision!
+
+# --- subtract ---
+def test_subtract():
+    assert subtract(10, 4) == 6
+
+def test_subtract_gives_negative():
+    assert subtract(3, 10) == -7
+
+# --- multiply ---
+def test_multiply():
+    assert multiply(6, 7) == 42
+
+def test_multiply_by_zero():
+    assert multiply(100, 0) == 0
+
+# --- divide ---
+def test_divide():
+    assert divide(10, 2) == 5.0
+
+def test_divide_raises_on_zero():
+    with pytest.raises(CalculatorError, match="Division by zero"):
+        divide(10, 0)
+
+# --- calculate dispatcher ---
+def test_calculate_addition():
+    assert calculate("+", 3, 4) == 7
+
+def test_calculate_unknown_operation_raises():
+    with pytest.raises(CalculatorError, match="Unknown operation"):
+        calculate("^", 2, 3)
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Set up the `calculator/` project structure, copy both files, install pytest, and run `pytest -v` — all tests should pass
+- [ ] Add a `power(base, exponent)` function to `calculator.py` with at least 4 test cases (including negative exponent and zero base)
+- [ ] Add a `history` feature: a class `Calculator` that keeps a list of previous calculations as strings, with a `clear_history()` method and a test that verifies history is recorded correctly
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "How does pytest discover test functions automatically?",
+    choices: [
+      "You must register tests in a config file",
+      "It scans for files named test_*.py and functions named test_*",
+      "It reads from a tests.json manifest",
+      "All functions in a test file are run automatically"
+    ],
+    answer: 1,
+    explain: "pytest's test discovery convention: files must match test_*.py or *_test.py, and functions inside them must start with test_. No registration needed — just follow the naming convention."
+  },
+  {
+    q: "Why use `pytest.approx()` when testing float arithmetic?",
+    choices: [
+      "Because pytest.approx() is required for all float assertions",
+      "Because floating-point arithmetic has precision errors — 0.1 + 0.2 is not exactly 0.3 in binary",
+      "Because it makes tests run faster",
+      "Because plain == raises a TypeError for floats"
+    ],
+    answer: 1,
+    explain: "Floating-point numbers are stored in binary, so 0.1 + 0.2 == 0.30000000000000004 — not 0.3. pytest.approx() checks that values are equal within a small tolerance."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "pytest documentation", url: "https://docs.pytest.org/en/stable/" },
+  { title: "Real Python — Getting Started with pytest", url: "https://realpython.com/" },
+  { title: "Automate the Boring Stuff — Python Basics", url: "https://automatetheboringstuff.com/" }
+]} />

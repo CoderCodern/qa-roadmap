@@ -1,0 +1,145 @@
+---
+id: 6
+title: "The test pyramid"
+phase: 1
+estMinutes: 60
+tags: ["fundamentals", "strategy"]
+---
+
+## Intro
+
+<En>
+The test pyramid is one of the most important mental models in software testing. It tells you what kinds of tests to write, how many of each, and why the ratio matters for speed, reliability, and cost.
+</En>
+<Vi>
+Kim tự tháp kiểm thử là một trong những mô hình tư duy quan trọng nhất trong kiểm thử phần mềm. Nó cho bạn biết loại test nào cần viết, bao nhiêu test cho mỗi loại và tại sao tỷ lệ quan trọng đối với tốc độ, độ tin cậy và chi phí.
+</Vi>
+
+## Concept
+
+<En>
+The pyramid has three layers (bottom to top):
+
+**1. Unit tests (large base):**
+Test individual functions or classes in isolation. They are fast (milliseconds), cheap to write, and give precise failure messages. Write the most of these.
+
+**2. Integration / Service tests (middle):**
+Test how components work together — API endpoints hitting a real database, two services communicating. Slower than unit tests but still faster than E2E. Write a moderate number.
+
+**3. End-to-End (E2E) tests (small top):**
+Simulate a real user interacting with the full application through a browser. Very realistic but slow, brittle, and expensive to maintain. Write the fewest.
+
+**The ice cream cone anti-pattern:** Many teams invert the pyramid — writing lots of E2E tests and few unit tests. This leads to slow builds, flaky tests, and hard-to-diagnose failures. Avoid it.
+
+**The practical rule of thumb:**
+- Unit: ~70% of tests
+- Integration: ~20%
+- E2E: ~10%
+
+The ratio is not a law — adjust based on your product. But the principle holds: fast, cheap tests at the bottom; slow, expensive ones at the top.
+</En>
+<Vi>
+Kim tự tháp có ba lớp (từ dưới lên):
+
+**1. Unit test (nền lớn):**
+Kiểm thử các hàm hoặc class riêng lẻ trong sự cô lập. Chúng nhanh (mili giây), rẻ để viết và đưa ra thông báo lỗi chính xác. Viết nhiều nhất loại này.
+
+**2. Integration / Service test (giữa):**
+Kiểm thử cách các thành phần hoạt động cùng nhau — API endpoint kết nối với cơ sở dữ liệu thực, hai service giao tiếp. Chậm hơn unit test nhưng vẫn nhanh hơn E2E. Viết số lượng vừa phải.
+
+**3. End-to-End (E2E) test (đỉnh nhỏ):**
+Mô phỏng người dùng thực tương tác với toàn bộ ứng dụng thông qua trình duyệt. Rất thực tế nhưng chậm, dễ vỡ và tốn kém để bảo trì. Viết ít nhất.
+
+**Anti-pattern hình nón kem:** Nhiều nhóm đảo ngược kim tự tháp — viết nhiều E2E test và ít unit test. Điều này dẫn đến các bản build chậm, test không ổn định và lỗi khó chẩn đoán. Hãy tránh điều này.
+
+**Quy tắc thực tế:**
+- Unit: ~70% số test
+- Integration: ~20%
+- E2E: ~10%
+
+Tỷ lệ này không phải là luật — hãy điều chỉnh dựa trên sản phẩm của bạn. Nhưng nguyên tắc vẫn đúng: test nhanh, rẻ ở dưới; test chậm, đắt ở trên.
+</Vi>
+
+## Code / Demo
+
+```python
+# Illustrating test speed difference across pyramid layers
+import time
+
+def add(a: int, b: int) -> int:
+    return a + b
+
+# Unit test — runs in microseconds
+def test_add_unit():
+    assert add(2, 3) == 5
+    assert add(-1, 1) == 0
+
+# Simulated integration test — involves I/O, takes longer
+def test_add_via_api():
+    # In reality this would call a real HTTP endpoint
+    time.sleep(0.1)   # simulating network latency
+    response = {"result": add(2, 3)}
+    assert response["result"] == 5
+
+# Simulated E2E test — browser automation, much slower
+def test_add_in_browser():
+    # In reality: playwright launches Chrome, navigates, fills form
+    time.sleep(2.0)   # simulating full browser interaction
+    ui_result = add(2, 3)  # simplified placeholder
+    assert ui_result == 5
+
+# Run all three to see the time difference
+start = time.time()
+test_add_unit()
+print(f"Unit: {(time.time() - start)*1000:.1f}ms")
+
+start = time.time()
+test_add_via_api()
+print(f"Integration: {(time.time() - start)*1000:.1f}ms")
+
+start = time.time()
+test_add_in_browser()
+print(f"E2E: {(time.time() - start)*1000:.1f}ms")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Draw your own version of the test pyramid for an e-commerce website — label each layer with examples
+- [ ] Find a project on GitHub and look at its test folder — does it follow the pyramid or the ice cream cone?
+- [ ] Calculate: if you have 500 tests and follow the 70/20/10 split, how many of each type should you have?
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Which layer of the test pyramid should have the MOST tests?",
+    choices: [
+      "E2E tests",
+      "Integration tests",
+      "Unit tests",
+      "Manual tests"
+    ],
+    answer: 2,
+    explain: "Unit tests are at the base of the pyramid — they are fast, cheap, and precise. The pyramid recommends writing the most unit tests (~70% of the test suite)."
+  },
+  {
+    q: "What is the 'ice cream cone' anti-pattern?",
+    choices: [
+      "Writing too many unit tests",
+      "An inverted pyramid with too many E2E tests and too few unit tests",
+      "Running tests on ice cream flavour preferences",
+      "Having no tests at all"
+    ],
+    answer: 1,
+    explain: "The ice cream cone inverts the pyramid — lots of slow E2E tests, few fast unit tests. This leads to a slow, brittle, and expensive test suite."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "The Test Pyramid — Martin Fowler", url: "https://martinfowler.com/articles/practical-test-pyramid.html" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+]} />

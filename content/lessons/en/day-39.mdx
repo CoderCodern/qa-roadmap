@@ -1,0 +1,178 @@
+---
+id: 39
+title: "Postman environments & variables"
+phase: 4
+estMinutes: 60
+tags: ["api-testing", "postman"]
+---
+
+## Intro
+
+<En>
+A test collection that only works against one URL is not reusable. Postman's environment and variable system lets you run the exact same collection against development, staging, and production by simply switching the active environment. Today you build a complete, parameterised Postman collection that demonstrates this workflow.
+</En>
+<Vi>
+Một collection test chỉ hoạt động với một URL không thể tái sử dụng. Hệ thống môi trường và biến của Postman cho phép bạn chạy chính xác cùng một collection với development, staging và production bằng cách chỉ đơn giản là chuyển môi trường đang hoạt động. Hôm nay bạn xây dựng một Postman collection hoàn chỉnh, được tham số hóa, minh họa quy trình làm việc này.
+</Vi>
+
+## Concept
+
+<En>
+**Variable scopes in Postman (narrowest wins):**
+
+| Scope | Set via | Available |
+|-------|---------|-----------|
+| Global | Globals panel | Everywhere, always |
+| Environment | Environment panel | Active environment only |
+| Collection | Collection > Variables | That collection only |
+| Local | `pm.variables.set()` | Current request only |
+
+**Common variable naming convention:**
+- `base_url` — `https://api.staging.example.com`
+- `api_key` — sensitive; use Postman Secret type
+- `auth_token` — set dynamically from login response
+- `user_id` — set from a create response, used in subsequent tests
+
+**Dynamic variables (built-in):**
+- `{{$randomEmail}}` — random email
+- `{{$randomUUID}}` — random UUID
+- `{{$timestamp}}` — current Unix timestamp
+- `{{$isoTimestamp}}` — ISO 8601 timestamp
+
+**Pre-request scripts — generate dynamic data before sending:**
+```javascript
+// Generate unique email for this test run
+const timestamp = Date.now();
+pm.variables.set("test_email", `test+${timestamp}@example.com`);
+```
+
+**Chaining requests — the key workflow:**
+1. POST /auth/login → save `token` to environment
+2. GET /users → send `Authorization: Bearer {{token}}`
+3. POST /users → create user, save `user_id`
+4. DELETE `/users/{{user_id}}` → clean up
+</En>
+<Vi>
+**Phạm vi biến trong Postman (hẹp hơn thắng):**
+
+| Phạm vi | Đặt qua | Có sẵn |
+|-------|---------|-----------|
+| Global | Panel Globals | Mọi nơi, luôn luôn |
+| Environment | Panel Environment | Chỉ môi trường đang hoạt động |
+| Collection | Collection > Variables | Chỉ collection đó |
+| Local | `pm.variables.set()` | Chỉ request hiện tại |
+
+**Biến động (tích hợp sẵn):**
+- `{{$randomEmail}}` — email ngẫu nhiên
+- `{{$randomUUID}}` — UUID ngẫu nhiên
+- `{{$timestamp}}` — Unix timestamp hiện tại
+
+**Pre-request script — tạo dữ liệu động trước khi gửi:**
+```javascript
+const timestamp = Date.now();
+pm.variables.set("test_email", `test+${timestamp}@example.com`);
+```
+
+**Chuỗi request — quy trình làm việc chính:**
+1. POST /auth/login → lưu `token` vào environment
+2. GET /users → gửi `Authorization: Bearer {{token}}`
+3. POST /users → tạo user, lưu `user_id`
+4. DELETE `/users/{{user_id}}` → dọn dẹp
+</Vi>
+
+## Code / Demo
+
+```javascript
+// --- Request 1: GET /posts (pre-request script tab) ---
+// Generate a random page number for variety
+pm.variables.set("page", Math.floor(Math.random() * 5) + 1);
+
+// URL: {{base_url}}/posts?_page={{page}}&_limit=5
+// Tests tab:
+pm.test("Status is 200", () => pm.response.to.have.status(200));
+pm.test("Returns array", () => {
+    pm.expect(pm.response.json()).to.be.an("array");
+});
+pm.test("Returns at most 5 items", () => {
+    pm.expect(pm.response.json().length).to.be.at.most(5);
+});
+
+// --- Request 2: POST /posts ---
+// Pre-request script:
+const ts = Date.now();
+pm.variables.set("post_title", `Test Post ${ts}`);
+pm.variables.set("post_userId", 1);
+
+// Request body (JSON):
+// {
+//   "title": "{{post_title}}",
+//   "body": "Automated test post body",
+//   "userId": {{post_userId}}
+// }
+
+// Tests tab:
+pm.test("Status is 201", () => pm.response.to.have.status(201));
+
+pm.test("Response has id", () => {
+    const body = pm.response.json();
+    pm.expect(body).to.have.property("id");
+    pm.environment.set("created_post_id", body.id);
+});
+
+pm.test("Title matches sent value", () => {
+    const body = pm.response.json();
+    pm.expect(body.title).to.equal(pm.variables.get("post_title"));
+});
+
+// --- Request 3: GET /posts/{{created_post_id}} ---
+// Tests:
+pm.test("Status is 200", () => pm.response.to.have.status(200));
+pm.test("Id matches created post", () => {
+    const body = pm.response.json();
+    pm.expect(body.id).to.equal(
+        parseInt(pm.environment.get("created_post_id"))
+    );
+});
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] In Postman, create two environments: "JSONPlaceholder Dev" (`base_url = https://jsonplaceholder.typicode.com`) and "JSONPlaceholder Alt" (same URL but add `limit = 5`) — run your collection under each environment
+- [ ] Use a pre-request script to generate a unique title using `Date.now()`, then assert in the Tests tab that the response title matches what you sent
+- [ ] Chain three requests: GET all posts → save the first post's id → GET that specific post by id → assert the ids match
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "If the same variable name is set in both Global and Environment scope, which value wins?",
+    choices: [
+      "Global — it has the highest priority",
+      "Environment — narrower scope overrides broader scope",
+      "They throw an error — duplicate variables are not allowed",
+      "The last one written wins"
+    ],
+    answer: 1,
+    explain: "Postman resolves variables from narrowest to broadest: Local > Data > Environment > Collection > Global. Environment overrides Global for the same variable name — allowing per-environment overrides of global defaults."
+  },
+  {
+    q: "What is the purpose of `pm.environment.set('token', value)` in a login request's test script?",
+    choices: [
+      "It validates the token format",
+      "It saves the token so subsequent requests in the collection can use it via {{token}}",
+      "It sends the token back to the server",
+      "It creates a new environment"
+    ],
+    answer: 1,
+    explain: "Saving to the environment allows chaining — the login request extracts the token from the response and stores it, then all subsequent requests can reference {{token}} in their Authorization header without re-logging in."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Postman Variables Guide", url: "https://learning.postman.com/docs/sending-requests/variables/" },
+  { title: "Postman Learning Center", url: "https://learning.postman.com/" }
+]} />

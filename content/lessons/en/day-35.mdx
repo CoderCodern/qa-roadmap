@@ -1,0 +1,153 @@
+---
+id: 35
+title: "Phase 3 review"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "review"]
+---
+
+## Intro
+
+<En>
+You have covered two weeks of Playwright. Today consolidates the key skills: locators, actions, waiting, POM, fixtures, debugging, and CI. Use this session to close any gaps before moving to API testing in Phase 4, which requires a different mindset — less about what the user sees and more about what the server responds with.
+</En>
+<Vi>
+Bạn đã học hai tuần về Playwright. Hôm nay củng cố các kỹ năng chính: locator, action, chờ, POM, fixture, gỡ lỗi và CI. Dùng buổi này để bít các lỗ hổng trước khi chuyển sang kiểm thử API trong Phase 4, yêu cầu tư duy khác — ít về những gì người dùng thấy hơn và nhiều hơn về những gì server phản hồi.
+</Vi>
+
+## Concept
+
+<En>
+**Phase 3 recap — the essential skills:**
+
+| Skill | Key insight |
+|-------|-------------|
+| Browser automation | Playwright launches a real browser; it's not mocking |
+| Locators | Role-based > label-based > placeholder > text > testid > CSS > XPath |
+| Auto-wait | Playwright checks 5 actionability conditions before every action |
+| Assertions | `expect()` retries; `assert` is one-shot — use the right tool |
+| Screenshots | Debug tool and visual regression baseline |
+| POM | Encapsulate locators in classes; tests call methods, not locators |
+| Fixtures | `yield` = setup before / teardown after |
+| parametrize | One test function, many inputs; avoids duplication |
+| CI | `.github/workflows/*.yml`; always upload artifacts on failure |
+
+**Common mistakes to avoid going forward:**
+- Mixing locators into test functions (use POM)
+- Using `time.sleep()` instead of `expect()` waits
+- Ignoring browser console errors (add a console listener)
+- Writing tests that depend on execution order (each test must be independent)
+- Not cleaning up after tests (each test should leave no trace for the next)
+</En>
+<Vi>
+**Tóm tắt Phase 3 — các kỹ năng thiết yếu:**
+
+| Kỹ năng | Điểm mấu chốt |
+|-------|-------------|
+| Tự động hoá trình duyệt | Playwright khởi chạy trình duyệt thực; không phải mock |
+| Locator | Role-based > label-based > placeholder > text > testid > CSS > XPath |
+| Auto-wait | Playwright kiểm tra 5 điều kiện hành động trước mỗi action |
+| Assertion | `expect()` thử lại; `assert` là một lần — dùng đúng công cụ |
+| Ảnh chụp màn hình | Công cụ gỡ lỗi và baseline hồi quy trực quan |
+| POM | Đóng gói locator trong class; test gọi method, không phải locator |
+| Fixture | `yield` = setup trước / teardown sau |
+| parametrize | Một hàm test, nhiều đầu vào |
+| CI | `.github/workflows/*.yml`; luôn tải artifact khi thất bại |
+
+**Các lỗi phổ biến cần tránh:**
+- Trộn locator vào hàm test (dùng POM)
+- Dùng `time.sleep()` thay vì `expect()` wait
+- Bỏ qua lỗi console trình duyệt
+- Viết test phụ thuộc vào thứ tự thực thi
+</Vi>
+
+## Code / Demo
+
+```python
+# A complete, well-structured Playwright test — demonstrating all Phase 3 skills
+
+import pytest
+from playwright.sync_api import Page, expect
+from pages.todo_page import TodoPage  # POM import
+
+# Fixture — setup and teardown
+@pytest.fixture
+def fresh_todo(page: Page) -> TodoPage:
+    todo = TodoPage(page)
+    todo.navigate()
+    yield todo
+    # Teardown: nothing to clean — fresh browser context per test
+
+# Parametrize — data-driven testing
+@pytest.mark.parametrize("items,expected_count", [
+    (["Task 1"], 1),
+    (["Task A", "Task B", "Task C"], 3),
+])
+def test_add_items_count(fresh_todo: TodoPage, items: list, expected_count: int):
+    for item in items:
+        fresh_todo.add(item)
+    assert fresh_todo.get_count() == expected_count
+
+# Clear assertion — uses expect() for auto-retry
+def test_item_visible_after_add(fresh_todo: TodoPage):
+    fresh_todo.add("Automation is fun")
+    # expect() auto-retries until visible or timeout
+    expect(fresh_todo.page.get_by_role("listitem")).to_contain_text("Automation is fun")
+
+# Negative test — verifying something does NOT happen
+def test_empty_submit_does_not_add(fresh_todo: TodoPage):
+    fresh_todo.new_todo_input.press("Enter")
+    assert fresh_todo.get_count() == 0
+
+# Screenshot on key step
+def test_complete_flow_with_screenshot(fresh_todo: TodoPage, tmp_path):
+    fresh_todo.add("Review Phase 3")
+    fresh_todo.page.screenshot(path=str(tmp_path / "before_complete.png"))
+    fresh_todo.complete("Review Phase 3")
+    fresh_todo.page.screenshot(path=str(tmp_path / "after_complete.png"))
+    completed = fresh_todo.page.locator(".todo-list li.completed")
+    assert completed.count() == 1
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Without looking at previous lessons, write a complete Playwright test for a "Register" page: navigate, fill name/email/password fields, submit, and assert a success message — use POM
+- [ ] Review your Phase 3 mini-project from Day 34 and identify one test that could be improved with parametrize — implement the improvement
+- [ ] Explain to someone else (or write it down) what happens inside Playwright between `page.get_by_role("button", name="Login").click()` and the click actually executing
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "A test passes locally but fails intermittently in CI. What is the most likely cause?",
+    choices: [
+      "The test file is in the wrong directory",
+      "A timing issue — the CI runner is slower, and a fixed sleep or one-shot assertion fails before the element is ready",
+      "GitHub Actions does not support Playwright",
+      "The test is using the wrong browser"
+    ],
+    answer: 1,
+    explain: "CI runners are often slower than local machines. If tests use fixed sleeps or assert is_visible() instead of expect().to_be_visible(), they pass locally (fast) but fail in CI (slow). Replace all fixed sleeps with expect() assertions to fix this."
+  },
+  {
+    q: "What is the key difference between POM with a fixture and POM without one?",
+    choices: [
+      "Fixtures are required to use page objects in Playwright",
+      "A fixture handles the creation and navigation setup, so every test gets a ready-to-use page object without repeating setup code",
+      "Page objects cannot be used without fixtures",
+      "Fixtures run tests faster"
+    ],
+    answer: 1,
+    explain: "Without a fixture, every test would call TodoPage(page) and todo.navigate() — that's duplication. A fixture encapsulates the creation and common setup, so tests declare 'todo: TodoPage' and immediately start testing the feature."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" },
+  { title: "Ministry of Testing", url: "https://www.ministryoftesting.com/" }
+]} />

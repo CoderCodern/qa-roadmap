@@ -1,0 +1,190 @@
+---
+id: 18
+title: "Dicts & sets"
+phase: 2
+estMinutes: 60
+tags: ["python", "data-structures"]
+---
+
+## Intro
+
+<En>
+Dicts and sets are the two remaining essential Python data structures for QA work. Dicts are how JSON responses look once parsed — every API response body is a dict (or a list of dicts). Sets give you instant membership testing and deduplication. Mastering these two types means you can navigate any API response and reason about any collection of values.
+</En>
+<Vi>
+Dict và set là hai cấu trúc dữ liệu thiết yếu còn lại của Python cho công việc QA. Dict là cách các JSON response trông sau khi được phân tích — mọi API response body đều là một dict (hoặc danh sách dict). Set cho phép kiểm tra thành viên tức thì và loại bỏ trùng lặp. Thành thạo hai kiểu này có nghĩa là bạn có thể điều hướng bất kỳ API response nào và suy luận về bất kỳ tập hợp giá trị nào.
+</Vi>
+
+## Concept
+
+<En>
+**Dict — key → value mapping, ordered (Python 3.7+):**
+```python
+user = {"id": 1, "email": "alice@example.com", "role": "admin"}
+user["email"]               # access by key
+user.get("phone", "N/A")   # safe access with default
+user["phone"] = "555-1234" # add/update key
+del user["phone"]           # remove key
+"email" in user             # membership check
+user.keys()                 # all keys
+user.values()               # all values
+user.items()                # (key, value) pairs for iteration
+```
+
+**Nested dicts** (common in JSON):
+```python
+response = {"data": {"user": {"id": 1}}}
+user_id = response["data"]["user"]["id"]  # chain access
+```
+
+**Set — unordered, unique elements:**
+```python
+roles = {"admin", "editor", "viewer"}
+"admin" in roles    # O(1) lookup
+roles.add("owner")
+roles.discard("viewer")  # remove if present (no error if absent)
+set_a & set_b       # intersection
+set_a | set_b       # union
+set_a - set_b       # difference
+```
+
+**Dict comprehension:**
+```python
+{item["id"]: item["name"] for item in items}
+```
+
+**When to use each:**
+- **dict** — structured data with named fields (API responses, test configs)
+- **set** — unordered unique values (allowed roles, unique IDs, deduplication)
+</En>
+<Vi>
+**Dict — ánh xạ key → value, có thứ tự (Python 3.7+):**
+```python
+user = {"id": 1, "email": "alice@example.com", "role": "admin"}
+user["email"]               # truy cập theo key
+user.get("phone", "N/A")   # truy cập an toàn với mặc định
+"email" in user             # kiểm tra thành viên
+user.items()                # cặp (key, value) để lặp
+```
+
+**Dict lồng nhau** (phổ biến trong JSON):
+```python
+response = {"data": {"user": {"id": 1}}}
+user_id = response["data"]["user"]["id"]
+```
+
+**Set — không có thứ tự, các phần tử duy nhất:**
+```python
+roles = {"admin", "editor", "viewer"}
+"admin" in roles    # tra cứu O(1)
+roles.add("owner")
+set_a & set_b       # giao
+set_a | set_b       # hợp
+set_a - set_b       # hiệu
+```
+
+**Khi nào dùng mỗi cái:**
+- **dict** — dữ liệu có cấu trúc với các trường được đặt tên (API response, cấu hình test)
+- **set** — giá trị duy nhất không có thứ tự (role được phép, ID duy nhất, loại bỏ trùng lặp)
+</Vi>
+
+## Code / Demo
+
+```python
+# Dicts and sets in API testing context
+
+# Simulated parsed JSON API response
+response = {
+    "status": "success",
+    "data": {
+        "users": [
+            {"id": 1, "email": "alice@example.com", "roles": ["admin", "editor"]},
+            {"id": 2, "email": "bob@example.com", "roles": ["viewer"]},
+            {"id": 3, "email": "charlie@example.com", "roles": ["editor"]},
+        ],
+        "total": 3,
+        "page": 1,
+    }
+}
+
+# Assert top-level structure
+assert response["status"] == "success"
+assert "data" in response
+
+# Navigate nested structure
+data = response["data"]
+users = data["users"]
+assert data["total"] == len(users)
+
+# Iterate over dict items
+meta = {"page": data["page"], "total": data["total"]}
+for key, value in meta.items():
+    print(f"  {key}: {value}")
+
+# Safe access with .get()
+first_user = users[0]
+phone = first_user.get("phone", "not provided")
+assert phone == "not provided"
+
+# Build a lookup dict from list of users (id → user)
+user_by_id = {user["id"]: user for user in users}
+assert user_by_id[1]["email"] == "alice@example.com"
+assert user_by_id[2]["email"] == "bob@example.com"
+
+# Sets for role validation
+allowed_roles = {"admin", "editor", "viewer", "owner"}
+alice_roles = set(users[0]["roles"])
+unknown_roles = alice_roles - allowed_roles
+assert not unknown_roles, f"Unknown roles: {unknown_roles}"
+
+# Deduplication with sets
+all_role_assignments = []
+for user in users:
+    all_role_assignments.extend(user["roles"])
+unique_roles = set(all_role_assignments)
+print(f"Unique roles in system: {unique_roles}")
+assert "admin" in unique_roles
+assert "viewer" in unique_roles
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Given a parsed JSON response containing a list of orders with `order_id`, `status`, and `amount`, write code to: build a dict mapping `order_id` to `amount`, compute the total amount, and find all unique statuses
+- [ ] Use `.get()` with a default to safely access a nested field three levels deep without risking a `KeyError`
+- [ ] Write an assertion that verifies two sets of user permissions have no overlap (no role appears in both sets)
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What does `user.get('phone', 'N/A')` return if 'phone' is not in the dict?",
+    choices: [
+      "KeyError",
+      "None",
+      "'N/A'",
+      "False"
+    ],
+    answer: 2,
+    explain: "dict.get(key, default) returns the default value when the key doesn't exist, instead of raising a KeyError. This is the idiomatic way to safely access optional dict fields."
+  },
+  {
+    q: "What is the time complexity of checking `x in my_set` for a set?",
+    choices: [
+      "O(n) — linear search",
+      "O(log n) — binary search",
+      "O(1) — constant time",
+      "O(n²) — quadratic"
+    ],
+    answer: 2,
+    explain: "Sets use a hash table internally, so membership testing is O(1) on average — it doesn't slow down as the set grows. Lists use O(n) linear search."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Dicts — docs.python.org", url: "https://docs.python.org/3/tutorial/datastructures.html#dictionaries" },
+  { title: "Real Python — Dictionaries", url: "https://realpython.com/" }
+]} />

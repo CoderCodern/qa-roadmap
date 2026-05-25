@@ -1,0 +1,182 @@
+---
+id: 37
+title: "REST & JSON"
+phase: 4
+estMinutes: 60
+tags: ["api-testing", "rest", "json"]
+---
+
+## Intro
+
+<En>
+REST is the architectural style used by the vast majority of web APIs you will test. JSON is the data format those APIs exchange. Understanding REST constraints and JSON structure is not optional — it's the foundation for every assertion you'll write in Phase 4. By the end of today you can look at any REST API response and immediately know what to test.
+</En>
+<Vi>
+REST là kiến trúc được sử dụng bởi phần lớn các web API bạn sẽ kiểm thử. JSON là định dạng dữ liệu mà những API đó trao đổi. Hiểu các ràng buộc REST và cấu trúc JSON không phải là tùy chọn — đó là nền tảng cho mọi assertion bạn sẽ viết trong Phase 4. Cuối ngày, bạn có thể nhìn vào bất kỳ API response REST nào và ngay lập tức biết phải kiểm thử gì.
+</Vi>
+
+## Concept
+
+<En>
+**REST principles (what makes an API RESTful):**
+1. **Stateless** — each request carries everything needed; server stores no session state
+2. **Resource-based** — URLs identify resources (`/users/42`, not `/getUser?id=42`)
+3. **HTTP verbs convey intent** — GET reads, POST creates, PUT replaces, DELETE removes
+4. **Uniform interface** — consistent response structure across all endpoints
+
+**REST URL conventions:**
+```
+GET    /users          → list all users
+POST   /users          → create a user
+GET    /users/42       → get user 42
+PUT    /users/42       → replace user 42 entirely
+PATCH  /users/42       → update specific fields of user 42
+DELETE /users/42       → delete user 42
+GET    /users/42/posts → list posts belonging to user 42
+```
+
+**JSON data types:**
+```json
+{
+  "string": "hello",
+  "number": 42,
+  "float": 3.14,
+  "boolean": true,
+  "null": null,
+  "array": [1, 2, 3],
+  "nested_object": {
+    "key": "value"
+  }
+}
+```
+
+**What to test in a REST response:**
+- Status code is correct for the method/action
+- Response body has the expected fields
+- Field types are correct (id is int, email is string, etc.)
+- Required fields are never null/missing
+- Created resources have an `id`
+- Timestamps are present and in the right format
+- Pagination metadata is accurate (total, page, limit)
+</En>
+<Vi>
+**Nguyên tắc REST:**
+1. **Stateless** — mỗi request mang mọi thứ cần thiết; server không lưu trạng thái phiên
+2. **Dựa trên tài nguyên** — URL xác định tài nguyên (`/users/42`)
+3. **HTTP verb truyền đạt ý định** — GET đọc, POST tạo, PUT thay thế, DELETE xoá
+4. **Giao diện thống nhất** — cấu trúc response nhất quán
+
+**Quy ước URL REST:**
+```
+GET    /users          → liệt kê tất cả user
+POST   /users          → tạo user
+GET    /users/42       → lấy user 42
+PUT    /users/42       → thay thế toàn bộ user 42
+PATCH  /users/42       → cập nhật một số trường của user 42
+DELETE /users/42       → xoá user 42
+```
+
+**Những gì cần kiểm thử trong REST response:**
+- Status code đúng cho method/action
+- Body response có các trường mong đợi
+- Kiểu trường đúng (id là int, email là string)
+- Các trường bắt buộc không bao giờ null/thiếu
+- Tài nguyên đã tạo có `id`
+- Metadata phân trang chính xác
+</Vi>
+
+## Code / Demo
+
+```python
+import json
+
+# A realistic REST API response for GET /users/42
+raw_response = '''
+{
+  "id": 42,
+  "email": "alice@example.com",
+  "name": "Alice Smith",
+  "role": "admin",
+  "is_active": true,
+  "created_at": "2024-01-15T09:30:00Z",
+  "profile": {
+    "avatar_url": "https://cdn.example.com/avatars/42.png",
+    "bio": "Senior QA Engineer"
+  },
+  "tags": ["qa", "automation", "python"]
+}
+'''
+
+user = json.loads(raw_response)
+
+# --- Assert presence and types ---
+assert "id" in user,    "Missing required field: id"
+assert "email" in user, "Missing required field: email"
+assert "role" in user,  "Missing required field: role"
+
+assert isinstance(user["id"], int),      f"id must be int, got {type(user['id'])}"
+assert isinstance(user["email"], str),   "email must be str"
+assert isinstance(user["is_active"], bool), "is_active must be bool"
+assert isinstance(user["tags"], list),   "tags must be a list"
+assert isinstance(user["profile"], dict), "profile must be a dict"
+
+# --- Assert values ---
+assert user["role"] in {"admin", "editor", "viewer"}, \
+    f"Unexpected role: {user['role']}"
+assert "@" in user["email"], "email must contain @"
+assert user["id"] > 0, "id must be positive"
+
+# --- Assert nested object ---
+assert "avatar_url" in user["profile"]
+assert user["profile"]["avatar_url"].startswith("https://")
+
+# --- Assert timestamp format (basic check) ---
+created_at = user["created_at"]
+assert "T" in created_at and "Z" in created_at, \
+    "created_at should be ISO 8601 UTC format"
+
+print("All REST response assertions passed!")
+print(f"User: {user['name']} ({user['role']})")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Design the URL structure for a blog API with posts and comments — list at least 6 endpoints covering CRUD for both resources
+- [ ] Given the JSON response for a paginated list (`{"items": [...], "total": 47, "page": 2, "limit": 10}`), write assertions that verify: items is a list, total is a positive int, page is at least 1, and there are at most `limit` items
+- [ ] For each of the 4 JSON types (string, number, boolean, null), write a Python assertion using `isinstance()` or `is None` to verify the type
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What does 'stateless' mean in REST?",
+    choices: [
+      "The server never stores any data",
+      "Each request contains all information needed to process it — the server keeps no session state between requests",
+      "The API does not support authentication",
+      "REST APIs cannot maintain database state"
+    ],
+    answer: 1,
+    explain: "Stateless means the server doesn't remember previous requests. Every request must be self-contained with auth tokens, parameters, and context. This enables horizontal scaling and simpler server design."
+  },
+  {
+    q: "Which URL follows REST conventions for getting a specific user?",
+    choices: [
+      "/getUser?id=42",
+      "/users/get/42",
+      "/users/42",
+      "/api?action=getUser&id=42"
+    ],
+    answer: 2,
+    explain: "/users/42 is the RESTful convention: the URL identifies a resource (user 42), and the HTTP method (GET) conveys the intent. Action verbs in URLs (/getUser) are not RESTful — they mix the verb into the resource path."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "MDN — REST", url: "https://developer.mozilla.org/en-US/docs/Glossary/REST" },
+  { title: "MDN — JSON", url: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON" }
+]} />

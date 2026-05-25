@@ -1,0 +1,164 @@
+---
+id: 24
+title: "Locators"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "locators"]
+---
+
+## Intro
+
+<En>
+A locator tells Playwright which element on the page to interact with. Choosing the right locator strategy is one of the most important skills in browser automation — good locators make tests stable, bad ones make them flaky. Playwright's recommended locators are designed to match how users find elements, not how developers structure HTML.
+</En>
+<Vi>
+Locator cho Playwright biết phần tử nào trên trang cần tương tác. Chọn chiến lược locator đúng là một trong những kỹ năng quan trọng nhất trong tự động hoá trình duyệt — locator tốt làm cho test ổn định, locator xấu làm cho chúng không ổn định. Các locator được khuyến nghị của Playwright được thiết kế để khớp với cách người dùng tìm phần tử, không phải cách developer cấu trúc HTML.
+</Vi>
+
+## Concept
+
+<En>
+**Playwright's recommended locators (in priority order):**
+
+| Locator | Code | When to use |
+|---------|------|-------------|
+| Role + name | `page.get_by_role("button", name="Login")` | Best — matches ARIA semantics |
+| Label text | `page.get_by_label("Email address")` | Form inputs associated to a label |
+| Placeholder | `page.get_by_placeholder("Enter email")` | Inputs without labels |
+| Text content | `page.get_by_text("Sign in")` | Any visible text |
+| Test ID | `page.get_by_test_id("login-btn")` | Explicit test hooks (`data-testid`) |
+| CSS selector | `page.locator("input.email-field")` | Last resort — brittle |
+| XPath | `page.locator("//button[@id='login']")` | Avoid — very brittle |
+
+**Why role-based locators are preferred:**
+- They survive CSS class renames and DOM restructuring
+- They test accessibility at the same time — if `get_by_role("button")` can't find it, screen readers may not either
+- They are self-documenting
+
+**Filtering locators:**
+```python
+# Multiple matches? Filter to narrow down
+page.locator("li").filter(has_text="Alice")
+page.get_by_role("row").nth(0)          # first matching element
+page.locator(".card").last               # last matching element
+```
+
+**Chaining locators:**
+```python
+form = page.locator("form#login")
+email_input = form.get_by_label("Email")  # search within form only
+```
+</En>
+<Vi>
+**Các locator được Playwright khuyến nghị (theo thứ tự ưu tiên):**
+
+| Locator | Code | Khi nào dùng |
+|---------|------|-------------|
+| Role + name | `page.get_by_role("button", name="Login")` | Tốt nhất — khớp ngữ nghĩa ARIA |
+| Label text | `page.get_by_label("Email address")` | Input form liên kết với label |
+| Placeholder | `page.get_by_placeholder("Enter email")` | Input không có label |
+| Text content | `page.get_by_text("Sign in")` | Bất kỳ văn bản hiển thị nào |
+| Test ID | `page.get_by_test_id("login-btn")` | Hook test tường minh (`data-testid`) |
+| CSS selector | `page.locator("input.email-field")` | Phương án cuối — dễ vỡ |
+
+**Tại sao locator dựa trên role được ưu tiên:**
+- Chúng tồn tại qua các lần đổi tên class CSS và tái cấu trúc DOM
+- Chúng kiểm tra khả năng tiếp cận cùng lúc
+- Chúng tự ghi lại ý nghĩa
+
+**Lọc locator:**
+```python
+page.locator("li").filter(has_text="Alice")
+page.get_by_role("row").nth(0)
+page.locator(".card").last
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_locators.py
+from playwright.sync_api import Page, expect
+
+def test_role_locator(page: Page):
+    page.goto("https://example.com")
+    # Role + accessible name
+    link = page.get_by_role("link", name="More information")
+    expect(link).to_be_visible()
+    print(f"Link href: {link.get_attribute('href')}")
+
+def test_text_locator(page: Page):
+    page.goto("https://example.com")
+    # Find by visible text
+    para = page.get_by_text("for use in illustrative examples")
+    expect(para).to_be_visible()
+
+def test_locator_count(page: Page):
+    page.goto("https://example.com")
+    # Count elements matching a selector
+    links = page.locator("a")
+    count = links.count()
+    assert count >= 1, f"Expected at least 1 link, found {count}"
+    print(f"Found {count} link(s) on page")
+
+def test_first_and_last_locator(page: Page):
+    page.goto("https://example.com")
+    links = page.locator("a")
+    first_link = links.first
+    last_link = links.last
+    # Both should exist (same element if only one link)
+    expect(first_link).to_be_visible()
+    expect(last_link).to_be_visible()
+
+def test_heading_selector(page: Page):
+    page.goto("https://example.com")
+    # Heading via role
+    h1 = page.get_by_role("heading", level=1)
+    expect(h1).to_contain_text("Example Domain")
+
+    # Heading via CSS (less preferred)
+    h1_css = page.locator("h1")
+    expect(h1_css).to_have_count(1)
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] For a page of your choice (e.g., a demo login page), identify and write locators for: the email input, password input, submit button, and a link — prefer role/label-based locators over CSS selectors
+- [ ] Use `.filter(has_text="...")` to narrow a locator that matches multiple elements to a specific one
+- [ ] Run Playwright's codegen tool (`playwright codegen https://example.com`) and observe which locators it suggests — note which ones use roles vs CSS
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Which locator strategy is most resilient to code changes?",
+    choices: [
+      "CSS class selectors like .login-button",
+      "XPath expressions like //button[@id='btn1']",
+      "Role-based locators like get_by_role('button', name='Login')",
+      "Index-based locators like locator('button').nth(3)"
+    ],
+    answer: 2,
+    explain: "Role-based locators target ARIA semantics, not DOM structure. They survive CSS refactors, DOM restructuring, and ID changes — because the accessible role and name are stable contract, tied to what the element means to users."
+  },
+  {
+    q: "What does `page.locator('.card').first` return?",
+    choices: [
+      "The number of .card elements",
+      "A Locator representing the first element matching .card",
+      "The text of the first .card",
+      "A list of all .card elements"
+    ],
+    answer: 1,
+    explain: ".first is a shortcut for .nth(0) — it returns a Locator targeting only the first matched element. Locators are lazy — they don't query the DOM until you interact with them."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Locators Guide", url: "https://playwright.dev/python/docs/locators" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

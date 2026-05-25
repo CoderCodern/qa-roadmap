@@ -1,0 +1,147 @@
+---
+id: 22
+title: "Browser automation intro"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "intro"]
+---
+
+## Intro
+
+<En>
+Browser automation means writing code that controls a real web browser — clicking buttons, filling forms, navigating pages — the same actions a human would take, but executed by a script. Playwright is the modern industry standard for this. It is fast, reliable, cross-browser, and has first-class Python support.
+</En>
+<Vi>
+Tự động hoá trình duyệt có nghĩa là viết code điều khiển trình duyệt web thực — nhấp nút, điền form, điều hướng trang — những hành động giống như con người thực hiện, nhưng được thực thi bởi script. Playwright là tiêu chuẩn công nghiệp hiện đại cho việc này. Nó nhanh, đáng tin cậy, đa trình duyệt và có hỗ trợ Python hạng nhất.
+</Vi>
+
+## Concept
+
+<En>
+**What Playwright does:**
+Playwright launches a real browser (Chromium, Firefox, or WebKit), navigates to pages, interacts with elements, and lets you assert on the page state. Unlike older tools like Selenium, Playwright:
+- Auto-waits for elements to be ready before interacting
+- Runs headless (no visible window) or headed (with visible window)
+- Supports multiple browser contexts (isolated sessions) in one test run
+- Has a codegen tool that records your actions and generates test code
+
+**Key concepts:**
+
+| Concept | Description |
+|---------|-------------|
+| **Browser** | The browser instance (Chromium, Firefox, WebKit) |
+| **Context** | An isolated browser session — like a private window. Separate cookies, storage |
+| **Page** | A single browser tab |
+| **Locator** | A smart element finder that auto-waits |
+| **Assertion** | `expect(locator).to_be_visible()` — Playwright's built-in assertions |
+
+**Install Playwright for Python:**
+```bash
+pip install playwright
+playwright install chromium
+```
+
+**Headless vs headed:** Headless runs without a visible window (faster, used in CI). Headed shows the browser (useful for debugging). Toggle with `headless=False` in `launch()`.
+</En>
+<Vi>
+**Playwright làm gì:**
+Playwright khởi chạy trình duyệt thực (Chromium, Firefox hoặc WebKit), điều hướng đến các trang, tương tác với các phần tử và cho phép bạn assert về trạng thái trang. Khác với các công cụ cũ như Selenium, Playwright:
+- Tự động chờ phần tử sẵn sàng trước khi tương tác
+- Chạy headless (không có cửa sổ hiển thị) hoặc headed (có cửa sổ hiển thị)
+- Hỗ trợ nhiều browser context (phiên riêng biệt) trong một lần chạy test
+- Có công cụ codegen ghi lại hành động của bạn và tạo code test
+
+**Các khái niệm quan trọng:**
+
+| Khái niệm | Mô tả |
+|---------|-------------|
+| **Browser** | Instance trình duyệt (Chromium, Firefox, WebKit) |
+| **Context** | Phiên trình duyệt độc lập — như cửa sổ riêng tư |
+| **Page** | Một tab trình duyệt |
+| **Locator** | Bộ tìm phần tử thông minh tự động chờ |
+| **Assertion** | `expect(locator).to_be_visible()` |
+
+**Cài đặt Playwright cho Python:**
+```bash
+pip install playwright
+playwright install chromium
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# First Playwright script — run with: python demo.py
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    # Launch a browser
+    browser = p.chromium.launch(headless=True)
+
+    # Create an isolated context
+    context = browser.new_context()
+
+    # Open a new page (tab)
+    page = context.new_page()
+
+    # Navigate
+    page.goto("https://example.com")
+
+    # Assert on page content
+    heading = page.locator("h1")
+    assert heading.text_content() == "Example Domain"
+    print(f"Page title: {page.title()}")
+    print(f"Heading: {heading.text_content()}")
+
+    # Take a screenshot
+    page.screenshot(path="example_screenshot.png")
+    print("Screenshot saved!")
+
+    # Cleanup
+    context.close()
+    browser.close()
+
+print("Browser automation complete!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Install Playwright and Chromium following the install commands above, then run the demo script — verify the screenshot was created
+- [ ] Modify the script to also print the page URL and the number of links on the page (use `page.locator("a").count()`)
+- [ ] Run the script with `headless=False` and watch it happen in the browser window
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is a Playwright 'context'?",
+    choices: [
+      "The Python script that controls the browser",
+      "An isolated browser session with its own cookies and storage — like a private window",
+      "The headless mode setting",
+      "The assertion library"
+    ],
+    answer: 1,
+    explain: "A browser context is an isolated environment — separate cookies, local storage, and session state. You can run multiple contexts in parallel (e.g., logged-in user and guest user) without them interfering."
+  },
+  {
+    q: "What does Playwright's auto-wait feature do?",
+    choices: [
+      "Adds a fixed time.sleep() before every action",
+      "Automatically waits for elements to be ready (visible, enabled, stable) before interacting",
+      "Waits for the browser to close",
+      "Waits for all network requests to complete before each assertion"
+    ],
+    answer: 1,
+    explain: "Playwright's auto-wait eliminates the need for manual sleep() calls. Before clicking or filling, it checks that the element is attached, visible, stable, and enabled — preventing most flaky test issues."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+]} />

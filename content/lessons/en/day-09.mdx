@@ -1,0 +1,135 @@
+---
+id: 9
+title: "Variables & data types"
+phase: 2
+estMinutes: 60
+tags: ["python", "basics"]
+---
+
+## Intro
+
+<En>
+Every Python program works with data. Variables are named containers that hold data, and every piece of data has a type. Understanding Python's built-in types and how to inspect them is the foundation for writing any kind of test logic.
+</En>
+<Vi>
+Mọi chương trình Python đều làm việc với dữ liệu. Biến là các container có tên chứa dữ liệu, và mọi dữ liệu đều có một kiểu. Hiểu các kiểu dữ liệu tích hợp của Python và cách kiểm tra chúng là nền tảng để viết bất kỳ loại logic test nào.
+</Vi>
+
+## Concept
+
+<En>
+**Core data types you'll use constantly in testing:**
+
+| Type | Example | Common use in tests |
+|------|---------|---------------------|
+| `int` | `42` | status codes, counts |
+| `float` | `3.14` | prices, percentages |
+| `str` | `"hello"` | usernames, messages, URLs |
+| `bool` | `True / False` | assertion results, feature flags |
+| `None` | `None` | absent values, empty responses |
+
+**Key rules:**
+- Python is dynamically typed — you don't declare the type; Python infers it.
+- Use `type(x)` to check the type of any variable.
+- Use `isinstance(x, SomeType)` in tests — it handles inheritance correctly.
+- `None` is not the same as `0`, `False`, or `""`. Be explicit when checking for `None`.
+
+**Type coercion:** Python won't silently convert between types. `"5" + 5` raises a `TypeError`. Convert explicitly: `int("5") + 5 == 10`.
+</En>
+<Vi>
+**Các kiểu dữ liệu cốt lõi bạn sẽ dùng liên tục trong kiểm thử:**
+
+| Kiểu | Ví dụ | Dùng phổ biến trong test |
+|------|---------|---------------------|
+| `int` | `42` | mã trạng thái, số đếm |
+| `float` | `3.14` | giá cả, phần trăm |
+| `str` | `"hello"` | tên người dùng, thông báo, URL |
+| `bool` | `True / False` | kết quả assertion, feature flags |
+| `None` | `None` | giá trị vắng mặt, response rỗng |
+
+**Các quy tắc quan trọng:**
+- Python là ngôn ngữ kiểu động — bạn không khai báo kiểu; Python suy luận nó.
+- Dùng `type(x)` để kiểm tra kiểu của bất kỳ biến nào.
+- Dùng `isinstance(x, SomeType)` trong test — nó xử lý kế thừa đúng cách.
+- `None` không giống `0`, `False`, hay `""`. Hãy rõ ràng khi kiểm tra `None`.
+
+**Chuyển đổi kiểu:** Python sẽ không tự động chuyển đổi giữa các kiểu. `"5" + 5` sẽ gây ra `TypeError`. Chuyển đổi tường minh: `int("5") + 5 == 10`.
+</Vi>
+
+## Code / Demo
+
+```python
+# Variables — no type declarations needed
+status_code = 200
+username = "alice"
+is_logged_in = True
+response_body = None
+price = 29.99
+
+# Check types
+print(type(status_code))    # <class 'int'>
+print(type(username))       # <class 'str'>
+print(type(is_logged_in))   # <class 'bool'>
+print(type(response_body))  # <class 'NoneType'>
+
+# isinstance is safer in tests than type() ==
+assert isinstance(status_code, int)
+assert isinstance(username, str)
+
+# Truthiness — common in test conditions
+assert status_code          # 200 is truthy
+assert not response_body    # None is falsy
+assert is_logged_in         # True is truthy
+
+# Explicit None check (preferred over 'if x is not None')
+if response_body is None:
+    print("No response body — expected for 204 responses")
+
+# Type conversion
+raw = "404"
+code = int(raw)
+assert code == 404
+print(f"Converted '{raw}' to integer {code}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Create variables representing a hypothetical API response: status code (int), message (str), success flag (bool), data payload (None for now)
+- [ ] Use `type()` to print the type of each variable, then verify each with `isinstance()`
+- [ ] Write two assertions: one that passes and one that intentionally fails — observe the `AssertionError` message
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What does `isinstance(x, str)` return if x = 'hello'?",
+    choices: [
+      "False",
+      "True",
+      "TypeError",
+      "'str'"
+    ],
+    answer: 1,
+    explain: "isinstance checks whether a value is an instance of a given type. 'hello' is a str, so it returns True. isinstance is preferred over type(x) == str because it handles subclasses correctly."
+  },
+  {
+    q: "Which of these values is falsy in Python?",
+    choices: [
+      "1",
+      "'False'",
+      "None",
+      "0.1"
+    ],
+    answer: 2,
+    explain: "None is falsy in Python, as are 0, 0.0, empty strings '', empty lists [], and empty dicts {}. The string 'False' is truthy because it's a non-empty string."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Built-in Types — docs.python.org", url: "https://docs.python.org/3/library/stdtypes.html" },
+  { title: "Real Python — Variables", url: "https://realpython.com/" }
+]} />

@@ -1,0 +1,112 @@
+---
+id: 3
+title: "Test case design"
+phase: 1
+estMinutes: 75
+tags: ["fundamentals", "design"]
+---
+
+## Intro
+
+<En>
+A test case is a documented set of conditions, steps, and expected results used to verify that a feature works correctly. Writing good test cases is both a science and an art — two powerful techniques guide most of the work.
+</En>
+<Vi>
+Một test case là một tập hợp các điều kiện, bước thực hiện và kết quả mong đợi được ghi lại để xác minh rằng một tính năng hoạt động đúng. Viết test case tốt vừa là khoa học vừa là nghệ thuật — hai kỹ thuật mạnh mẽ hướng dẫn hầu hết công việc.
+</Vi>
+
+## Concept
+
+<En>
+**Equivalence Partitioning (EP)** divides input values into groups (partitions) where all values in a group behave the same way. Instead of testing every possible input, you test one representative from each partition.
+
+Example — password length field (6–20 characters):
+- Invalid partition 1: too short (1–5 chars) → test with 4
+- Valid partition: acceptable length (6–20 chars) → test with 10
+- Invalid partition 2: too long (>20 chars) → test with 25
+
+By testing one value per partition you cover all classes of behaviour without redundancy.
+
+**Boundary Value Analysis (BVA)** focuses on values at the edges of partitions, where bugs most commonly hide. For the same password field:
+- Boundaries: 5 (just below), 6 (minimum valid), 20 (maximum valid), 21 (just above)
+
+Test all four boundary values for maximum bug-catching power. EP and BVA are usually combined.
+</En>
+<Vi>
+**Phân vùng tương đương (EP)** chia các giá trị đầu vào thành các nhóm (phân vùng) mà tất cả các giá trị trong một nhóm có hành vi giống nhau. Thay vì kiểm tra mọi đầu vào có thể, bạn kiểm tra một đại diện từ mỗi phân vùng.
+
+Ví dụ — trường độ dài mật khẩu (6–20 ký tự):
+- Phân vùng không hợp lệ 1: quá ngắn (1–5 ký tự) → kiểm tra với 4
+- Phân vùng hợp lệ: độ dài chấp nhận được (6–20 ký tự) → kiểm tra với 10
+- Phân vùng không hợp lệ 2: quá dài (>20 ký tự) → kiểm tra với 25
+
+Bằng cách kiểm tra một giá trị cho mỗi phân vùng, bạn bao phủ tất cả các lớp hành vi mà không có sự dư thừa.
+
+**Phân tích giá trị biên (BVA)** tập trung vào các giá trị tại ranh giới của các phân vùng, nơi bug thường ẩn náu nhất. Đối với trường mật khẩu tương tự:
+- Các giá trị biên: 5 (dưới tối thiểu một chút), 6 (tối thiểu hợp lệ), 20 (tối đa hợp lệ), 21 (trên tối đa một chút)
+
+Kiểm tra cả bốn giá trị biên để có sức mạnh phát hiện bug tối đa. EP và BVA thường được kết hợp với nhau.
+</Vi>
+
+## Code / Demo
+
+```python
+# Applying EP and BVA to a password validation function
+def is_valid_password(password: str) -> bool:
+    return 6 <= len(password) <= 20
+
+# EP test cases
+assert is_valid_password("hi") is False         # Invalid: too short (EP class 1)
+assert is_valid_password("hello123") is True    # Valid (EP class 2)
+assert is_valid_password("a" * 25) is False     # Invalid: too long (EP class 3)
+
+# BVA test cases (edges of the valid partition)
+assert is_valid_password("a" * 5) is False      # BVA: just below minimum
+assert is_valid_password("a" * 6) is True       # BVA: exactly at minimum
+assert is_valid_password("a" * 20) is True      # BVA: exactly at maximum
+assert is_valid_password("a" * 21) is False     # BVA: just above maximum
+
+print("All EP and BVA tests passed!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] For an age input field (1–120), list all EP partitions and boundary values
+- [ ] Write 4 test cases using EP for a quantity field that accepts 1–99
+- [ ] Describe a real feature where BVA helped you catch a bug that a simple "happy path" test missed
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "A text field accepts values between 10 and 100. Using EP, which values do you test?",
+    choices: [
+      "Every value from 10 to 100",
+      "One value below 10, one between 10–100, one above 100",
+      "Only 10 and 100",
+      "Only 50"
+    ],
+    answer: 1,
+    explain: "EP selects one representative from each partition: invalid-below, valid, and invalid-above. This covers all behaviour classes efficiently."
+  },
+  {
+    q: "Why does Boundary Value Analysis focus on edges of partitions?",
+    choices: [
+      "Because the middle values are always correct",
+      "Because bugs most commonly occur at the boundaries of valid ranges",
+      "Because it is faster than testing any other value",
+      "Because boundary values are required by ISTQB"
+    ],
+    answer: 1,
+    explain: "Off-by-one errors and fence-post bugs cluster at boundaries — a 'greater than' check written as 'greater than or equal to' only shows up when you test the exact boundary."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB Foundation Syllabus", url: "https://www.istqb.org/certifications/certified-tester-foundation-level" },
+  { title: "Ministry of Testing — Test Design", url: "https://www.ministryoftesting.com/" }
+]} />

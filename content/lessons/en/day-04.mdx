@@ -1,0 +1,130 @@
+---
+id: 4
+title: "Bug lifecycle"
+phase: 1
+estMinutes: 60
+tags: ["fundamentals", "bugs"]
+---
+
+## Intro
+
+<En>
+A bug doesn't just exist — it travels through a lifecycle from discovery to resolution. Understanding that lifecycle, and how to communicate it clearly, is essential for every QA engineer.
+</En>
+<Vi>
+Một bug không chỉ tồn tại — nó di chuyển qua một vòng đời từ khi phát hiện đến khi giải quyết. Hiểu vòng đời đó và cách truyền đạt nó rõ ràng là điều thiết yếu với mọi kỹ sư QA.
+</Vi>
+
+## Concept
+
+<En>
+**Bug lifecycle stages:**
+1. **New** — Tester finds a defect and logs it.
+2. **Assigned** — The bug is assigned to a developer to investigate.
+3. **Open / In Progress** — The developer is working on a fix.
+4. **Fixed** — Developer marks it resolved and hands back to QA.
+5. **Verified** — QA confirms the fix works in the appropriate environment.
+6. **Closed** — Bug is confirmed fixed and removed from the active list.
+7. **Reopened** — Fix didn't work, or the issue returned; back to Assigned.
+
+**Severity vs Priority:**
+- **Severity** measures the impact of the bug on the system (how bad is it technically?). Scale: Critical → High → Medium → Low.
+- **Priority** measures how urgently the bug must be fixed relative to other work (how soon?). A cosmetic bug on the login screen might be Low severity but High priority because it's the first thing executives see.
+
+**A great bug report includes:**
+- **Title:** short, specific, searchable
+- **Steps to reproduce:** numbered, minimal
+- **Expected result:** what should happen
+- **Actual result:** what does happen
+- **Environment:** OS, browser, version, test data used
+- **Attachments:** screenshots, logs, video if helpful
+</En>
+<Vi>
+**Các giai đoạn vòng đời bug:**
+1. **Mới** — Tester tìm thấy lỗi và ghi lại.
+2. **Được giao** — Bug được giao cho developer để điều tra.
+3. **Đang mở / Đang xử lý** — Developer đang làm việc trên bản sửa.
+4. **Đã sửa** — Developer đánh dấu là đã giải quyết và chuyển lại cho QA.
+5. **Đã xác minh** — QA xác nhận rằng bản sửa hoạt động trong môi trường thích hợp.
+6. **Đã đóng** — Bug được xác nhận là đã sửa và xóa khỏi danh sách đang hoạt động.
+7. **Mở lại** — Bản sửa không hoạt động, hoặc vấn đề xuất hiện trở lại; quay lại trạng thái Được giao.
+
+**Mức độ nghiêm trọng vs Ưu tiên:**
+- **Mức độ nghiêm trọng** đo lường tác động của bug lên hệ thống (về mặt kỹ thuật, nó tệ đến mức nào?). Thang đo: Nghiêm trọng → Cao → Trung bình → Thấp.
+- **Ưu tiên** đo lường mức độ khẩn cấp của việc sửa bug so với các công việc khác (bao lâu phải sửa?). Một bug thẩm mỹ trên màn hình đăng nhập có thể có Mức độ nghiêm trọng Thấp nhưng Ưu tiên Cao vì đó là điều đầu tiên giám đốc điều hành nhìn thấy.
+
+**Một báo cáo bug tốt bao gồm:**
+- **Tiêu đề:** ngắn gọn, cụ thể, dễ tìm kiếm
+- **Các bước tái hiện:** đánh số, tối giản
+- **Kết quả mong đợi:** điều gì sẽ xảy ra
+- **Kết quả thực tế:** điều gì đang xảy ra
+- **Môi trường:** OS, trình duyệt, phiên bản, dữ liệu test đã dùng
+- **Tệp đính kèm:** ảnh chụp màn hình, log, video nếu hữu ích
+</Vi>
+
+## Code / Demo
+
+```python
+# Example of a well-structured bug report as a Python dict
+# (In real projects you'd enter this into Jira, GitHub Issues, etc.)
+bug_report = {
+    "title": "Login button unresponsive when password contains special characters",
+    "severity": "High",
+    "priority": "High",
+    "steps": [
+        "1. Navigate to https://app.example.com/login",
+        "2. Enter any valid email address",
+        "3. Enter password: P@$$w0rd!",
+        "4. Click the 'Log In' button"
+    ],
+    "expected": "User is authenticated and redirected to /dashboard",
+    "actual": "Button becomes greyed out and nothing happens; no error message shown",
+    "environment": "Chrome 124, macOS 14.4, Staging environment",
+    "attachments": ["screenshot_login_bug.png", "console_errors.log"]
+}
+
+for key, value in bug_report.items():
+    print(f"{key}: {value}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Find a bug in any app you use (or simulate one) and write a complete bug report using the template above
+- [ ] Classify two real bugs you've encountered by both severity and priority — explain your reasoning
+- [ ] Map out the full bug lifecycle in your own words, as if explaining it to a junior tester
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "A login page crash affects all users and blocks core functionality. How would you classify it?",
+    choices: [
+      "Low severity, Low priority",
+      "High severity, Low priority",
+      "Critical severity, High priority",
+      "Medium severity, High priority"
+    ],
+    answer: 2,
+    explain: "A crash blocking all users is Critical severity (maximum technical impact). Fixing it is High priority because it affects the entire user base."
+  },
+  {
+    q: "After a developer marks a bug as 'Fixed', what is the QA engineer's next step?",
+    choices: [
+      "Close the bug immediately",
+      "Reopen the bug and log a new one",
+      "Verify the fix in the appropriate environment, then close it",
+      "Assign it to another developer for a second opinion"
+    ],
+    answer: 2,
+    explain: "QA must independently verify the fix works before closing the bug. This ensures the developer's fix actually resolved the issue in the target environment."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB — Defect Management", url: "https://www.istqb.org/" },
+  { title: "Ministry of Testing — Bug Reporting Guide", url: "https://www.ministryoftesting.com/" }
+]} />

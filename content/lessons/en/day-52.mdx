@@ -1,0 +1,217 @@
+---
+id: 52
+title: "Writing a test plan"
+phase: 5
+estMinutes: 75
+tags: ["capstone", "test-plan", "documentation"]
+---
+
+## Intro
+
+<En>
+Automation is not everything. Before writing a single test, a professional QA engineer writes a test plan — a document that defines scope, strategy, resources, and risk. In interviews and on teams, the ability to write a clear test plan is what demonstrates senior-level thinking. Today you write a test plan for your capstone project.
+</En>
+<Vi>
+Tự động hoá không phải là tất cả. Trước khi viết một test nào, kỹ sư QA chuyên nghiệp viết kế hoạch test — tài liệu định nghĩa phạm vi, chiến lược, tài nguyên và rủi ro. Trong phỏng vấn và trong nhóm, khả năng viết kế hoạch test rõ ràng là điều thể hiện tư duy ở cấp độ senior. Hôm nay bạn viết kế hoạch test cho capstone project của mình.
+</Vi>
+
+## Concept
+
+<En>
+**A professional test plan contains:**
+
+**1. Objective**
+What are we testing and why? What constitutes success?
+
+**2. Scope**
+- In scope: what features/endpoints/flows are covered
+- Out of scope: what is explicitly not tested (and why)
+
+**3. Test approach / strategy**
+- Test levels: unit, integration, E2E
+- Test types: functional, negative, regression, performance
+- Tools: pytest, Playwright, requests, Allure
+- Data strategy: how test data is created and cleaned up
+
+**4. Test environment**
+- What environment will tests run against (staging, production)?
+- What access/credentials are needed?
+- What external dependencies exist (third-party APIs, email service)?
+
+**5. Entry and exit criteria**
+- Entry: what must be true before testing starts (build is green, environment is ready)
+- Exit: what must be true before testing is considered complete (≥80% coverage, 0 critical bugs open)
+
+**6. Risk and mitigation**
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| API schema changes break tests | Medium | High | Pin API version; add schema monitoring |
+| Test data collisions in shared environment | High | Medium | Use unique IDs (uuid) per test run |
+
+**7. Deliverables**
+- Automated test suite
+- Allure reports
+- CI pipeline configuration
+- This test plan document
+
+**8. Roles**
+Who writes tests? Who reviews them? Who owns the CI pipeline?
+</En>
+<Vi>
+**Kế hoạch test chuyên nghiệp chứa:**
+
+**1. Mục tiêu**
+Chúng ta đang kiểm thử gì và tại sao? Điều gì cấu thành thành công?
+
+**2. Phạm vi**
+- Trong phạm vi: tính năng/endpoint/luồng nào được bao phủ
+- Ngoài phạm vi: điều gì rõ ràng không được kiểm thử (và tại sao)
+
+**3. Phương pháp test / chiến lược**
+- Cấp độ test: unit, integration, E2E
+- Loại test: chức năng, tiêu cực, hồi quy, hiệu suất
+- Công cụ: pytest, Playwright, requests, Allure
+
+**4. Môi trường test**
+- Test sẽ chạy trên môi trường nào?
+- Cần quyền truy cập/credential gì?
+
+**5. Tiêu chí vào và ra**
+- Vào: điều gì phải đúng trước khi bắt đầu test
+- Ra: điều gì phải đúng trước khi test được coi là hoàn thành
+
+**6. Rủi ro và giảm thiểu**
+| Rủi ro | Khả năng | Tác động | Giảm thiểu |
+|------|-----------|--------|------------|
+| Thay đổi schema API phá vỡ test | Trung bình | Cao | Ghim phiên bản API |
+| Xung đột dữ liệu test | Cao | Trung bình | Dùng ID duy nhất (uuid) |
+
+**7. Các sản phẩm giao nộp**
+- Bộ test tự động
+- Báo cáo Allure
+- Cấu hình CI pipeline
+</Vi>
+
+## Code / Demo
+
+```markdown
+# Test Plan: JSONPlaceholder API Suite
+
+## 1. Objective
+
+Verify that the JSONPlaceholder REST API behaves correctly for CRUD operations
+on Posts, Users, and Comments resources. Provide automated regression coverage
+that runs on every code change via CI.
+
+## 2. Scope
+
+**In scope:**
+- GET, POST, PUT, PATCH, DELETE for /posts
+- GET for /users and /users/{id}
+- GET for /posts/{id}/comments
+- Schema validation for all GET responses
+- Negative cases: 404, invalid IDs, missing required fields
+- Performance: response time under 3 seconds
+
+**Out of scope:**
+- Authentication (JSONPlaceholder has no real auth)
+- Rate limiting (public test API has no meaningful limits)
+- Database-level testing (no access to backing store)
+- Load/stress testing
+
+## 3. Test Approach
+
+| Layer | Tools | Coverage goal |
+|-------|-------|---------------|
+| API integration | pytest + requests | 90% endpoint coverage |
+| Schema | jsonschema | 100% of GET responses |
+| Negative | pytest + parametrize | 5+ negative cases per endpoint |
+| Reporting | Allure | All test runs |
+| CI | GitHub Actions | Every push to main |
+
+**Data strategy:** All test data uses JSONPlaceholder's simulated persistence.
+Tests are stateless — each run can repeat indefinitely.
+
+## 4. Environment
+
+- Target: https://jsonplaceholder.typicode.com (public, no auth)
+- Python: 3.11+
+- No credentials required
+- No external dependencies
+
+## 5. Entry / Exit Criteria
+
+**Entry (before starting):**
+- [ ] All dependencies installed (`pip install -r requirements.txt`)
+- [ ] JSONPlaceholder API reachable (`curl https://jsonplaceholder.typicode.com/posts/1`)
+
+**Exit (definition of done):**
+- [ ] All planned tests passing
+- [ ] 0 open Critical or High severity defects
+- [ ] Allure report generated and reviewed
+- [ ] CI pipeline green
+
+## 6. Risks
+
+| Risk | Mitigation |
+|------|-----------|
+| Public API downtime | Tests marked as external-dependency; expected flake in CI |
+| Schema changes | Schema files version-controlled; CI alerts on schema drift |
+
+## 7. Deliverables
+
+- `/tests/` — automated test suite
+- `/allure-results/` — raw Allure results
+- `.github/workflows/api-tests.yml` — CI configuration
+- This document
+
+## 8. Team
+
+| Role | Owner |
+|------|-------|
+| Test design & automation | QA Engineer |
+| Code review | Senior QA / Dev |
+| CI maintenance | QA Engineer / DevOps |
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a test plan for your capstone project using the template above — fill in every section with specific, concrete details relevant to your project
+- [ ] Review your test plan against the 8 sections and identify which section took the most thought — this is usually where the real risks are
+- [ ] Share your test plan with a teammate or post it in a QA community for feedback — test plans are meant to be reviewed
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the purpose of 'exit criteria' in a test plan?",
+    choices: [
+      "To define when the product can be shipped",
+      "To define the conditions that must be met before testing is considered complete — preventing premature sign-off",
+      "To list tests that are not in scope",
+      "To describe the deployment process"
+    ],
+    answer: 1,
+    explain: "Exit criteria define what 'done' means for testing. Without them, testing can end arbitrarily ('we ran out of time') or never ('there might be more bugs'). Clear criteria like '0 open Critical bugs and CI green' make the decision objective."
+  },
+  {
+    q: "Why should a test plan explicitly list what is OUT of scope?",
+    choices: [
+      "To reduce the total amount of testing done",
+      "To set clear expectations — stakeholders know what is not being tested and can make informed risk decisions",
+      "Out-of-scope items are automatically tested by the CI pipeline",
+      "It's a legal requirement"
+    ],
+    answer: 1,
+    explain: "Explicitly stating out-of-scope areas prevents scope creep and manages expectations. If load testing is out of scope, stakeholders know they need separate performance testing. Ambiguous scope leads to disagreements about what 'done' means."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB Foundation Syllabus", url: "https://www.istqb.org/certifications/certified-tester-foundation-level" },
+  { title: "Ministry of Testing — Test Plans", url: "https://www.ministryoftesting.com/" }
+]} />

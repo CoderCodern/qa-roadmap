@@ -1,0 +1,194 @@
+---
+id: 31
+title: "Fixtures & parametrize"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "pytest", "fixtures"]
+---
+
+## Intro
+
+<En>
+pytest fixtures and parametrize are the two features that make test suites scalable. Fixtures handle setup and teardown cleanly; parametrize lets you run the same test with many inputs without repeating yourself. Combined with Playwright's browser fixtures, these tools let you build compact, data-driven test suites.
+</En>
+<Vi>
+Fixture và parametrize của pytest là hai tính năng làm cho bộ test có thể mở rộng. Fixture xử lý setup và teardown gọn gàng; parametrize cho phép bạn chạy cùng một test với nhiều đầu vào mà không lặp lại. Kết hợp với browser fixture của Playwright, các công cụ này cho phép bạn xây dựng bộ test gọn gàng, hướng dữ liệu.
+</Vi>
+
+## Concept
+
+<En>
+**pytest fixtures:**
+A fixture is a function decorated with `@pytest.fixture`. When a test declares it as a parameter, pytest calls the fixture, passes the result to the test, then runs any teardown code after `yield`.
+
+```python
+@pytest.fixture
+def authenticated_page(page: Page) -> Page:
+    page.goto("https://example.com/login")
+    page.fill("[name=email]", "admin@example.com")
+    page.fill("[name=password]", "password")
+    page.click("[type=submit]")
+    yield page               # test runs here
+    # teardown: logout, clear cookies, etc.
+    page.goto("https://example.com/logout")
+```
+
+**Fixture scopes:**
+- `scope="function"` (default) — fresh fixture for each test
+- `scope="module"` — one fixture for all tests in the file
+- `scope="session"` — one fixture for the entire test run
+
+**`@pytest.mark.parametrize`:**
+```python
+@pytest.mark.parametrize("email,password,expected", [
+    ("valid@example.com", "ValidPass1", True),
+    ("valid@example.com", "wrongpass", False),
+    ("notanemail", "ValidPass1", False),
+])
+def test_login(page: Page, email, password, expected):
+    # runs 3 times — once per row
+    ...
+```
+
+**`pytest.fixture` + `params`** — parametrize at the fixture level:
+```python
+@pytest.fixture(params=["chromium", "firefox"])
+def browser_name(request):
+    return request.param
+```
+</En>
+<Vi>
+**pytest fixture:**
+Fixture là hàm được decorate bằng `@pytest.fixture`. Khi test khai báo nó như tham số, pytest gọi fixture, truyền kết quả vào test, sau đó chạy code teardown sau `yield`.
+
+```python
+@pytest.fixture
+def authenticated_page(page: Page) -> Page:
+    page.goto("https://example.com/login")
+    # ... setup ...
+    yield page               # test chạy ở đây
+    page.goto("https://example.com/logout")  # teardown
+```
+
+**Scope của fixture:**
+- `scope="function"` (mặc định) — fixture mới cho mỗi test
+- `scope="module"` — một fixture cho tất cả test trong file
+- `scope="session"` — một fixture cho toàn bộ lần chạy test
+
+**`@pytest.mark.parametrize`:**
+```python
+@pytest.mark.parametrize("email,password,expected", [
+    ("valid@example.com", "ValidPass1", True),
+    ("valid@example.com", "wrongpass", False),
+])
+def test_login(page: Page, email, password, expected):
+    # chạy 2 lần — một lần cho mỗi hàng
+    ...
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/conftest.py (additions)
+import pytest
+from playwright.sync_api import Page
+
+@pytest.fixture
+def todo_page_ready(page: Page):
+    """Navigate to TodoMVC and yield a page ready for testing."""
+    page.goto("https://demo.playwright.dev/todomvc")
+    yield page
+    # Teardown: no persistent state to clean — each test gets a fresh browser context
+
+@pytest.fixture
+def todo_with_items(todo_page_ready: Page):
+    """Pre-populate the todo list with 3 items."""
+    inp = todo_page_ready.get_by_placeholder("What needs to be done?")
+    for text in ["Item A", "Item B", "Item C"]:
+        inp.fill(text)
+        inp.press("Enter")
+    return todo_page_ready
+```
+
+```python
+# tests/test_fixtures_and_params.py
+import pytest
+from playwright.sync_api import Page, expect
+
+# Using a shared fixture
+def test_starts_empty(todo_page_ready: Page):
+    items = todo_page_ready.get_by_role("listitem")
+    assert items.count() == 0
+
+def test_pre_populated(todo_with_items: Page):
+    items = todo_with_items.get_by_role("listitem")
+    assert items.count() == 3
+
+# Parametrize: one test, many inputs
+@pytest.mark.parametrize("todo_text", [
+    "Buy groceries",
+    "Call the dentist",
+    "Write Playwright tests",
+    "Review pull requests",
+])
+def test_add_various_items(todo_page_ready: Page, todo_text: str):
+    inp = todo_page_ready.get_by_placeholder("What needs to be done?")
+    inp.fill(todo_text)
+    inp.press("Enter")
+    item = todo_page_ready.get_by_role("listitem").filter(has_text=todo_text)
+    expect(item).to_be_visible()
+
+# Parametrize with multiple arguments
+@pytest.mark.parametrize("text,expected_count", [
+    ("Single item", 1),
+    ("Another one", 1),
+])
+def test_count_after_add(todo_page_ready: Page, text: str, expected_count: int):
+    inp = todo_page_ready.get_by_placeholder("What needs to be done?")
+    inp.fill(text)
+    inp.press("Enter")
+    assert todo_page_ready.get_by_role("listitem").count() == expected_count
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Create a `conftest.py` fixture that navigates to a demo page and yields it — use `scope="module"` and observe that the browser only opens once for all tests in that file
+- [ ] Write a parametrized test with at least 5 input rows that tests adding different todo items and verifying each appears correctly
+- [ ] Create a fixture that adds 3 items before the test and verify in the test that the count starts at 3 (not 0) — demonstrate teardown by adding a `print` statement after `yield`
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What happens to code written after `yield` in a pytest fixture?",
+    choices: [
+      "It runs before the test",
+      "It never runs",
+      "It runs after the test completes — this is the teardown code",
+      "It runs only if the test passes"
+    ],
+    answer: 2,
+    explain: "Code before yield is setup (runs before the test). Code after yield is teardown (runs after the test, even if it fails). This is how pytest fixtures implement context-manager-style setup/teardown."
+  },
+  {
+    q: "What does `@pytest.mark.parametrize` allow you to do?",
+    choices: [
+      "Run a test multiple times with different input values",
+      "Mark a test as expected to fail",
+      "Skip a test on specific operating systems",
+      "Run tests in parallel"
+    ],
+    answer: 0,
+    explain: "parametrize runs the same test function once per row of data you provide. Each row becomes a separate test case — named, counted, and reported individually. This replaces writing the same test multiple times with different hardcoded values."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "pytest Fixtures Guide", url: "https://docs.pytest.org/en/stable/reference/fixtures.html" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

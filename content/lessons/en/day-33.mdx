@@ -1,0 +1,185 @@
+---
+id: 33
+title: "GitHub Actions CI"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "ci", "github-actions"]
+---
+
+## Intro
+
+<En>
+Tests that only run on a developer's laptop are not really automated — they are just manual testing with extra steps. Continuous Integration (CI) runs your tests automatically on every push or pull request, catching regressions before they reach production. GitHub Actions is the most accessible CI platform for beginners and professionals alike.
+</En>
+<Vi>
+Các test chỉ chạy trên laptop của developer không thực sự được tự động hoá — chúng chỉ là kiểm thử thủ công với các bước thêm vào. Tích hợp liên tục (CI) chạy test của bạn tự động trên mỗi lần push hoặc pull request, bắt được hồi quy trước khi chúng đến production. GitHub Actions là nền tảng CI dễ tiếp cận nhất cho cả người mới bắt đầu và chuyên gia.
+</Vi>
+
+## Concept
+
+<En>
+**How GitHub Actions works:**
+1. You commit a YAML workflow file to `.github/workflows/`
+2. GitHub detects pushes/PRs and spins up a runner (Linux/macOS/Windows VM)
+3. The runner executes your workflow steps in order
+4. Results appear in the Actions tab — green checkmark or red X
+
+**Key concepts:**
+
+| Concept | Description |
+|---------|-------------|
+| **Workflow** | The YAML file defining what to run |
+| **Trigger** | When to run (push, PR, schedule) |
+| **Job** | A group of steps running on one runner |
+| **Step** | A single command or action |
+| **Action** | A reusable step (e.g., `actions/checkout@v4`) |
+| **Artifact** | Files uploaded from the runner (test reports, screenshots) |
+
+**Playwright's official GitHub Action:**
+```yaml
+- name: Install Playwright Browsers
+  run: playwright install chromium --with-deps
+```
+The `--with-deps` flag installs OS-level dependencies needed by the browser.
+
+**Artifacts:** Upload screenshots and HTML reports so you can download and view them after a CI failure:
+```yaml
+- name: Upload test results
+  uses: actions/upload-artifact@v4
+  if: always()    # upload even if tests fail
+  with:
+    name: playwright-report
+    path: playwright-report/
+```
+</En>
+<Vi>
+**Cách GitHub Actions hoạt động:**
+1. Bạn commit file workflow YAML vào `.github/workflows/`
+2. GitHub phát hiện push/PR và khởi động runner (VM Linux/macOS/Windows)
+3. Runner thực thi các bước workflow theo thứ tự
+4. Kết quả hiển thị trong tab Actions — dấu kiểm xanh hoặc X đỏ
+
+**Các khái niệm quan trọng:**
+
+| Khái niệm | Mô tả |
+|---------|-------------|
+| **Workflow** | File YAML định nghĩa những gì cần chạy |
+| **Trigger** | Khi nào chạy (push, PR, schedule) |
+| **Job** | Nhóm các bước chạy trên một runner |
+| **Step** | Một lệnh hoặc action đơn lẻ |
+| **Artifact** | File được tải lên từ runner (báo cáo, ảnh chụp màn hình) |
+
+**Playwright's official GitHub Action:**
+```yaml
+- name: Install Playwright Browsers
+  run: playwright install chromium --with-deps
+```
+</Vi>
+
+## Code / Demo
+
+```yaml
+# .github/workflows/playwright.yml
+name: Playwright Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Run Playwright tests
+        run: pytest tests/ --tb=short -q
+
+      - name: Upload screenshots on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failure-screenshots
+          path: screenshots/
+          retention-days: 7
+
+      - name: Upload test traces
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-traces
+          path: "**/*.zip"
+          retention-days: 7
+```
+
+```text
+# requirements.txt
+playwright==1.44.0
+pytest-playwright==0.5.0
+pytest==8.2.0
+```
+
+```ini
+# pytest.ini
+[pytest]
+addopts = --browser chromium
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Push your POM project from Day 30 to a GitHub repository and add the workflow above — watch the Actions tab to see your tests run in CI
+- [ ] Add `if: always()` to an artifact upload step and verify that screenshots are uploaded even when a test fails
+- [ ] Add a second job to the workflow that runs on `macos-latest` — observe that both jobs run in parallel
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why is `--with-deps` needed when installing Playwright browsers in CI?",
+    choices: [
+      "It speeds up browser downloads",
+      "It installs required OS-level system libraries that the browser needs to run",
+      "It downloads test fixtures from the internet",
+      "It enables headless mode automatically"
+    ],
+    answer: 1,
+    explain: "Browsers like Chromium depend on OS libraries (libglib, libgtk, etc.) that are not pre-installed on CI runners. --with-deps installs these automatically. Without it, the browser may fail to launch with cryptic shared library errors."
+  },
+  {
+    q: "What does `if: failure()` mean in a GitHub Actions step?",
+    choices: [
+      "The step always runs, regardless of previous step results",
+      "The step only runs if a previous step in the job failed",
+      "The step runs only in the main branch",
+      "The step skips on pull requests"
+    ],
+    answer: 1,
+    explain: "if: failure() makes a step conditional on a previous step having failed. This is perfect for uploading screenshots/traces only when tests fail — no artifact storage wasted on successful runs."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright CI Guide — GitHub Actions", url: "https://playwright.dev/python/docs/ci-intro" },
+  { title: "GitHub Actions Docs", url: "https://docs.github.com/en/actions" }
+]} />

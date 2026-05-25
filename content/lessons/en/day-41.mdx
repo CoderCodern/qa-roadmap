@@ -1,0 +1,221 @@
+---
+id: 41
+title: "pytest + requests"
+phase: 4
+estMinutes: 75
+tags: ["api-testing", "pytest", "requests"]
+---
+
+## Intro
+
+<En>
+Making HTTP calls with `requests` is useful for exploration; combining it with `pytest` gives you a production-quality API test suite. pytest manages test discovery, fixtures, parametrize, and reporting. Today you build a structured API test project that mirrors what you'd find in a real QA role.
+</En>
+<Vi>
+Thực hiện các cuộc gọi HTTP với `requests` hữu ích để khám phá; kết hợp nó với `pytest` cho bạn một bộ API test chất lượng production. pytest quản lý khám phá test, fixture, parametrize và báo cáo. Hôm nay bạn xây dựng một dự án API test có cấu trúc phản ánh những gì bạn tìm thấy trong vai trò QA thực.
+</Vi>
+
+## Concept
+
+<En>
+**Project structure:**
+```
+api_tests/
+├── api/
+│   ├── __init__.py
+│   └── client.py         # API client class wrapping requests.Session
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py       # shared fixtures (session, base_url)
+│   ├── test_posts.py
+│   └── test_users.py
+├── pytest.ini
+└── requirements.txt
+```
+
+**API client class — wrap `requests.Session`:**
+```python
+class ApiClient:
+    def __init__(self, base_url: str, token: str | None = None):
+        self.session = requests.Session()
+        self.session.base_url = base_url
+        if token:
+            self.session.headers["Authorization"] = f"Bearer {token}"
+
+    def get(self, path: str, **kwargs) -> requests.Response:
+        return self.session.get(f"{self.base_url}{path}", **kwargs)
+    # ...
+```
+
+**Fixtures for shared API state:**
+```python
+@pytest.fixture(scope="session")
+def api(base_url: str) -> ApiClient:
+    return ApiClient(base_url)
+```
+
+**What to test in API tests:**
+1. Happy path — valid request gets expected response
+2. Status codes — correct code for each scenario
+3. Field presence — all required fields exist
+4. Field types — correct Python types
+5. Business rules — email format, positive ids, valid roles
+6. Error cases — invalid input gets 4xx, not 5xx
+7. Edge cases — empty lists, null fields, boundary values
+</En>
+<Vi>
+**Cấu trúc dự án:**
+```
+api_tests/
+├── api/
+│   ├── __init__.py
+│   └── client.py         # API client class bọc requests.Session
+├── tests/
+│   ├── conftest.py       # fixture dùng chung
+│   ├── test_posts.py
+│   └── test_users.py
+├── pytest.ini
+└── requirements.txt
+```
+
+**Class API client — bọc `requests.Session`:**
+```python
+class ApiClient:
+    def __init__(self, base_url: str, token: str | None = None):
+        self.session = requests.Session()
+        self.base_url = base_url
+        if token:
+            self.session.headers["Authorization"] = f"Bearer {token}"
+```
+
+**Những gì cần kiểm thử trong API test:**
+1. Happy path — request hợp lệ nhận response mong đợi
+2. Status code — mã đúng cho từng kịch bản
+3. Sự hiện diện trường — tất cả trường bắt buộc tồn tại
+4. Kiểu trường — kiểu Python đúng
+5. Quy tắc nghiệp vụ — định dạng email, id dương, role hợp lệ
+6. Trường hợp lỗi — đầu vào không hợp lệ nhận 4xx
+</Vi>
+
+## Code / Demo
+
+```python
+# api/client.py
+import requests
+
+class ApiClient:
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
+
+    def get(self, path: str, **kwargs) -> requests.Response:
+        return self.session.get(f"{self.base_url}{path}", **kwargs)
+
+    def post(self, path: str, **kwargs) -> requests.Response:
+        return self.session.post(f"{self.base_url}{path}", **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self.session.delete(f"{self.base_url}{path}", **kwargs)
+```
+
+```python
+# tests/conftest.py
+import pytest
+from api.client import ApiClient
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+@pytest.fixture(scope="session")
+def api() -> ApiClient:
+    return ApiClient(BASE_URL)
+```
+
+```python
+# tests/test_posts.py
+import pytest
+from api.client import ApiClient
+
+def test_get_post_by_id(api: ApiClient):
+    response = api.get("/posts/1")
+    assert response.status_code == 200
+    post = response.json()
+    assert post["id"] == 1
+    assert isinstance(post["title"], str)
+    assert len(post["title"]) > 0
+
+def test_get_posts_list(api: ApiClient):
+    response = api.get("/posts")
+    assert response.status_code == 200
+    posts = response.json()
+    assert isinstance(posts, list)
+    assert len(posts) == 100  # JSONPlaceholder returns 100 posts
+
+def test_create_post(api: ApiClient):
+    payload = {"title": "Test Post", "body": "Test body", "userId": 1}
+    response = api.post("/posts", json=payload)
+    assert response.status_code == 201
+    created = response.json()
+    assert "id" in created
+    assert created["title"] == "Test Post"
+
+@pytest.mark.parametrize("post_id", [1, 5, 10, 50, 100])
+def test_get_valid_post_ids(api: ApiClient, post_id: int):
+    response = api.get(f"/posts/{post_id}")
+    assert response.status_code == 200
+    post = response.json()
+    assert post["id"] == post_id
+
+def test_get_nonexistent_post(api: ApiClient):
+    response = api.get("/posts/99999")
+    assert response.status_code == 404
+
+def test_post_has_required_fields(api: ApiClient):
+    response = api.get("/posts/1")
+    post = response.json()
+    required_fields = {"id", "userId", "title", "body"}
+    missing = required_fields - set(post.keys())
+    assert not missing, f"Missing fields: {missing}"
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Set up the `api_tests/` project structure, implement the `ApiClient` class, and run all the tests — they should all pass against JSONPlaceholder
+- [ ] Add `tests/test_users.py` with at least 4 tests: get all users (verify count is 10), get a specific user by id, verify each user has an `email` with "@", and verify `website` is a non-empty string
+- [ ] Add a `pytest.ini` file and configure `addopts = -v` and a `log_cli = true` setting so you see request logs during test runs
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why use an `ApiClient` class instead of calling `requests.get()` directly in each test?",
+    choices: [
+      "requests.get() doesn't work in pytest",
+      "The ApiClient centralises base URL and headers — changing the target URL updates all tests at once",
+      "Classes are required for API testing",
+      "It makes requests faster"
+    ],
+    answer: 1,
+    explain: "An ApiClient wraps a requests.Session and stores the base_url and common headers (auth, content-type). This mirrors the POM pattern from Phase 3 — changes to the API target or auth scheme are made in one place, not scattered across test files."
+  },
+  {
+    q: "What fixture scope should a shared `ApiClient` fixture use, and why?",
+    choices: [
+      "scope='function' — creates a fresh client for each test",
+      "scope='session' — creates one client for the entire test run, reusing the HTTP connection pool",
+      "scope='module' — one client per file",
+      "No scope needed — Pytest infers it"
+    ],
+    answer: 1,
+    explain: "scope='session' creates one ApiClient for the entire pytest run. This is more efficient — the underlying requests.Session reuses HTTP connections. For stateless API clients (no auth state carried between tests), session scope is safe and fast."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "requests library docs", url: "https://requests.readthedocs.io/" },
+  { title: "pytest Fixtures", url: "https://docs.pytest.org/en/stable/reference/fixtures.html" }
+]} />

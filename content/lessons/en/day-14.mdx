@@ -1,0 +1,162 @@
+---
+id: 14
+title: "Functions"
+phase: 2
+estMinutes: 60
+tags: ["python", "functions"]
+---
+
+## Intro
+
+<En>
+Functions are the core building block of clean test code. Every reusable assertion helper, every page action, and every data generator in a test suite is a function. Learning to write small, focused, well-named functions — and to use parameters and return values correctly — is one of the highest-leverage skills in test automation.
+</En>
+<Vi>
+Hàm là khối xây dựng cốt lõi của code test gọn sạch. Mọi assertion helper tái sử dụng, mọi hành động trang, và mọi trình tạo dữ liệu trong bộ test đều là một hàm. Học cách viết các hàm nhỏ, tập trung, có tên rõ ràng — và dùng tham số và giá trị trả về đúng cách — là một trong những kỹ năng có đòn bẩy cao nhất trong tự động hoá test.
+</Vi>
+
+## Concept
+
+<En>
+**Function anatomy:**
+```python
+def function_name(param1, param2="default") -> ReturnType:
+    """One-line summary (optional docstring)."""
+    # body
+    return result
+```
+
+**Key concepts:**
+
+**Positional vs keyword arguments:** Call with position (`add(2, 3)`) or name (`add(b=3, a=2)`). Keyword arguments are self-documenting.
+
+**Default arguments:** `def login(email, timeout=30)` — callers can omit `timeout` and get 30. Never use mutable defaults (lists, dicts) — they persist between calls.
+
+**Return values:** A function that returns nothing implicitly returns `None`. Be explicit with `return` when the value matters.
+
+**Type hints** (Python 3.5+): `def get_user(id: int) -> dict:` — not enforced at runtime but essential for readability and IDE support.
+
+**Single Responsibility:** Each function should do one thing. If you need to describe a function with "and", split it.
+
+**Helper functions in tests:** Small helpers like `make_user_payload(email, role="viewer")` prevent repetition across test cases and make test setup readable.
+</En>
+<Vi>
+**Cấu trúc hàm:**
+```python
+def function_name(param1, param2="default") -> ReturnType:
+    """Tóm tắt một dòng (docstring tùy chọn)."""
+    # thân hàm
+    return result
+```
+
+**Các khái niệm quan trọng:**
+
+**Tham số vị trí vs từ khoá:** Gọi theo vị trí (`add(2, 3)`) hoặc theo tên (`add(b=3, a=2)`). Tham số từ khoá tự ghi lại ý nghĩa.
+
+**Tham số mặc định:** `def login(email, timeout=30)` — người gọi có thể bỏ qua `timeout` và nhận 30. Đừng bao giờ dùng mặc định có thể thay đổi (list, dict) — chúng tồn tại giữa các lần gọi.
+
+**Giá trị trả về:** Một hàm không trả về gì mặc nhiên trả về `None`. Hãy rõ ràng với `return` khi giá trị quan trọng.
+
+**Type hints** (Python 3.5+): `def get_user(id: int) -> dict:` — không bắt buộc lúc runtime nhưng thiết yếu cho khả năng đọc và hỗ trợ IDE.
+
+**Trách nhiệm đơn:** Mỗi hàm nên làm một việc. Nếu bạn cần mô tả một hàm với "và", hãy tách nó ra.
+</Vi>
+
+## Code / Demo
+
+```python
+# Building a small test helper library
+
+def make_login_payload(email: str, password: str) -> dict:
+    return {"email": email, "password": password}
+
+def is_success_status(code: int) -> bool:
+    return 200 <= code < 300
+
+def assert_response_ok(status_code: int, body: dict | None) -> None:
+    assert is_success_status(status_code), \
+        f"Expected 2xx status but got {status_code}"
+    assert body is not None, "Response body should not be None"
+
+def make_unique_email(prefix: str = "test") -> str:
+    import time
+    ts = int(time.time() * 1000) % 100000
+    return f"{prefix}+{ts}@example.com"
+
+# Using the helpers — test reads clearly
+payload = make_login_payload("alice@example.com", "SecurePass123")
+assert "email" in payload
+assert "password" in payload
+
+assert is_success_status(200)
+assert is_success_status(201)
+assert not is_success_status(404)
+assert not is_success_status(500)
+
+# Simulated response
+simulated_status = 200
+simulated_body = {"token": "abc123xyz"}
+assert_response_ok(simulated_status, simulated_body)
+
+email = make_unique_email("user")
+assert email.startswith("user+")
+assert email.endswith("@example.com")
+print(f"Generated: {email}")
+
+# Default argument — mutable default anti-pattern (DON'T do this)
+# def bad_append(item, lst=[]):  # lst persists between calls!
+#     lst.append(item)
+#     return lst
+
+# Correct pattern — use None as default, create fresh list inside
+def safe_append(item: str, lst: list | None = None) -> list:
+    if lst is None:
+        lst = []
+    lst.append(item)
+    return lst
+
+print(safe_append("a"))  # ['a']
+print(safe_append("b"))  # ['b'] — not ['a', 'b']
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a function `build_headers(token: str, content_type: str = "application/json") -> dict` that returns an HTTP headers dict with an Authorization Bearer token
+- [ ] Write a function `assert_pagination(data: dict)` that checks a response contains `items` (a list), `total` (an int), and `page` (an int > 0)
+- [ ] Refactor a block of repeated test setup code (at least 5 lines) into a helper function with parameters
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why should you never use a mutable default argument like `def f(items=[])`?",
+    choices: [
+      "Python will raise a SyntaxError",
+      "The default list is shared across all calls, so it accumulates items between invocations",
+      "Lists cannot be used as default arguments",
+      "It makes the function slower"
+    ],
+    answer: 1,
+    explain: "Default argument values are evaluated once when the function is defined, not each call. A mutable default like [] is the same object reused every time, so mutations persist across calls."
+  },
+  {
+    q: "What is a type hint in Python?",
+    choices: [
+      "A runtime check that raises an error if the wrong type is passed",
+      "An annotation that documents expected types without enforcement",
+      "A built-in Python validator",
+      "Required syntax for functions in Python 3.10+"
+    ],
+    answer: 1,
+    explain: "Type hints are annotations only — Python does not enforce them at runtime. They improve readability, enable IDE autocomplete and warnings, and are checked by tools like mypy."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Functions — docs.python.org", url: "https://docs.python.org/3/tutorial/controlflow.html#defining-functions" },
+  { title: "Real Python — Defining Functions", url: "https://realpython.com/" }
+]} />

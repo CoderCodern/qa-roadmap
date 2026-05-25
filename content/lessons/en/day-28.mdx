@@ -1,0 +1,200 @@
+---
+id: 28
+title: "Multiple pages & tabs"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "pages", "tabs"]
+---
+
+## Intro
+
+<En>
+Real web applications often open new tabs or windows — clicking "Open in new tab", popup authentication flows, or external links. Playwright handles multiple pages in a single context elegantly. Today you learn how to manage multiple tabs, intercept new page events, and test flows that span more than one browser window.
+</En>
+<Vi>
+Các ứng dụng web thực thường mở tab hoặc cửa sổ mới — nhấp "Mở trong tab mới", luồng xác thực popup, hoặc link ngoài. Playwright xử lý nhiều trang trong một context một cách thanh lịch. Hôm nay bạn học cách quản lý nhiều tab, chặn sự kiện trang mới và kiểm thử các luồng trải dài trên nhiều cửa sổ trình duyệt.
+</Vi>
+
+## Concept
+
+<En>
+**Opening new pages programmatically:**
+```python
+new_page = context.new_page()
+new_page.goto("https://other-site.com")
+```
+
+**Capturing a page that opens via a user action (link/button click):**
+```python
+with context.expect_page() as new_page_info:
+    page.get_by_role("link", name="Open in new tab").click()
+new_page = new_page_info.value
+new_page.wait_for_load_state()
+```
+
+**Working with multiple pages:**
+```python
+pages = context.pages  # list of all open pages
+first_page = pages[0]
+second_page = pages[1]
+# Switch focus — just use the page object directly
+second_page.bring_to_front()
+```
+
+**Closing pages:**
+```python
+new_page.close()
+```
+
+**Popup windows (`window.open()`):**
+```python
+with page.expect_popup() as popup_info:
+    page.get_by_role("button", name="Open popup").click()
+popup = popup_info.value
+popup.wait_for_load_state()
+expect(popup).to_have_title("Popup Title")
+popup.close()
+```
+
+**Dialogs (alert, confirm, prompt):**
+```python
+page.on("dialog", lambda dialog: dialog.accept())  # auto-accept all dialogs
+page.on("dialog", lambda dialog: dialog.dismiss())  # auto-dismiss
+```
+</En>
+<Vi>
+**Mở trang mới theo chương trình:**
+```python
+new_page = context.new_page()
+new_page.goto("https://other-site.com")
+```
+
+**Chặn trang mở qua hành động người dùng:**
+```python
+with context.expect_page() as new_page_info:
+    page.get_by_role("link", name="Open in new tab").click()
+new_page = new_page_info.value
+new_page.wait_for_load_state()
+```
+
+**Popup window:**
+```python
+with page.expect_popup() as popup_info:
+    page.get_by_role("button", name="Open popup").click()
+popup = popup_info.value
+popup.wait_for_load_state()
+popup.close()
+```
+
+**Dialog (alert, confirm, prompt):**
+```python
+page.on("dialog", lambda dialog: dialog.accept())  # tự động chấp nhận
+page.on("dialog", lambda dialog: dialog.dismiss()) # tự động từ chối
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_multiple_pages.py
+from playwright.sync_api import Page, BrowserContext, expect
+
+def test_open_new_page_directly(context: BrowserContext):
+    # Open two pages in the same context (shared cookies)
+    page1 = context.new_page()
+    page2 = context.new_page()
+
+    page1.goto("https://example.com")
+    page2.goto("https://example.com")
+
+    expect(page1).to_have_title("Example Domain")
+    expect(page2).to_have_title("Example Domain")
+
+    assert len(context.pages) == 2
+    page2.close()
+    assert len(context.pages) == 1
+
+def test_capture_new_tab_from_link(context: BrowserContext):
+    page = context.new_page()
+    page.goto("https://example.com")
+
+    # Intercept the tab that opens when clicking the external link
+    with context.expect_page() as new_page_info:
+        # target="_blank" links open in a new tab
+        page.locator("a").click()
+
+    new_page = new_page_info.value
+    new_page.wait_for_load_state()
+
+    # The new tab should have navigated somewhere
+    assert new_page.url != ""
+    print(f"New tab URL: {new_page.url}")
+    new_page.close()
+
+def test_handle_dialog(page: Page):
+    page.goto("https://example.com")
+
+    # Pre-register dialog handler before triggering it
+    dialogs_seen = []
+    def handle_dialog(dialog):
+        dialogs_seen.append(dialog.message)
+        dialog.accept()
+
+    page.on("dialog", handle_dialog)
+
+    # Trigger an alert via JavaScript (simulating app behavior)
+    page.evaluate("window.alert('Test alert message')")
+    assert "Test alert message" in dialogs_seen
+
+def test_multiple_page_titles(context: BrowserContext):
+    urls = [
+        ("https://example.com", "Example Domain"),
+    ]
+    for url, expected_title in urls:
+        p = context.new_page()
+        p.goto(url)
+        expect(p).to_have_title(expected_title)
+        p.close()
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a test that opens two separate pages in the same context, logs into a simulated app in one, and verifies the other page (same context) would share the session cookie
+- [ ] Use `context.expect_page()` to capture a new tab opened by clicking a `target="_blank"` link — assert the new tab's URL starts with `https://`
+- [ ] Add a dialog handler that accepts all `confirm()` dialogs and write a test that triggers one via `page.evaluate()`
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why is it important to use `context.expect_page()` instead of just calling `page.click()` when a button opens a new tab?",
+    choices: [
+      "Playwright crashes if you click links that open new tabs",
+      "expect_page() captures the new page object; without it you have no reference to the new tab",
+      "The new tab opens in a different browser context",
+      "click() does not work on links"
+    ],
+    answer: 1,
+    explain: "When a click opens a new tab, the new Page object is created asynchronously. expect_page() sets up a listener before the click, then gives you the new Page object after it opens. Without it, you'd have no way to reference the new tab."
+  },
+  {
+    q: "What does `page.on('dialog', lambda d: d.accept())` do?",
+    choices: [
+      "It opens a new dialog",
+      "It registers a handler that automatically accepts any browser dialog (alert/confirm/prompt)",
+      "It blocks all dialogs from appearing",
+      "It saves the dialog text to a variable"
+    ],
+    answer: 1,
+    explain: "page.on('dialog', handler) registers an event listener for browser dialogs. Without a handler, Playwright auto-dismisses them. With accept() in the handler, all dialogs are automatically confirmed — useful for tests that trigger window.confirm()."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Pages and Frames", url: "https://playwright.dev/python/docs/pages" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

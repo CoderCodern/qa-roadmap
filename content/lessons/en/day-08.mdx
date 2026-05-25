@@ -1,0 +1,117 @@
+---
+id: 8
+title: "Install Python & set up VS Code"
+phase: 2
+estMinutes: 60
+tags: ["python", "setup"]
+---
+
+## Intro
+
+<En>
+Python is the most widely used language for QA automation. Before writing a single test, you need a working environment. Today you will install Python, set up VS Code, and run your first Python program.
+</En>
+<Vi>
+Python là ngôn ngữ được sử dụng rộng rãi nhất cho tự động hoá QA. Trước khi viết một test nào, bạn cần một môi trường hoạt động được. Hôm nay bạn sẽ cài đặt Python, thiết lập VS Code và chạy chương trình Python đầu tiên của mình.
+</Vi>
+
+## Concept
+
+<En>
+**Why Python for QA?**
+Python is readable, cross-platform, has a massive ecosystem of testing libraries (pytest, Playwright, requests), and is the default language for most automation frameworks. If you can read Python, you can read most test codebases.
+
+**What you need:**
+- **Python 3.11+** — the runtime that executes your code
+- **pip** — Python's package installer (bundled with Python)
+- **VS Code** — a lightweight editor with strong Python support
+- **Python extension** for VS Code (by Microsoft)
+
+**Virtual environments:** Python projects use isolated environments (`venv`) so that packages installed for one project do not affect another. Think of it as a sandbox — create one per project.
+
+**Terminal basics you need:**
+- `python --version` — check version
+- `python script.py` — run a file
+- `pip install package` — install a library
+- `python -m venv .venv` — create a virtual environment
+- `source .venv/bin/activate` (macOS/Linux) or `.venv\Scripts\activate` (Windows) — activate it
+</En>
+<Vi>
+**Tại sao dùng Python cho QA?**
+Python dễ đọc, đa nền tảng, có hệ sinh thái thư viện kiểm thử khổng lồ (pytest, Playwright, requests) và là ngôn ngữ mặc định cho hầu hết các framework tự động hoá. Nếu bạn đọc được Python, bạn có thể đọc được hầu hết các codebase test.
+
+**Những gì bạn cần:**
+- **Python 3.11+** — runtime thực thi code của bạn
+- **pip** — trình cài đặt gói của Python (đi kèm với Python)
+- **VS Code** — editor nhẹ với hỗ trợ Python mạnh mẽ
+- **Python extension** cho VS Code (của Microsoft)
+
+**Môi trường ảo:** Các dự án Python dùng môi trường độc lập (`venv`) để các gói cài đặt cho dự án này không ảnh hưởng đến dự án khác. Hãy nghĩ nó như một hộp cát — tạo một cái cho mỗi dự án.
+
+**Các lệnh terminal cơ bản bạn cần:**
+- `python --version` — kiểm tra phiên bản
+- `python script.py` — chạy một file
+- `pip install package` — cài đặt thư viện
+- `python -m venv .venv` — tạo môi trường ảo
+- `source .venv/bin/activate` (macOS/Linux) hoặc `.venv\Scripts\activate` (Windows) — kích hoạt nó
+</Vi>
+
+## Code / Demo
+
+```python
+# Verify your setup — run this after installing Python
+import sys
+import platform
+
+print(f"Python version: {sys.version}")
+print(f"Platform: {platform.system()} {platform.release()}")
+
+# Your first real Python line — a simple assertion
+expected = "hello"
+actual = "hello"
+assert actual == expected, f"Expected '{expected}' but got '{actual}'"
+print("First assertion passed!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Install Python 3.11+ from python.org and verify with `python --version` in your terminal
+- [ ] Install VS Code and the Microsoft Python extension, then open the command palette and select a Python interpreter
+- [ ] Create a folder `qa-practice/`, create a virtual environment inside it, activate it, and run the demo script above
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the purpose of a Python virtual environment?",
+    choices: [
+      "To make Python run faster",
+      "To isolate project dependencies so they don't conflict with other projects",
+      "To enable dark mode in VS Code",
+      "To connect to a remote server"
+    ],
+    answer: 1,
+    explain: "Virtual environments create a project-specific sandbox for packages. Without them, installing a new version of a library for one project could break another."
+  },
+  {
+    q: "Which command installs a Python package?",
+    choices: [
+      "python install requests",
+      "pip install requests",
+      "npm install requests",
+      "python -m install requests"
+    ],
+    answer: 1,
+    explain: "pip is Python's package installer. Always activate your virtual environment first so packages are installed into the project sandbox, not system-wide."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Downloads", url: "https://www.python.org/downloads/" },
+  { title: "Python Tutorial — python.org", url: "https://docs.python.org/3/tutorial/" },
+  { title: "Real Python — Python Basics", url: "https://realpython.com/" }
+]} />

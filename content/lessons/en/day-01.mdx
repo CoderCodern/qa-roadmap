@@ -1,0 +1,104 @@
+---
+id: 1
+title: "What is software testing?"
+phase: 1
+estMinutes: 60
+tags: ["fundamentals", "theory"]
+---
+
+## Intro
+
+<En>
+Software testing is the process of evaluating a software application to find defects, verify that it behaves as expected, and confirm that it meets the requirements of its users. Think of a tester as the last line of defense between broken software and real users.
+</En>
+<Vi>
+Kiểm thử phần mềm là quá trình đánh giá một ứng dụng phần mềm nhằm tìm ra lỗi, xác minh rằng nó hoạt động như mong đợi và xác nhận rằng nó đáp ứng yêu cầu của người dùng. Hãy coi tester là lớp phòng thủ cuối cùng giữa phần mềm bị lỗi và người dùng thực sự.
+</Vi>
+
+## Concept
+
+<En>
+**Manual testing** means a human tester interacts with the software — clicking buttons, filling forms, checking results — and notes any unexpected behaviour. It is flexible and great for exploratory or usability checks, but it is slow and prone to human error when repeated constantly.
+
+**Automated testing** uses scripts and tools to perform the same checks automatically and repeatedly. Once written, a test can run in seconds, be triggered on every code change, and produce a consistent result. Automated tests are not a replacement for manual testing — they are a force multiplier for the things that would be tedious and error-prone to check by hand every time.
+
+**Key insight:** Good software teams do both. Manual testing covers areas that are hard to automate (visual aesthetics, complex exploratory scenarios); automated testing covers repetitive regressions so testers can focus on higher-value work.
+</En>
+<Vi>
+**Kiểm thử thủ công** có nghĩa là một tester tương tác trực tiếp với phần mềm — nhấp nút, điền form, kiểm tra kết quả — và ghi chú lại bất kỳ hành vi bất thường nào. Phương pháp này linh hoạt và rất tốt cho kiểm thử khám phá hoặc kiểm tra khả năng sử dụng, nhưng chậm và dễ mắc lỗi khi lặp đi lặp lại liên tục.
+
+**Kiểm thử tự động** sử dụng script và công cụ để thực hiện các kiểm tra tương tự một cách tự động và lặp lại. Một khi đã viết xong, một test có thể chạy trong vài giây, được kích hoạt sau mỗi lần thay đổi code và tạo ra kết quả nhất quán. Kiểm thử tự động không thay thế kiểm thử thủ công — chúng nhân sức mạnh lên gấp bội cho những việc tẻ nhạt và dễ lỗi nếu kiểm tra thủ công mỗi lần.
+
+**Điểm mấu chốt:** Các nhóm phần mềm tốt đều làm cả hai. Kiểm thử thủ công bao phủ những lĩnh vực khó tự động hóa (thẩm mỹ trực quan, kịch bản khám phá phức tạp); kiểm thử tự động bao phủ các hồi quy lặp đi lặp lại để tester có thể tập trung vào công việc có giá trị cao hơn.
+</Vi>
+
+## Code / Demo
+
+```python
+# A simple automated check in Python
+# (We will write real Playwright tests later in Phase 3)
+def add(a: int, b: int) -> int:
+    return a + b
+
+# Manual test: you run this and check the output yourself
+print(add(2, 3))   # Expected: 5
+
+# Automated test: a script checks it for you
+assert add(2, 3) == 5, "Addition is broken!"
+assert add(0, 0) == 0, "Zero case failed!"
+print("All checks passed.")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] List 3 things you do every day on a website or app that a tester might want to verify
+- [ ] Think of one test that would be easy to automate and one that would be hard — explain why
+- [ ] Write down what you think the biggest risk is if software ships without testing
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the primary goal of software testing?",
+    choices: [
+      "To write more code faster",
+      "To find defects before users do",
+      "To slow down the development process",
+      "To replace developers"
+    ],
+    answer: 1,
+    explain: "Testing aims to identify defects early so they can be fixed before reaching end users, reducing cost and protecting the user experience."
+  },
+  {
+    q: "Which statement about automated testing is TRUE?",
+    choices: [
+      "It completely replaces manual testing",
+      "It is always more expensive than manual testing",
+      "It can run the same checks repeatedly and consistently",
+      "It requires no maintenance once written"
+    ],
+    answer: 2,
+    explain: "Automated tests excel at running the same scenarios repeatedly with no human fatigue — but they still require maintenance when the application changes."
+  },
+  {
+    q: "What type of testing is best for checking whether a UI looks visually correct?",
+    choices: [
+      "Automated unit tests",
+      "Manual or visual regression testing",
+      "Load testing",
+      "API testing"
+    ],
+    answer: 1,
+    explain: "Visual correctness and aesthetics are best evaluated by humans (or visual regression tools), not by simple pass/fail automated assertions."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB Foundation Syllabus", url: "https://www.istqb.org/certifications/certified-tester-foundation-level" },
+  { title: "Ministry of Testing — 99-Second Intros", url: "https://www.ministryoftesting.com/dojo/series/99-second-intros" },
+  { title: "Test Automation University (free)", url: "https://testautomationu.applitools.com/" }
+]} />

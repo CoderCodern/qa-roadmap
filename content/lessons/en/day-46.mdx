@@ -1,0 +1,199 @@
+---
+id: 46
+title: "API + UI combined testing"
+phase: 4
+estMinutes: 75
+tags: ["api-testing", "playwright", "integration"]
+---
+
+## Intro
+
+<En>
+The most powerful tests combine API and UI — using the API to set up state quickly and cheaply, then using the UI to verify that the state is displayed correctly. This pattern avoids slow UI-driven setup and makes tests much more reliable. It's how senior QA engineers think about test architecture.
+</En>
+<Vi>
+Các test mạnh mẽ nhất kết hợp API và UI — sử dụng API để thiết lập trạng thái nhanh chóng và rẻ, sau đó sử dụng UI để xác minh rằng trạng thái được hiển thị đúng. Mẫu này tránh thiết lập chậm do UI điều khiển và làm cho test đáng tin cậy hơn nhiều. Đây là cách các kỹ sư QA cấp senior nghĩ về kiến trúc test.
+</Vi>
+
+## Concept
+
+<En>
+**The hybrid test pattern — three layers:**
+
+**1. API setup (fast, direct):**
+Create test data via API calls. No browser needed. Runs in milliseconds.
+
+**2. UI verification (meaningful, realistic):**
+Navigate to the page and verify the UI reflects the state set via API.
+
+**3. API teardown (fast, clean):**
+Delete test data via API after the test. Keeps the database clean.
+
+**Why API setup beats UI setup:**
+| Dimension | UI setup | API setup |
+|-----------|---------|----------|
+| Speed | ~5-10 seconds | ~0.1-0.5 seconds |
+| Reliability | Can break with UI changes | Stable as long as API works |
+| Dependencies | Requires login UI, forms, navigation | Just a request |
+
+**Common patterns:**
+```python
+def test_user_shows_in_dashboard(api, page):
+    # 1. Create user via API
+    response = api.post("/users", json={"email": "test@example.com", "role": "viewer"})
+    user_id = response.json()["id"]
+
+    # 2. Navigate UI and verify
+    page.goto(f"/admin/users/{user_id}")
+    expect(page.get_by_text("test@example.com")).to_be_visible()
+
+    # 3. Cleanup via API
+    api.delete(f"/users/{user_id}")
+```
+
+**Setting auth state in Playwright from an API token:**
+```python
+context.add_cookies([{"name": "session", "value": token, "domain": "example.com"}])
+# OR
+page.set_extra_http_headers({"Authorization": f"Bearer {token}"})
+```
+</En>
+<Vi>
+**Mẫu test hỗn hợp — ba lớp:**
+
+**1. API setup (nhanh, trực tiếp):**
+Tạo dữ liệu test qua API call. Không cần trình duyệt. Chạy trong mili giây.
+
+**2. UI verification (có ý nghĩa, thực tế):**
+Điều hướng đến trang và xác minh UI phản ánh trạng thái được đặt qua API.
+
+**3. API teardown (nhanh, sạch):**
+Xoá dữ liệu test qua API sau khi test. Giữ cơ sở dữ liệu sạch.
+
+**Tại sao API setup đánh bại UI setup:**
+| Khía cạnh | UI setup | API setup |
+|-----------|---------|----------|
+| Tốc độ | ~5-10 giây | ~0.1-0.5 giây |
+| Độ tin cậy | Có thể vỡ với thay đổi UI | Ổn định miễn là API hoạt động |
+| Phụ thuộc | Yêu cầu UI đăng nhập, form | Chỉ một request |
+
+**Đặt trạng thái auth trong Playwright từ API token:**
+```python
+context.add_cookies([{"name": "session", "value": token, "domain": "example.com"}])
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_hybrid.py — combining API + Playwright UI tests
+
+import requests
+import pytest
+from playwright.sync_api import Page, BrowserContext, expect
+
+BASE_API = "https://jsonplaceholder.typicode.com"
+BASE_UI = "https://demo.playwright.dev/todomvc"
+
+# --- Pattern 1: API verifies what UI creates ---
+def test_ui_action_reflected_in_api_state(page: Page):
+    """
+    User adds a TodoMVC item via UI → verify via page state (simulating API check).
+    Real version: add item via UI → GET /todos from API → assert item is there.
+    """
+    page.goto(BASE_UI)
+    inp = page.get_by_placeholder("What needs to be done?")
+    inp.fill("Learn API+UI hybrid testing")
+    inp.press("Enter")
+
+    # UI verification
+    item = page.get_by_role("listitem").filter(has_text="Learn API+UI hybrid testing")
+    expect(item).to_be_visible()
+
+    # Simulated API check (in real projects: requests.get("/todos") and assert it's there)
+    item_count = page.get_by_role("listitem").count()
+    assert item_count >= 1
+    print(f"Item count after UI action: {item_count}")
+
+# --- Pattern 2: API creates data, UI displays it ---
+def test_api_data_displayed_in_browser(page: Page):
+    """
+    API creates a post → navigate to a browser rendering of that post.
+    Demonstrates the setup-via-API pattern.
+    """
+    # 1. Create via API
+    payload = {"title": "Hybrid Test Post", "body": "Created by API", "userId": 1}
+    api_response = requests.post(f"{BASE_API}/posts", json=payload)
+    assert api_response.status_code == 201
+    created_post = api_response.json()
+    print(f"Created post id: {created_post['id']}")
+
+    # 2. Verify via another API call (simulating UI verification)
+    get_response = requests.get(f"{BASE_API}/posts/{created_post['id']}")
+    assert get_response.status_code == 200
+    assert get_response.json()["title"] == "Hybrid Test Post"
+
+    # In a real app: page.goto(f"{BASE_UI}/posts/{created_post['id']}")
+    # expect(page.get_by_role("heading")).to_contain_text("Hybrid Test Post")
+    print("API-created data verified via read API (simulating UI check)")
+
+# --- Pattern 3: Inject auth state from API token ---
+def test_inject_auth_state(context: BrowserContext):
+    """
+    Get auth token from API → inject into browser context → access protected UI.
+    This avoids clicking through a login form in every test.
+    """
+    # Simulated: normally you'd POST to /auth/login
+    fake_token = "test-bearer-token-123"
+
+    # Inject into browser context so all pages in this context have the header
+    context.set_extra_http_headers({"Authorization": f"Bearer {fake_token}"})
+
+    page = context.new_page()
+    page.goto(BASE_UI)
+    # In a real app: navigate to /dashboard — it would load because the auth header is set
+    assert page.url.startswith("https://")
+    print("Auth injected into browser context successfully")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a test that: creates a post via POST to JSONPlaceholder, saves the id, then makes a GET request for that specific post and asserts all fields match what was sent
+- [ ] Design (in pseudocode) a hybrid test for a real application: (1) use the API to create a user, (2) use Playwright to log into the admin panel, (3) navigate to the user management page, (4) verify the user appears in the list, (5) delete via API in teardown
+- [ ] Explain the tradeoff: when would you choose pure UI tests vs API+UI hybrid tests vs pure API tests for the same scenario?
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why is using the API for test setup faster and more reliable than using the UI?",
+    choices: [
+      "APIs run on a separate server that is faster",
+      "API calls skip browser rendering, network round-trips for UI interactions, and visual verification — they go directly to the business logic layer",
+      "Playwright does not support setup in beforeEach hooks",
+      "APIs have no rate limiting"
+    ],
+    answer: 1,
+    explain: "A direct API call to create a user takes ~100ms. The equivalent UI flow (navigate to register, fill form, submit, wait for redirect) takes 5-10 seconds. API setup is 50-100x faster and unaffected by UI changes."
+  },
+  {
+    q: "What does `context.set_extra_http_headers({'Authorization': 'Bearer token'})` do in Playwright?",
+    choices: [
+      "Sends an HTTP request to the server",
+      "Adds the header to every HTTP request made by pages in that browser context",
+      "Sets a cookie named Authorization",
+      "It only works for the first page load"
+    ],
+    answer: 1,
+    explain: "set_extra_http_headers adds headers to all requests made by any page within that browser context. This is how you inject an auth token from an API login response into the browser — avoiding the need to fill a login form in every test."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright API Testing Guide", url: "https://playwright.dev/python/docs/api-testing" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

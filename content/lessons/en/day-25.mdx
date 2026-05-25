@@ -1,0 +1,167 @@
+---
+id: 25
+title: "Actions — click, fill, select, check"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "actions"]
+---
+
+## Intro
+
+<En>
+Locators find elements; actions interact with them. Playwright provides a rich set of actions that mirror everything a user can do: clicking buttons, typing in fields, selecting dropdown options, checking checkboxes, uploading files, pressing keyboard shortcuts. Each action auto-waits for the element to be ready before executing.
+</En>
+<Vi>
+Locator tìm phần tử; action tương tác với chúng. Playwright cung cấp một bộ action phong phú phản ánh mọi thứ người dùng có thể làm: nhấp nút, gõ vào trường, chọn tuỳ chọn dropdown, chọn checkbox, tải lên file, nhấn phím tắt. Mỗi action tự động chờ phần tử sẵn sàng trước khi thực thi.
+</Vi>
+
+## Concept
+
+<En>
+**Core actions and when to use them:**
+
+| Action | Code | Use for |
+|--------|------|---------|
+| Click | `locator.click()` | Buttons, links, checkboxes, radios |
+| Fill | `locator.fill("text")` | Text inputs, textarea — clears first |
+| Type | `locator.type("text")` | Simulates keystrokes (triggers key events) |
+| Clear | `locator.clear()` | Clear an input field |
+| Select option | `locator.select_option("value")` | `<select>` dropdowns |
+| Check / uncheck | `locator.check()` / `locator.uncheck()` | Checkboxes |
+| Press key | `locator.press("Enter")` | Keyboard shortcuts |
+| Hover | `locator.hover()` | Trigger hover states |
+| Focus | `locator.focus()` | Trigger focus/blur events |
+| Screenshot | `page.screenshot(path="file.png")` | Debug visuals |
+
+**`fill()` vs `type()`:**
+- `fill()` clears the field and sets the value directly — fast, preferred.
+- `type()` simulates real keystrokes character by character — use when the app listens to keyboard events (auto-suggest, real-time validation).
+
+**Keyboard shortcuts:**
+```python
+page.keyboard.press("Control+A")  # select all
+page.keyboard.press("Control+C")  # copy
+locator.press("Tab")               # move focus
+```
+
+**Select dropdown:**
+```python
+locator.select_option("admin")             # by value
+locator.select_option(label="Admin Role")  # by label text
+locator.select_option(index=2)             # by index
+```
+</En>
+<Vi>
+**Các action cốt lõi và khi nào dùng:**
+
+| Action | Code | Dùng cho |
+|--------|------|---------|
+| Click | `locator.click()` | Nút, link, checkbox, radio |
+| Fill | `locator.fill("text")` | Input text, textarea — xoá trước |
+| Type | `locator.type("text")` | Mô phỏng tổ hợp phím |
+| Clear | `locator.clear()` | Xoá trường input |
+| Select option | `locator.select_option("value")` | Dropdown `<select>` |
+| Check / uncheck | `locator.check()` / `locator.uncheck()` | Checkbox |
+| Press key | `locator.press("Enter")` | Phím tắt |
+| Hover | `locator.hover()` | Kích hoạt trạng thái hover |
+
+**`fill()` vs `type()`:**
+- `fill()` xoá trường và đặt giá trị trực tiếp — nhanh, được ưu tiên.
+- `type()` mô phỏng tổ hợp phím thực từng ký tự — dùng khi app lắng nghe sự kiện bàn phím.
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_actions.py — using Playwright's demo TODO app
+from playwright.sync_api import Page, expect
+
+DEMO_URL = "https://demo.playwright.dev/todomvc"
+
+def test_add_todo_item(page: Page):
+    page.goto(DEMO_URL)
+    # Fill the new todo input and press Enter
+    page.get_by_placeholder("What needs to be done?").fill("Write Playwright tests")
+    page.get_by_placeholder("What needs to be done?").press("Enter")
+    # Verify item was added
+    todo_item = page.get_by_role("listitem").filter(has_text="Write Playwright tests")
+    expect(todo_item).to_be_visible()
+
+def test_complete_todo_item(page: Page):
+    page.goto(DEMO_URL)
+    # Add an item
+    page.get_by_placeholder("What needs to be done?").fill("Buy groceries")
+    page.get_by_placeholder("What needs to be done?").press("Enter")
+    # Click the checkbox to mark complete
+    page.get_by_role("checkbox", name="Buy groceries").check()
+    # Verify it's marked as completed
+    completed = page.locator(".todo-list li.completed")
+    expect(completed).to_contain_text("Buy groceries")
+
+def test_edit_todo_item(page: Page):
+    page.goto(DEMO_URL)
+    # Add item
+    new_todo = page.get_by_placeholder("What needs to be done?")
+    new_todo.fill("Old text")
+    new_todo.press("Enter")
+    # Double-click to edit
+    page.get_by_role("listitem").filter(has_text="Old text").dblclick()
+    # Clear and retype
+    edit_input = page.get_by_role("textbox", name="Old text")
+    edit_input.fill("New text")
+    edit_input.press("Enter")
+    expect(page.get_by_role("listitem")).to_contain_text("New text")
+
+def test_delete_todo_item(page: Page):
+    page.goto(DEMO_URL)
+    new_todo = page.get_by_placeholder("What needs to be done?")
+    new_todo.fill("To be deleted")
+    new_todo.press("Enter")
+    # Hover to reveal delete button, then click it
+    item = page.get_by_role("listitem").filter(has_text="To be deleted")
+    item.hover()
+    item.get_by_role("button", name="Delete").click()
+    expect(item).not_to_be_visible()
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Using the Playwright TodoMVC demo, write a test that adds 3 items, marks 2 as complete, then asserts the "2 items left" counter shows 1
+- [ ] Write a test that fills a text input using `fill()` and another that uses `type()` — observe the difference in speed
+- [ ] Use `page.screenshot(path="debug.png")` inside a failing test to capture what the page looked like at the point of failure
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "When should you use `locator.type()` instead of `locator.fill()`?",
+    choices: [
+      "type() is always preferred because it's faster",
+      "When the app needs real keypress events for features like autocomplete or real-time validation",
+      "type() is required for password fields",
+      "There is no difference between type() and fill()"
+    ],
+    answer: 1,
+    explain: "fill() sets the value directly without firing key events — it's fast and sufficient for most inputs. type() simulates real keystrokes including keydown/keyup/keypress events, needed when the app reacts to individual keypresses."
+  },
+  {
+    q: "How do you select an option from a dropdown by its visible label text?",
+    choices: [
+      "locator.click('Admin Role')",
+      "locator.select_option(label='Admin Role')",
+      "locator.fill('Admin Role')",
+      "locator.check('Admin Role')"
+    ],
+    answer: 1,
+    explain: "select_option() accepts value= (the HTML value attribute), label= (visible text), or index= (zero-based position). Using label= is the most readable option since it matches what the user sees."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Actions Guide", url: "https://playwright.dev/python/docs/input" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

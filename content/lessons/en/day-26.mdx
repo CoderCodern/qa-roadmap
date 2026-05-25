@@ -1,0 +1,162 @@
+---
+id: 26
+title: "Waiting strategies"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "waiting"]
+---
+
+## Intro
+
+<En>
+Flaky tests — tests that sometimes pass and sometimes fail without any code change — are the number one problem in browser automation. The most common cause is timing: the test tries to interact with an element before it is ready. Playwright's approach to waiting is fundamentally different from older tools, and understanding it is what separates stable test suites from unreliable ones.
+</En>
+<Vi>
+Test không ổn định — test đôi khi pass đôi khi fail mà không có thay đổi code — là vấn đề số một trong tự động hoá trình duyệt. Nguyên nhân phổ biến nhất là timing: test cố tương tác với phần tử trước khi nó sẵn sàng. Cách tiếp cận của Playwright về việc chờ về cơ bản khác với các công cụ cũ hơn, và hiểu điều này là điều phân biệt bộ test ổn định với bộ test không đáng tin cậy.
+</Vi>
+
+## Concept
+
+<En>
+**Playwright's auto-wait (built-in):**
+Before any action (click, fill, etc.), Playwright checks that the element:
+1. Is attached to the DOM
+2. Is visible (not hidden or `display: none`)
+3. Is stable (not animating)
+4. Is enabled (not disabled)
+5. Receives events (not obscured by another element)
+
+This eliminates most timing issues without any extra code.
+
+**Explicit waits — when you need them:**
+
+| Wait method | When to use |
+|-------------|-------------|
+| `expect(locator).to_be_visible()` | Wait for element to appear |
+| `expect(locator).to_contain_text("...")` | Wait for text to load |
+| `page.wait_for_url("**/dashboard")` | Wait for navigation |
+| `page.wait_for_load_state("networkidle")` | Wait for network to be quiet |
+| `page.wait_for_selector(".spinner", state="hidden")` | Wait for a spinner to disappear |
+
+**Timeouts:**
+- Default action timeout: 30 seconds
+- Default assertion timeout: 5 seconds
+- Override per-action: `locator.click(timeout=60_000)`
+- Override globally in `pytest.ini` or `conftest.py`
+
+**Anti-patterns to avoid:**
+- `time.sleep(3)` — fixed delay. Don't do this. It's slow when the element is ready early, and still fails when the network is slow.
+- `page.wait_for_timeout(2000)` — Playwright's own sleep. Also an anti-pattern except for very specific debugging.
+- Checking `is_visible()` in a loop — reinventing what `expect()` already does.
+</En>
+<Vi>
+**Auto-wait của Playwright (tích hợp sẵn):**
+Trước bất kỳ action nào, Playwright kiểm tra phần tử:
+1. Được gắn vào DOM
+2. Hiển thị (không ẩn hoặc `display: none`)
+3. Ổn định (không đang animate)
+4. Được kích hoạt (không bị disable)
+5. Nhận sự kiện (không bị che bởi phần tử khác)
+
+Điều này loại bỏ hầu hết các vấn đề timing mà không cần thêm code.
+
+**Chờ tường minh — khi nào cần:**
+
+| Phương thức chờ | Khi nào dùng |
+|-------------|-------------|
+| `expect(locator).to_be_visible()` | Chờ phần tử xuất hiện |
+| `expect(locator).to_contain_text("...")` | Chờ văn bản tải |
+| `page.wait_for_url("**/dashboard")` | Chờ điều hướng |
+| `page.wait_for_load_state("networkidle")` | Chờ mạng yên |
+| `page.wait_for_selector(".spinner", state="hidden")` | Chờ spinner biến mất |
+
+**Anti-pattern cần tránh:**
+- `time.sleep(3)` — độ trễ cố định. Đừng làm vậy.
+- `page.wait_for_timeout(2000)` — cũng là anti-pattern ngoại trừ debug.
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_waiting.py
+from playwright.sync_api import Page, expect
+
+def test_navigation_wait(page: Page):
+    page.goto("https://example.com")
+    # Playwright waits for navigation to complete automatically
+    link = page.get_by_role("link", name="More information")
+    link.click()
+    # Wait for the new URL
+    page.wait_for_url("https://www.iana.org/**")
+    expect(page).to_have_url("https://www.iana.org/domains/reserved")
+
+def test_element_appears_after_action(page: Page):
+    # Using the Playwright TodoMVC demo
+    page.goto("https://demo.playwright.dev/todomvc")
+    # Add an item
+    new_todo = page.get_by_placeholder("What needs to be done?")
+    new_todo.fill("Learn waiting strategies")
+    new_todo.press("Enter")
+    # Playwright auto-waits for the new item to be visible
+    item = page.get_by_role("listitem").filter(has_text="Learn waiting strategies")
+    expect(item).to_be_visible()  # this auto-retries up to 5 seconds
+
+def test_wait_for_network_idle(page: Page):
+    # Wait for the page to finish all network requests
+    page.goto("https://example.com", wait_until="networkidle")
+    expect(page).to_have_title("Example Domain")
+
+def test_custom_timeout_per_assertion(page: Page):
+    page.goto("https://example.com")
+    heading = page.locator("h1")
+    # Override timeout for this specific assertion only
+    expect(heading).to_be_visible(timeout=10_000)  # 10 seconds
+
+# BAD EXAMPLE — included to illustrate what NOT to do:
+# def test_bad_sleep(page: Page):
+#     page.goto("https://example.com")
+#     time.sleep(3)  # NEVER do this — fixed delays cause flaky tests
+#     assert page.title() == "Example Domain"
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a test that clicks a link, waits for the URL to change using `wait_for_url()`, then asserts the new page has the expected title
+- [ ] Add a test that adds a TodoMVC item and uses `expect(item).to_be_visible(timeout=3000)` — then explain what would happen if the default timeout was 0
+- [ ] Identify two places in your existing tests where `time.sleep()` might have been used and explain which Playwright waiting method should replace it
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why should you avoid `time.sleep()` in Playwright tests?",
+    choices: [
+      "Because Python's time module is not available in Playwright",
+      "Because fixed delays are too slow when elements are ready early, and too short when the app is slow",
+      "Because Playwright blocks sleep() calls",
+      "Because sleep() only works in async code"
+    ],
+    answer: 1,
+    explain: "time.sleep(3) waits 3 full seconds whether the element appears in 0.1 seconds or 3.1 seconds. It's slow, brittle, and non-deterministic. Playwright's expect() and wait_for_* methods poll efficiently and react as soon as the condition is met."
+  },
+  {
+    q: "What does Playwright check before executing a click() action?",
+    choices: [
+      "Only that the element exists in the DOM",
+      "That the element is attached, visible, stable, enabled, and not obscured",
+      "That the page has finished loading",
+      "Nothing — it clicks immediately"
+    ],
+    answer: 1,
+    explain: "Playwright's auto-wait checks multiple actionability conditions before interacting. This is why most tests don't need explicit waits — Playwright handles the common timing issues automatically."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Waiting Guide", url: "https://playwright.dev/python/docs/actionability" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

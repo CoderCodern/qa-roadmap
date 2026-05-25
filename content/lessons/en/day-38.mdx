@@ -1,0 +1,182 @@
+---
+id: 38
+title: "Postman fundamentals"
+phase: 4
+estMinutes: 60
+tags: ["api-testing", "postman"]
+---
+
+## Intro
+
+<En>
+Before automating API tests in Python, you need to understand and manually explore the API. Postman is the industry-standard GUI tool for this. It lets you send requests, inspect responses, and build collections of tests — all without writing a single line of code. It's also a great tool for understanding an unfamiliar API before automating it.
+</En>
+<Vi>
+Trước khi tự động hoá API test trong Python, bạn cần hiểu và khám phá API thủ công. Postman là công cụ GUI tiêu chuẩn công nghiệp cho điều này. Nó cho phép bạn gửi request, kiểm tra response và xây dựng collection test — tất cả mà không cần viết một dòng code nào. Đây cũng là công cụ tuyệt vời để hiểu API chưa quen trước khi tự động hoá nó.
+</Vi>
+
+## Concept
+
+<En>
+**Key Postman concepts:**
+
+| Concept | Description |
+|---------|-------------|
+| **Request** | One HTTP call (method + URL + headers + body) |
+| **Collection** | Group of related requests |
+| **Environment** | Set of variables (base URL, API key) for different contexts |
+| **Variable** | `{{base_url}}` — placeholder replaced at runtime |
+| **Test script** | JavaScript that runs after the response — like assertions |
+| **Pre-request script** | JavaScript that runs before sending — for dynamic data |
+
+**Postman test scripts (JavaScript):**
+```javascript
+pm.test("Status is 200", () => {
+    pm.response.to.have.status(200);
+});
+
+pm.test("Response has id field", () => {
+    const body = pm.response.json();
+    pm.expect(body).to.have.property("id");
+    pm.expect(body.id).to.be.a("number");
+});
+
+// Save to environment for use in next request
+pm.environment.set("user_id", pm.response.json().id);
+```
+
+**Postman environments:**
+Environments hold key-value pairs like `base_url = https://staging.example.com`. Switch environments to run the same collection against dev, staging, or production.
+
+**Why use Postman even if you automate in Python:**
+- Fastest way to explore an unfamiliar API
+- Share collections with the team (no code needed)
+- Run collections in CI via Newman (Day 41)
+- Visual response inspection catches issues faster than reading JSON strings
+</En>
+<Vi>
+**Các khái niệm Postman quan trọng:**
+
+| Khái niệm | Mô tả |
+|---------|-------------|
+| **Request** | Một cuộc gọi HTTP (method + URL + headers + body) |
+| **Collection** | Nhóm các request liên quan |
+| **Environment** | Tập biến (base URL, API key) cho các ngữ cảnh khác nhau |
+| **Variable** | `{{base_url}}` — placeholder được thay thế lúc runtime |
+| **Test script** | JavaScript chạy sau response — như assertion |
+
+**Test script Postman (JavaScript):**
+```javascript
+pm.test("Status is 200", () => {
+    pm.response.to.have.status(200);
+});
+
+pm.test("Response has id field", () => {
+    const body = pm.response.json();
+    pm.expect(body).to.have.property("id");
+    pm.expect(body.id).to.be.a("number");
+});
+
+// Lưu vào environment cho request tiếp theo
+pm.environment.set("user_id", pm.response.json().id);
+```
+
+**Tại sao dùng Postman ngay cả khi bạn tự động hoá bằng Python:**
+- Cách nhanh nhất để khám phá API chưa quen
+- Chia sẻ collection với nhóm (không cần code)
+- Chạy collection trong CI qua Newman
+</Vi>
+
+## Code / Demo
+
+```javascript
+// Postman test scripts for JSONPlaceholder API (free public test API)
+// Run these in Postman's "Tests" tab
+
+// --- Test 1: GET /posts/1 ---
+pm.test("Status code is 200", function () {
+    pm.response.to.have.status(200);
+});
+
+pm.test("Response time is acceptable", function () {
+    pm.expect(pm.response.responseTime).to.be.below(2000);
+});
+
+pm.test("Response has required fields", function () {
+    const post = pm.response.json();
+    pm.expect(post).to.have.property("id");
+    pm.expect(post).to.have.property("title");
+    pm.expect(post).to.have.property("body");
+    pm.expect(post).to.have.property("userId");
+});
+
+pm.test("Field types are correct", function () {
+    const post = pm.response.json();
+    pm.expect(post.id).to.be.a("number");
+    pm.expect(post.title).to.be.a("string");
+    pm.expect(post.title).to.have.length.above(0);
+});
+
+// Save the post id for use in subsequent requests
+pm.environment.set("post_id", pm.response.json().id);
+```
+
+```javascript
+// --- Test 2: POST /posts ---
+pm.test("Status code is 201", function () {
+    pm.response.to.have.status(201);
+});
+
+pm.test("Created resource has an id", function () {
+    const newPost = pm.response.json();
+    pm.expect(newPost).to.have.property("id");
+    pm.expect(newPost.id).to.be.a("number");
+});
+
+pm.test("Title matches what we sent", function () {
+    const newPost = pm.response.json();
+    pm.expect(newPost.title).to.equal("My Test Post");
+});
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Download and install Postman, create a collection called "JSONPlaceholder Tests", and add a GET request to `https://jsonplaceholder.typicode.com/posts/1` — run it and inspect the response
+- [ ] Add 3 test scripts to that request: (1) verify status is 200, (2) verify `userId` is a number, (3) verify the response time is under 2000ms
+- [ ] Create an environment with `base_url = https://jsonplaceholder.typicode.com` and update your request to use `{{base_url}}/posts/1` — then duplicate the environment for a "staging" context with a different base URL
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is a Postman environment used for?",
+    choices: [
+      "To install Postman on different operating systems",
+      "To store variables like base_url and API keys so the same collection works in dev, staging, and production",
+      "To save test results to disk",
+      "To change the request method (GET/POST/etc.)"
+    ],
+    answer: 1,
+    explain: "Environments hold key-value pairs that vary between contexts. With {{base_url}} in your requests, switching from a staging to a production environment updates every URL in the collection simultaneously."
+  },
+  {
+    q: "In a Postman test script, what does `pm.environment.set('user_id', value)` do?",
+    choices: [
+      "Creates a new Postman environment",
+      "Sets a variable in the current environment that can be referenced in subsequent requests",
+      "Stores the value in a database",
+      "Sends the value to the server as a query parameter"
+    ],
+    answer: 1,
+    explain: "pm.environment.set saves a value to the current environment. Other requests in the collection can then reference it as {{user_id}}. This enables chaining requests — create a user, save its ID, then use it in the next request."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Postman Learning Center", url: "https://learning.postman.com/" },
+  { title: "JSONPlaceholder — free test API", url: "https://jsonplaceholder.typicode.com/" }
+]} />

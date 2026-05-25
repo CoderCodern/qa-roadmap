@@ -1,0 +1,193 @@
+---
+id: 44
+title: "Negative testing & edge cases"
+phase: 4
+estMinutes: 60
+tags: ["api-testing", "negative-testing"]
+---
+
+## Intro
+
+<En>
+Most QA beginners only test the happy path — valid inputs that work correctly. But the most valuable tests are the ones that break things: invalid inputs, missing fields, boundary values, malformed JSON. Negative testing verifies that the API fails gracefully with the right error response instead of crashing or exposing sensitive information.
+</En>
+<Vi>
+Hầu hết người mới bắt đầu QA chỉ kiểm tra happy path — các đầu vào hợp lệ hoạt động đúng. Nhưng các test có giá trị nhất là những test phá vỡ mọi thứ: đầu vào không hợp lệ, thiếu trường, giá trị biên, JSON sai định dạng. Kiểm thử tiêu cực xác minh rằng API thất bại một cách duyên dáng với response lỗi đúng thay vì crash hoặc lộ thông tin nhạy cảm.
+</Vi>
+
+## Concept
+
+<En>
+**The 4 dimensions of negative API testing:**
+
+**1. Invalid input values:**
+- Wrong data type (string where int expected)
+- Value outside allowed range (age = -5, age = 999)
+- Invalid format (email without @, non-UUID where UUID expected)
+- Empty string where content required
+
+**2. Missing required fields:**
+- Omit each required field, one at a time
+- Expect 400 or 422 with a meaningful error message
+
+**3. Boundary values (BVA applied to APIs):**
+- Min length string: one character
+- Max length string: exactly at limit, then one over
+- Numeric: 0, -1, max allowed, max+1
+
+**4. Security edge cases:**
+- SQL injection in string fields: `'; DROP TABLE users; --`
+- XSS payload in text fields: `<script>alert(1)</script>`
+- Extremely long strings (buffer overflow attempts)
+- Unexpected content types (send XML to JSON endpoint)
+
+**What good error responses look like:**
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {"field": "email", "message": "Must be a valid email address"},
+    {"field": "age", "message": "Must be between 0 and 150"}
+  ]
+}
+```
+
+**What to assert in negative tests:**
+- Status code is 4xx (not 5xx — 500 means the server crashed)
+- Response body contains an `error` or `message` field
+- Error message describes the problem without leaking internals
+- No stack traces, database names, or SQL in the response
+</En>
+<Vi>
+**4 chiều của kiểm thử API tiêu cực:**
+
+**1. Giá trị đầu vào không hợp lệ:**
+- Sai kiểu dữ liệu (chuỗi ở nơi mong đợi int)
+- Giá trị ngoài phạm vi được phép
+- Định dạng không hợp lệ (email không có @)
+- Chuỗi rỗng ở nơi yêu cầu nội dung
+
+**2. Thiếu trường bắt buộc:**
+- Bỏ qua từng trường bắt buộc, một lần một cái
+- Mong đợi 400 hoặc 422 với thông báo lỗi có ý nghĩa
+
+**3. Giá trị biên (BVA áp dụng cho API):**
+- Chuỗi độ dài tối thiểu: một ký tự
+- Chuỗi độ dài tối đa: đúng ở giới hạn, sau đó hơn một
+
+**4. Edge case bảo mật:**
+- SQL injection trong trường chuỗi
+- XSS payload trong trường văn bản
+- Chuỗi cực dài
+
+**Response lỗi tốt trông như thế nào:**
+- Status code là 4xx (không phải 5xx)
+- Body chứa trường `error` hoặc `message`
+- Thông báo lỗi mô tả vấn đề mà không lộ nội bộ
+</Vi>
+
+## Code / Demo
+
+```python
+import requests
+import pytest
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# Note: JSONPlaceholder is lenient (it accepts almost anything),
+# so we use it to demonstrate the pattern with adjusted expectations
+
+def test_get_nonexistent_resource():
+    """404 for a resource that does not exist."""
+    response = requests.get(f"{BASE_URL}/posts/99999")
+    assert response.status_code == 404
+
+def test_invalid_resource_id_type():
+    """String id where integer expected — many APIs return 400 or 404."""
+    response = requests.get(f"{BASE_URL}/posts/not-an-id")
+    assert response.status_code in (400, 404), \
+        f"Expected 400 or 404 for invalid ID, got {response.status_code}"
+
+@pytest.mark.parametrize("field,value,description", [
+    ("email",    "notanemail",       "invalid email format"),
+    ("age",      -1,                 "negative age"),
+    ("username", "",                 "empty username"),
+    ("role",     "superadmin",       "invalid role value"),
+])
+def test_invalid_field_values(field, value, description):
+    """400 or 422 for invalid field values."""
+    # In a real API with validation, this would return 400/422
+    # JSONPlaceholder accepts everything, so we simulate the assertion pattern:
+    payload = {field: value}
+    response = requests.post(f"{BASE_URL}/posts", json=payload)
+    # JSONPlaceholder returns 201 for everything — in real life, assert 400/422
+    print(f"  {description}: sent {field}={value!r}, got {response.status_code}")
+    assert response.status_code in (200, 201, 400, 422), \
+        f"Unexpected status {response.status_code} for {description}"
+
+@pytest.mark.parametrize("payload,missing_field", [
+    ({"body": "content", "userId": 1}, "title"),
+    ({"title": "Test",  "userId": 1},  "body"),
+])
+def test_missing_required_field(payload, missing_field):
+    """API with validation should return 400/422 for missing required fields."""
+    response = requests.post(f"{BASE_URL}/posts", json=payload)
+    print(f"  Missing '{missing_field}': status {response.status_code}")
+    # In real API: assert response.status_code in (400, 422)
+
+def test_empty_body():
+    """POST with no body."""
+    response = requests.post(f"{BASE_URL}/posts", json={})
+    print(f"Empty body response: {response.status_code}")
+
+def test_very_long_string():
+    """Field value at extreme length."""
+    long_title = "A" * 10000
+    response = requests.post(f"{BASE_URL}/posts",
+                             json={"title": long_title, "body": "x", "userId": 1})
+    print(f"Very long title: status {response.status_code}")
+    # In real API with length validation: assert response.status_code == 422
+    assert response.status_code != 500, "Server must not crash on long input"
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] For a hypothetical `/users` endpoint with required fields `email`, `password`, and `role`, write one test per missing field — each should expect a 422 status with an error message about the missing field
+- [ ] Write a test that sends a SQL injection string (`' OR '1'='1`) as a value and asserts: the status is NOT 500 (server must not crash), and the response body does not contain SQL error text like "syntax error" or "SQLITE"
+- [ ] Apply BVA to a `username` field that accepts 3–20 characters: write tests for length 2, 3, 20, and 21 with expected results
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "When a user submits a form with an invalid email, what status code should the API return?",
+    choices: [
+      "200 OK with an error flag in the body",
+      "400 Bad Request or 422 Unprocessable Entity",
+      "500 Internal Server Error",
+      "404 Not Found"
+    ],
+    answer: 1,
+    explain: "400 Bad Request means the client sent malformed data. 422 Unprocessable Entity (more specific) means the request was well-formed but failed semantic validation. Either is correct; 500 means the server crashed — a bug, not a handled error."
+  },
+  {
+    q: "Why should API error responses never include a database stack trace?",
+    choices: [
+      "Stack traces are too long to include in JSON",
+      "Stack traces reveal internal implementation details (table names, SQL queries, framework versions) that attackers can exploit",
+      "Clients cannot parse stack traces",
+      "Stack traces are only for HTTP 5xx errors"
+    ],
+    answer: 1,
+    explain: "Stack traces expose the internal architecture — database schema, ORM queries, file paths, framework versions. This information helps attackers craft targeted attacks. Errors should return a human-readable message with no internal implementation details."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB — Defect Management", url: "https://www.istqb.org/" },
+  { title: "MDN — HTTP status codes", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status" }
+]} />

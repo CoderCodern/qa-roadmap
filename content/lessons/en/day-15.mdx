@@ -1,0 +1,161 @@
+---
+id: 15
+title: "Modules & imports"
+phase: 2
+estMinutes: 45
+tags: ["python", "modules"]
+---
+
+## Intro
+
+<En>
+A module is any Python file. Splitting your code into modules keeps it organised and reusable. In test automation, you will create modules for page helpers, API clients, test data factories, and utilities — and import standard-library modules like `os`, `json`, and `time` constantly. Understanding how imports work prevents common "ModuleNotFoundError" headaches.
+</En>
+<Vi>
+Module là bất kỳ file Python nào. Chia code thành các module giữ cho nó có tổ chức và tái sử dụng được. Trong tự động hoá test, bạn sẽ tạo các module cho page helper, API client, factory dữ liệu test và tiện ích — và liên tục import các module thư viện chuẩn như `os`, `json` và `time`. Hiểu cách import hoạt động ngăn chặn những đau đầu "ModuleNotFoundError" phổ biến.
+</Vi>
+
+## Concept
+
+<En>
+**Import styles:**
+
+```python
+import json                     # import whole module — use as json.loads()
+from json import loads, dumps   # import specific names — use as loads()
+from json import loads as parse # alias — use as parse()
+import os.path                  # submodule import
+```
+
+**Standard library modules you'll use constantly in QA:**
+
+| Module | What it gives you |
+|--------|------------------|
+| `json` | parse/serialize JSON (`json.loads`, `json.dumps`) |
+| `os` | environment variables (`os.environ.get`), paths |
+| `time` | `time.sleep()` for waits, `time.time()` for timestamps |
+| `datetime` | date/time manipulation |
+| `pathlib` | modern file path handling (`Path`) |
+| `re` | regular expressions for pattern matching |
+| `uuid` | generate unique IDs for test data |
+| `random` | random test data, random waits |
+
+**Package structure:** A directory with an `__init__.py` file is a Python package. You can import from it as `from mypackage.utils import helper`.
+
+**`__name__ == "__main__"`:** A file can be both a module (imported) and a script (run directly). Code inside `if __name__ == "__main__":` only runs when the file is executed directly, not when imported.
+</En>
+<Vi>
+**Các kiểu import:**
+
+```python
+import json                     # import toàn bộ module — dùng json.loads()
+from json import loads, dumps   # import tên cụ thể — dùng loads()
+from json import loads as parse # bí danh — dùng parse()
+```
+
+**Các module thư viện chuẩn bạn sẽ dùng liên tục trong QA:**
+
+| Module | Cung cấp gì |
+|--------|------------------|
+| `json` | phân tích/tuần tự hoá JSON |
+| `os` | biến môi trường, đường dẫn |
+| `time` | `time.sleep()` cho độ trễ, timestamp |
+| `datetime` | thao tác ngày/giờ |
+| `pathlib` | xử lý đường dẫn file hiện đại |
+| `re` | biểu thức chính quy |
+| `uuid` | tạo ID duy nhất cho dữ liệu test |
+
+**`__name__ == "__main__"`:** Một file có thể vừa là module (được import) vừa là script (chạy trực tiếp). Code bên trong `if __name__ == "__main__":` chỉ chạy khi file được thực thi trực tiếp.
+</Vi>
+
+## Code / Demo
+
+```python
+# Standard library modules in a QA context
+import json
+import os
+import time
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+# json — parsing API responses
+raw_response = '{"status": "ok", "user": {"id": 42, "email": "alice@example.com"}}'
+data = json.loads(raw_response)
+assert data["status"] == "ok"
+assert data["user"]["id"] == 42
+print(f"Parsed user: {data['user']['email']}")
+
+# json.dumps — building request bodies
+payload = {"email": "bob@example.com", "role": "viewer"}
+serialized = json.dumps(payload)
+print(f"Request body: {serialized}")
+
+# os.environ — reading config without hardcoding
+api_url = os.environ.get("API_URL", "http://localhost:8080")
+print(f"Target: {api_url}")
+
+# uuid — unique test data
+test_email = f"test+{uuid.uuid4().hex[:8]}@example.com"
+print(f"Test email: {test_email}")
+
+# datetime — timestamped logs
+now = datetime.now().isoformat()
+print(f"Test run started at: {now}")
+
+# pathlib — reading fixture files
+fixtures_dir = Path(__file__).parent / "fixtures"
+# example: test_data = json.loads((fixtures_dir / "users.json").read_text())
+
+# time — simple polling wait
+print("Simulating a polling wait...")
+start = time.time()
+time.sleep(0.1)
+elapsed = time.time() - start
+print(f"Waited {elapsed:.2f}s")
+
+if __name__ == "__main__":
+    print("Running module directly — all checks passed!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Create a file `test_helpers.py` with a function `generate_test_user()` that returns a dict with a unique email (using `uuid`), a fixed password, and a timestamp. Import and call it from a separate `run_tests.py` file
+- [ ] Use `os.environ.get` to read an `API_URL` environment variable with a localhost default, then print a formatted string showing the target URL
+- [ ] Parse the JSON string `'{"items": [1, 2, 3], "total": 3}'` and assert that the `total` equals the length of `items`
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the difference between `import json` and `from json import loads`?",
+    choices: [
+      "No difference — they are identical",
+      "`import json` requires `json.loads()` syntax; `from json import loads` lets you call `loads()` directly",
+      "`from json import loads` only works in Python 3.10+",
+      "`import json` is slower"
+    ],
+    answer: 1,
+    explain: "With 'import json' you access names via the module namespace (json.loads). With 'from json import loads' the name is injected directly into your namespace. Both work; choose based on clarity."
+  },
+  {
+    q: "When does `if __name__ == '__main__':` block run?",
+    choices: [
+      "Every time the file is imported",
+      "Only when the file is run directly with python file.py",
+      "Only in production environments",
+      "Only when running pytest"
+    ],
+    answer: 1,
+    explain: "When a file is imported, __name__ is set to the module name. When run directly, __name__ is '__main__'. This lets a file be both a reusable module and a runnable script."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Modules — docs.python.org", url: "https://docs.python.org/3/tutorial/modules.html" },
+  { title: "Python Standard Library", url: "https://docs.python.org/3/library/index.html" }
+]} />

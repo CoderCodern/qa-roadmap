@@ -4,12 +4,16 @@ import { useState } from 'react'
 import { CheckCircle2, XCircle, HelpCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
+import { useProgressStore } from '@/lib/store'
 
 export interface QuizQuestion {
   q: string
+  qVi?: string
   choices: string[]
+  choicesVi?: string[]
   answer: number
   explain: string
+  explainVi?: string
 }
 
 interface QuizProps {
@@ -19,6 +23,7 @@ interface QuizProps {
 export function Quiz({ questions }: QuizProps) {
   const [selected, setSelected] = useState<Record<number, number>>({})
   const [submitted, setSubmitted] = useState(false)
+  const language = useProgressStore((s) => s.language)
 
   const allAnswered = questions.every((_, i) => selected[i] !== undefined)
 
@@ -39,14 +44,17 @@ export function Quiz({ questions }: QuizProps) {
         {questions.map((q, qi) => {
           const userAnswer = selected[qi]
           const isCorrect = submitted && userAnswer === q.answer
+          const displayQ = language === 'vi' && q.qVi ? q.qVi : q.q
+          const displayChoices = language === 'vi' && q.choicesVi ? q.choicesVi : q.choices
+          const displayExplain = language === 'vi' && q.explainVi ? q.explainVi : q.explain
 
           return (
             <div key={qi}>
               <p className="mb-3 font-medium text-gray-900 dark:text-gray-100">
-                {qi + 1}. {q.q}
+                {qi + 1}. {displayQ}
               </p>
               <ul className="space-y-2">
-                {q.choices.map((choice, ci) => {
+                {displayChoices.map((choice, ci) => {
                   const isSelected = userAnswer === ci
                   const isCorrectChoice = submitted && ci === q.answer
                   const isWrongChoice = submitted && isSelected && ci !== q.answer
@@ -78,7 +86,7 @@ export function Quiz({ questions }: QuizProps) {
                   {isCorrect
                     ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                     : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
-                  <span>{q.explain}</span>
+                  <span>{displayExplain}</span>
                 </div>
               )}
             </div>

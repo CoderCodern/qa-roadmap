@@ -72,9 +72,16 @@ print("All EP and BVA tests passed!")
 ## Exercise
 
 <ExerciseBox>
+<En>
 - [ ] For an age input field (1–120), list all EP partitions and boundary values
 - [ ] Write 4 test cases using EP for a quantity field that accepts 1–99
 - [ ] Describe a real feature where BVA helped you catch a bug that a simple "happy path" test missed
+</En>
+<Vi>
+- [ ] Với trường nhập tuổi (1–120), liệt kê tất cả các phân vùng EP và giá trị biên
+- [ ] Viết 4 test case dùng EP cho trường số lượng chấp nhận 1–99
+- [ ] Mô tả một tính năng thực tế mà BVA giúp phát hiện bug mà happy path đơn giản đã bỏ sót
+</Vi>
 </ExerciseBox>
 
 ## Quiz
@@ -82,25 +89,41 @@ print("All EP and BVA tests passed!")
 <Quiz questions={[
   {
     q: "A text field accepts values between 10 and 100. Using EP, which values do you test?",
+    qVi: "Một trường text chấp nhận giá trị từ 10 đến 100. Dùng EP, bạn kiểm thử những giá trị nào?",
     choices: [
       "Every value from 10 to 100",
       "One value below 10, one between 10–100, one above 100",
       "Only 10 and 100",
       "Only 50"
     ],
+    choicesVi: [
+      "Mọi giá trị từ 10 đến 100",
+      "Một giá trị dưới 10, một giá trị từ 10–100, một giá trị trên 100",
+      "Chỉ 10 và 100",
+      "Chỉ 50"
+    ],
     answer: 1,
-    explain: "EP selects one representative from each partition: invalid-below, valid, and invalid-above. This covers all behaviour classes efficiently."
+    explain: "EP selects one representative from each partition: invalid-below, valid, and invalid-above. This covers all behaviour classes efficiently.",
+    explainVi: "EP chọn một đại diện từ mỗi phân vùng: dưới-không-hợp-lệ, hợp-lệ và trên-không-hợp-lệ. Điều này bao phủ hiệu quả tất cả các lớp hành vi."
   },
   {
     q: "Why does Boundary Value Analysis focus on edges of partitions?",
+    qVi: "Tại sao Phân tích Giá trị Biên tập trung vào các cạnh của phân vùng?",
     choices: [
       "Because the middle values are always correct",
       "Because bugs most commonly occur at the boundaries of valid ranges",
       "Because it is faster than testing any other value",
       "Because boundary values are required by ISTQB"
     ],
+    choicesVi: [
+      "Vì các giá trị ở giữa luôn đúng",
+      "Vì bug thường xảy ra nhiều nhất ở các biên của phạm vi hợp lệ",
+      "Vì kiểm thử nó nhanh hơn bất kỳ giá trị nào khác",
+      "Vì giá trị biên được ISTQB yêu cầu"
+    ],
     answer: 1,
-    explain: "Off-by-one errors and fence-post bugs cluster at boundaries — a 'greater than' check written as 'greater than or equal to' only shows up when you test the exact boundary."
+    explain: "Off-by-one errors and fence-post bugs cluster at boundaries — a 'greater than' check written as 'greater than or equal to' only shows up when you test the exact boundary.",
+    explainVi: "Lỗi off-by-one tập trung ở các biên — điều kiện 'lớn hơn' viết nhầm thành 'lớn hơn hoặc bằng' chỉ lộ ra khi bạn kiểm thử đúng biên đó."
   }
 ]} />
 

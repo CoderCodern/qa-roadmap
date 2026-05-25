@@ -90,9 +90,16 @@ for key, value in bug_report.items():
 ## Exercise
 
 <ExerciseBox>
+<En>
 - [ ] Find a bug in any app you use (or simulate one) and write a complete bug report using the template above
 - [ ] Classify two real bugs you've encountered by both severity and priority — explain your reasoning
 - [ ] Map out the full bug lifecycle in your own words, as if explaining it to a junior tester
+</En>
+<Vi>
+- [ ] Tìm một bug trong ứng dụng bạn đang dùng (hoặc mô phỏng) và viết báo cáo bug đầy đủ theo mẫu trên
+- [ ] Phân loại hai bug thực tế bạn từng gặp theo cả mức độ nghiêm trọng và ưu tiên — giải thích lý do
+- [ ] Trình bày toàn bộ vòng đời bug bằng lời của bạn, như thể đang giải thích cho một tester mới
+</Vi>
 </ExerciseBox>
 
 ## Quiz
@@ -100,25 +107,41 @@ for key, value in bug_report.items():
 <Quiz questions={[
   {
     q: "A login page crash affects all users and blocks core functionality. How would you classify it?",
+    qVi: "Trang đăng nhập bị crash ảnh hưởng đến tất cả người dùng và chặn chức năng cốt lõi. Bạn phân loại nó như thế nào?",
     choices: [
       "Low severity, Low priority",
       "High severity, Low priority",
       "Critical severity, High priority",
       "Medium severity, High priority"
     ],
+    choicesVi: [
+      "Mức độ nghiêm trọng Thấp, Ưu tiên Thấp",
+      "Mức độ nghiêm trọng Cao, Ưu tiên Thấp",
+      "Mức độ nghiêm trọng Nghiêm trọng, Ưu tiên Cao",
+      "Mức độ nghiêm trọng Trung bình, Ưu tiên Cao"
+    ],
     answer: 2,
-    explain: "A crash blocking all users is Critical severity (maximum technical impact). Fixing it is High priority because it affects the entire user base."
+    explain: "A crash blocking all users is Critical severity (maximum technical impact). Fixing it is High priority because it affects the entire user base.",
+    explainVi: "Crash chặn tất cả người dùng có mức độ nghiêm trọng Nghiêm trọng (tác động kỹ thuật tối đa). Sửa nó là Ưu tiên Cao vì ảnh hưởng đến toàn bộ người dùng."
   },
   {
     q: "After a developer marks a bug as 'Fixed', what is the QA engineer's next step?",
+    qVi: "Sau khi developer đánh dấu bug là 'Đã sửa', bước tiếp theo của QA engineer là gì?",
     choices: [
       "Close the bug immediately",
       "Reopen the bug and log a new one",
       "Verify the fix in the appropriate environment, then close it",
       "Assign it to another developer for a second opinion"
     ],
+    choicesVi: [
+      "Đóng bug ngay lập tức",
+      "Mở lại bug và ghi một bug mới",
+      "Xác nhận bản sửa hoạt động trong môi trường phù hợp, sau đó đóng bug",
+      "Giao cho developer khác để có ý kiến thứ hai"
+    ],
     answer: 2,
-    explain: "QA must independently verify the fix works before closing the bug. This ensures the developer's fix actually resolved the issue in the target environment."
+    explain: "QA must independently verify the fix works before closing the bug. This ensures the developer's fix actually resolved the issue in the target environment.",
+    explainVi: "QA phải độc lập xác nhận bản sửa hoạt động trước khi đóng bug. Điều này đảm bảo bản sửa của developer thực sự giải quyết vấn đề trong môi trường mục tiêu."
   }
 ]} />
 

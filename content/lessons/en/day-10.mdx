@@ -1,0 +1,147 @@
+---
+id: 10
+title: "Strings & string methods"
+phase: 2
+estMinutes: 60
+tags: ["python", "strings"]
+---
+
+## Intro
+
+<En>
+Strings are everywhere in testing — error messages, API responses, URLs, usernames, and log output are all strings. Python gives you a rich set of built-in methods to inspect, manipulate, and compare them. Knowing these methods lets you write cleaner, more expressive assertions.
+</En>
+<Vi>
+Chuỗi có mặt ở khắp nơi trong kiểm thử — thông báo lỗi, API response, URL, tên người dùng và đầu ra log đều là chuỗi. Python cung cấp một bộ phương thức tích hợp phong phú để kiểm tra, thao tác và so sánh chúng. Biết các phương thức này giúp bạn viết các assertion rõ ràng và biểu đạt hơn.
+</Vi>
+
+## Concept
+
+<En>
+**Most-used string methods in testing:**
+
+| Method | What it does |
+|--------|-------------|
+| `s.lower()` / `s.upper()` | Normalise case for comparison |
+| `s.strip()` | Remove leading/trailing whitespace |
+| `s.startswith(prefix)` | Check URL starts with `https://` |
+| `s.endswith(suffix)` | Check file ends with `.json` |
+| `s.contains(sub)` | — use `in` operator instead |
+| `s.replace(old, new)` | Sanitise or transform strings |
+| `s.split(sep)` | Split CSV line into a list |
+| `s.join(iterable)` | Build a string from parts |
+| `len(s)` | Check length constraints |
+
+**f-strings** (formatted string literals) are the modern way to embed values in strings:
+```python
+name = "Alice"
+f"Hello, {name}!"   # → "Hello, Alice!"
+```
+
+**Raw strings** (`r"..."`) are used for file paths and regex patterns where backslashes should not be escaped.
+
+**Multiline strings** use triple quotes (`"""..."""`) — useful for logging expected vs actual in assertions.
+</En>
+<Vi>
+**Các phương thức chuỗi được dùng nhiều nhất trong kiểm thử:**
+
+| Phương thức | Tác dụng |
+|--------|-------------|
+| `s.lower()` / `s.upper()` | Chuẩn hoá chữ hoa/thường để so sánh |
+| `s.strip()` | Xoá khoảng trắng đầu/cuối |
+| `s.startswith(prefix)` | Kiểm tra URL bắt đầu bằng `https://` |
+| `s.endswith(suffix)` | Kiểm tra file kết thúc bằng `.json` |
+| `s.replace(old, new)` | Làm sạch hoặc biến đổi chuỗi |
+| `s.split(sep)` | Tách dòng CSV thành danh sách |
+| `s.join(iterable)` | Xây dựng chuỗi từ các phần |
+| `len(s)` | Kiểm tra ràng buộc độ dài |
+
+**f-strings** (chuỗi định dạng) là cách hiện đại để nhúng giá trị vào chuỗi:
+```python
+name = "Alice"
+f"Hello, {name}!"   # → "Hello, Alice!"
+```
+
+**Chuỗi thô** (`r"..."`) dùng cho đường dẫn file và mẫu regex khi dấu gạch chéo ngược không cần thoát.
+</Vi>
+
+## Code / Demo
+
+```python
+# Real-world string operations in a QA context
+
+# 1. Case-insensitive comparison (common when checking error messages)
+actual_message = "  Invalid Email Format  "
+expected_keyword = "invalid email"
+assert expected_keyword in actual_message.strip().lower()
+
+# 2. URL validation
+redirect_url = "https://app.example.com/dashboard"
+assert redirect_url.startswith("https://"), "URL must use HTTPS"
+assert redirect_url.endswith("/dashboard"), "Should redirect to dashboard"
+
+# 3. Parsing a CSV-style response
+csv_line = "alice,alice@example.com,admin"
+parts = csv_line.split(",")
+assert parts[0] == "alice"
+assert parts[1] == "alice@example.com"
+assert parts[2] == "admin"
+
+# 4. f-string in assertion messages
+status_code = 404
+path = "/api/users/999"
+message = f"Expected 200 but got {status_code} for {path}"
+print(message)
+
+# 5. Length boundary check
+password = "SecurePass123"
+assert 6 <= len(password) <= 20, f"Password length {len(password)} is out of bounds"
+
+# 6. String building for dynamic test data
+base_email = "test"
+domain = "@example.com"
+unique_email = f"{base_email}+{id(object())}{domain}"
+print(f"Generated test email: {unique_email}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Given the string `"  ERROR: Connection timed out  "`, write code to: strip whitespace, check it contains "connection timed out" (case-insensitive), and extract the error type before the colon
+- [ ] Write an assertion that verifies an API endpoint URL starts with `https://` and contains `/api/v1/`
+- [ ] Use an f-string to build a test failure message that includes the expected value, actual value, and field name
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Which expression checks if 'error' appears anywhere in the string 'Internal Server Error'?",
+    choices: [
+      "'error' in 'Internal Server Error'",
+      "'error' in 'Internal Server Error'.lower()",
+      "'Internal Server Error'.contains('error')",
+      "'Internal Server Error'.find('error') > 0"
+    ],
+    answer: 1,
+    explain: "Python strings don't have a .contains() method. The 'in' operator is the idiomatic way. We also .lower() so the case-insensitive comparison works correctly."
+  },
+  {
+    q: "What does 'hello world'.split() return?",
+    choices: [
+      "['hello world']",
+      "['h','e','l','l','o',' ','w','o','r','l','d']",
+      "['hello', 'world']",
+      "('hello', 'world')"
+    ],
+    answer: 2,
+    explain: "split() with no argument splits on any whitespace and removes it, returning a list of words. split(',') would split on commas specifically."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python String Methods — docs.python.org", url: "https://docs.python.org/3/library/stdtypes.html#string-methods" },
+  { title: "Real Python — Strings", url: "https://realpython.com/" }
+]} />

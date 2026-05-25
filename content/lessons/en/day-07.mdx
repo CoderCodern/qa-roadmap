@@ -1,0 +1,189 @@
+---
+id: 7
+title: "Week 1 review"
+phase: 1
+estMinutes: 90
+tags: ["review", "practice"]
+---
+
+## Intro
+
+<En>
+You've covered the core vocabulary and concepts of software testing. Today is about consolidation — review what you learned, apply it to a real scenario, and fill any gaps before moving to Python next week.
+</En>
+<Vi>
+Bạn đã nắm vững vốn từ vựng và khái niệm cốt lõi của kiểm thử phần mềm. Hôm nay là về việc củng cố — xem lại những gì bạn đã học, áp dụng vào một tình huống thực tế và lấp đầy các khoảng trống trước khi chuyển sang Python vào tuần tới.
+</Vi>
+
+## Concept
+
+<En>
+**Week 1 recap — the essential ideas:**
+
+| Concept | Core idea |
+|---|---|
+| Manual vs Automated | Both needed; automated multiplies your coverage |
+| Test types | Smoke → Sanity → Functional → Regression → Exploratory |
+| Test design | EP + BVA cover the right input space efficiently |
+| Bug lifecycle | New → Assigned → Fixed → Verified → Closed |
+| Severity vs Priority | Impact vs Urgency — these are independent dimensions |
+| SDLC/STLC | Testing starts at requirements, not after development |
+| Test pyramid | Unit (most) → Integration → E2E (fewest) |
+
+**The login form exercise:** Writing test cases for a login form is a classic QA interview exercise. A good candidate covers:
+- Happy path (valid email + correct password)
+- Invalid email format
+- Wrong password
+- Empty fields
+- SQL injection attempt in email field
+- Very long strings
+- Correct credentials but account locked
+</En>
+<Vi>
+**Tóm tắt tuần 1 — những ý tưởng thiết yếu:**
+
+| Khái niệm | Ý tưởng cốt lõi |
+|---|---|
+| Thủ công vs Tự động | Cả hai đều cần; tự động nhân lên độ bao phủ của bạn |
+| Loại test | Khói → Tỉnh táo → Chức năng → Hồi quy → Khám phá |
+| Thiết kế test | EP + BVA bao phủ không gian đầu vào đúng cách hiệu quả |
+| Vòng đời bug | Mới → Được giao → Đã sửa → Đã xác minh → Đã đóng |
+| Mức độ nghiêm trọng vs Ưu tiên | Tác động vs Khẩn cấp — đây là các chiều độc lập |
+| SDLC/STLC | Kiểm thử bắt đầu từ yêu cầu, không phải sau khi phát triển |
+| Kim tự tháp test | Unit (nhiều nhất) → Integration → E2E (ít nhất) |
+
+**Bài tập form đăng nhập:** Viết test case cho form đăng nhập là bài tập phỏng vấn QA kinh điển. Một ứng viên tốt bao gồm:
+- Đường dẫn hạnh phúc (email hợp lệ + mật khẩu đúng)
+- Định dạng email không hợp lệ
+- Mật khẩu sai
+- Trường trống
+- Thử SQL injection trong trường email
+- Chuỗi rất dài
+- Thông tin đúng nhưng tài khoản bị khóa
+</Vi>
+
+## Code / Demo
+
+```python
+# 5 test cases for a login form (using Python pseudocode)
+# In Phase 3, you'll implement these as real Playwright tests
+
+login_test_cases = [
+    {
+        "id": "TC-001",
+        "title": "Successful login with valid credentials",
+        "steps": [
+            "Navigate to /login",
+            "Enter email: user@example.com",
+            "Enter password: SecurePass123",
+            "Click Login"
+        ],
+        "expected": "Redirected to /dashboard, welcome message visible",
+        "type": "Functional"
+    },
+    {
+        "id": "TC-002",
+        "title": "Login fails with incorrect password",
+        "steps": [
+            "Navigate to /login",
+            "Enter email: user@example.com",
+            "Enter password: wrongpassword",
+            "Click Login"
+        ],
+        "expected": "Error message: 'Invalid email or password'",
+        "type": "Negative/Functional"
+    },
+    {
+        "id": "TC-003",
+        "title": "Email field rejects invalid format",
+        "steps": [
+            "Navigate to /login",
+            "Enter email: notanemail",
+            "Enter any password",
+            "Click Login"
+        ],
+        "expected": "Inline validation error: 'Please enter a valid email'",
+        "type": "Boundary/Functional"
+    },
+    {
+        "id": "TC-004",
+        "title": "Empty fields show required validation",
+        "steps": [
+            "Navigate to /login",
+            "Leave both fields empty",
+            "Click Login"
+        ],
+        "expected": "Both fields highlight red with 'This field is required'",
+        "type": "Boundary/Functional"
+    },
+    {
+        "id": "TC-005",
+        "title": "SQL injection in email field is rejected safely",
+        "steps": [
+            "Navigate to /login",
+            "Enter email: ' OR 1=1; --",
+            "Enter any password",
+            "Click Login"
+        ],
+        "expected": "Login fails safely; no database error exposed",
+        "type": "Security/Negative"
+    },
+]
+
+for tc in login_test_cases:
+    print(f"{tc['id']}: {tc['title']} [{tc['type']}]")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write 5 complete test cases for a "Forgot Password" feature (use the template from Day 4)
+- [ ] Draw the STLC phases on paper and write one deliverable for each phase
+- [ ] From memory, explain the difference between smoke and sanity testing to someone else
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Which of the following best describes 'regression testing'?",
+    choices: [
+      "Testing a brand-new feature for the first time",
+      "Verifying that existing functionality still works after a code change",
+      "Testing the app immediately after a new deployment",
+      "Unscripted investigation of the application"
+    ],
+    answer: 1,
+    explain: "Regression testing re-runs existing tests after changes to ensure new code hasn't broken previously working features."
+  },
+  {
+    q: "A bug causes the app to crash for 0.1% of users, but it's on the checkout page. How should it be classified?",
+    choices: [
+      "Low severity, Low priority",
+      "High severity, High priority",
+      "Low severity, High priority",
+      "Medium severity, Low priority"
+    ],
+    answer: 2,
+    explain: "The checkout page is revenue-critical. Even though few users are affected (low severity impact), the business impact makes it High priority. Severity and priority are independent."
+  },
+  {
+    q: "According to the test pyramid, which type should have the fewest tests?",
+    choices: [
+      "Unit tests",
+      "Integration tests",
+      "End-to-End tests",
+      "Manual tests"
+    ],
+    answer: 2,
+    explain: "E2E tests sit at the pyramid's tip — they're the most realistic but slowest and most expensive. Keep them focused on the most critical user journeys only."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB Foundation Syllabus", url: "https://www.istqb.org/certifications/certified-tester-foundation-level" },
+  { title: "The Test Pyramid — Martin Fowler", url: "https://martinfowler.com/articles/practical-test-pyramid.html" },
+  { title: "Ministry of Testing", url: "https://www.ministryoftesting.com/" }
+]} />

@@ -1,0 +1,199 @@
+---
+id: 48
+title: "JSONPlaceholder project — Part 2"
+phase: 4
+estMinutes: 90
+tags: ["api-testing", "project", "ci"]
+---
+
+## Intro
+
+<En>
+Part 2 completes the JSONPlaceholder project by adding negative tests, a CI workflow, and a polished README. By the end, you have a fully automated, CI-enabled API test suite that demonstrates every Phase 4 skill. This is a project you can show in a QA engineer portfolio or job interview.
+</En>
+<Vi>
+Phần 2 hoàn thành dự án JSONPlaceholder bằng cách thêm test tiêu cực, workflow CI và README được đánh bóng. Cuối cùng, bạn có một bộ API test hoàn toàn tự động, có CI, thể hiện mọi kỹ năng Phase 4. Đây là dự án bạn có thể trình bày trong portfolio kỹ sư QA hoặc phỏng vấn xin việc.
+</Vi>
+
+## Concept
+
+<En>
+**What makes a portfolio-worthy API test project:**
+1. Clear README explaining what the project tests and how to run it
+2. Well-organised file structure (by resource, not by test type)
+3. Schema validation on every GET response
+4. Both positive and negative test coverage
+5. CI that runs on every push
+6. No hardcoded credentials (environment variables for sensitive config)
+7. Tests are independent — each can run in isolation
+
+**GitHub Actions for API tests (no browser needed):**
+```yaml
+- name: Run API tests
+  run: pytest tests/ -v --tb=short
+```
+Much simpler than Playwright CI — no browser installation, no screenshots.
+
+**Test result summary in CI:**
+Use `pytest-html` or `pytest-json-report` to generate machine-readable test results that CI can archive.
+
+**The README must include:**
+- Project description and what API is under test
+- Prerequisites (Python version, pip install)
+- How to run: `pytest tests/ -v`
+- How to run a single test: `pytest tests/test_posts.py::test_get_post`
+- CI badge (optional but professional)
+</En>
+<Vi>
+**Điều làm cho dự án API test xứng đáng portfolio:**
+1. README rõ ràng giải thích dự án kiểm thử gì và cách chạy
+2. Cấu trúc file có tổ chức tốt
+3. Xác thực schema trên mọi GET response
+4. Bao phủ cả test tích cực và tiêu cực
+5. CI chạy trên mỗi lần push
+6. Không có credential được hardcode
+7. Test độc lập — mỗi cái có thể chạy riêng lẻ
+
+**GitHub Actions cho API test (không cần trình duyệt):**
+```yaml
+- name: Run API tests
+  run: pytest tests/ -v --tb=short
+```
+Đơn giản hơn nhiều so với CI Playwright — không cần cài trình duyệt.
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_negative.py
+import pytest
+import requests as req
+from api.client import ApiClient
+
+def test_get_nonexistent_post(api: ApiClient):
+    """404 for a post id that does not exist."""
+    response = api.get("/posts/99999")
+    assert response.status_code == 404
+
+def test_get_nonexistent_user(api: ApiClient):
+    """404 for a user id that does not exist."""
+    response = api.get("/users/99999")
+    assert response.status_code == 404
+
+def test_get_comments_for_nonexistent_post(api: ApiClient):
+    response = api.get("/posts/99999/comments")
+    # JSONPlaceholder returns empty list for non-existent post
+    assert response.status_code == 200
+    assert response.json() == []
+
+@pytest.mark.parametrize("invalid_id", ["abc", "0", "-1", "!@#"])
+def test_invalid_post_id_format(api: ApiClient, invalid_id: str):
+    """400 or 404 for non-integer post IDs."""
+    response = api.get(f"/posts/{invalid_id}")
+    assert response.status_code in (400, 404), \
+        f"Expected 4xx for id={invalid_id!r}, got {response.status_code}"
+
+def test_empty_post_body(api: ApiClient):
+    """POST with empty body."""
+    response = api.post("/posts", json={})
+    # JSONPlaceholder is lenient; real APIs should return 400 or 422
+    assert response.status_code != 500, "Server must not crash on empty body"
+
+def test_response_time_is_acceptable(api: ApiClient):
+    """Performance: GET /posts should respond in under 3 seconds."""
+    import time
+    start = time.time()
+    response = api.get("/posts/1")
+    elapsed = time.time() - start
+    assert response.status_code == 200
+    assert elapsed < 3.0, f"Response took {elapsed:.2f}s — too slow"
+```
+
+```yaml
+# .github/workflows/api-tests.yml
+name: API Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run API tests
+        run: pytest tests/ -v --tb=short --junit-xml=results.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-test-results
+          path: results.xml
+```
+
+```text
+# requirements.txt
+requests==2.31.0
+pytest==8.2.0
+jsonschema==4.22.0
+responses==0.25.3
+pytest-html==4.1.1
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Complete the full project from Part 1 + Part 2, push to GitHub, add the CI workflow, and verify all tests pass in the Actions tab
+- [ ] Add a `test_response_headers.py` test file that verifies: `Content-Type` header contains `application/json`, and the `X-Powered-By` header is present (or absent) as expected for this API
+- [ ] Write a project `README.md` with: project description, prerequisites, installation steps, how to run tests, and a list of what is tested — share it with a teammate or mentor for feedback
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why should each API test be independent (able to run in isolation)?",
+    choices: [
+      "pytest requires independent tests",
+      "If tests share state, a failure in one test can cause unrelated tests to fail, making root-cause analysis harder",
+      "Independent tests run faster in parallel",
+      "The API resets between every test automatically"
+    ],
+    answer: 1,
+    explain: "Test isolation means tests don't share mutable state. If test A creates data that test B expects, test B fails when run alone or when test A fails. Isolated tests produce predictable results regardless of which tests ran before or after."
+  },
+  {
+    q: "What does `--junit-xml=results.xml` do in pytest?",
+    choices: [
+      "Saves the test source code to an XML file",
+      "Generates a JUnit-format XML report of test results that CI systems can parse and display",
+      "Runs tests in XML validation mode",
+      "Imports test cases from an XML file"
+    ],
+    answer: 1,
+    explain: "JUnit XML is a standard test result format recognized by CI platforms like GitHub Actions, Jenkins, and GitLab CI. They can display pass/fail counts, test names, and failure details directly in the CI interface without you opening log files."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "JSONPlaceholder — free test API", url: "https://jsonplaceholder.typicode.com/" },
+  { title: "pytest documentation", url: "https://docs.pytest.org/en/stable/" }
+]} />

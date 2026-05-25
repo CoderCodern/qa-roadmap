@@ -1,0 +1,165 @@
+---
+id: 23
+title: "First Playwright test with pytest"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "pytest"]
+---
+
+## Intro
+
+<En>
+Running Playwright scripts manually is a start, but real automation means integrating Playwright with pytest — the test runner that tracks results, handles fixtures, and produces reports. The `pytest-playwright` plugin makes this integration seamless. Today you write your first real Playwright test.
+</En>
+<Vi>
+Chạy script Playwright thủ công là bước đầu, nhưng tự động hoá thực sự có nghĩa là tích hợp Playwright với pytest — test runner theo dõi kết quả, xử lý fixture và tạo báo cáo. Plugin `pytest-playwright` làm cho sự tích hợp này liền mạch. Hôm nay bạn viết Playwright test thực sự đầu tiên của mình.
+</Vi>
+
+## Concept
+
+<En>
+**pytest-playwright provides built-in fixtures:**
+
+| Fixture | What it gives you |
+|---------|------------------|
+| `playwright` | The Playwright instance |
+| `browser` | A launched browser |
+| `context` | An isolated browser context |
+| `page` | A ready-to-use page (most used) |
+
+When you declare `page` as a parameter in your test function, pytest-playwright creates a fresh browser context and page for each test and tears it down afterwards. No setup/teardown code needed.
+
+**Playwright assertions — `expect()`:**
+These are Playwright's async-aware assertions that auto-retry until the condition is true or the timeout expires:
+
+```python
+from playwright.sync_api import expect
+
+expect(page.locator("h1")).to_be_visible()
+expect(page.locator("input")).to_be_empty()
+expect(page).to_have_title("My App")
+expect(page).to_have_url("https://app.example.com/dashboard")
+expect(page.locator(".alert")).to_contain_text("Invalid")
+```
+
+**Install:**
+```bash
+pip install pytest-playwright
+playwright install chromium
+```
+
+**Run tests:**
+```bash
+pytest tests/ -v
+pytest tests/ --headed    # show browser window
+pytest tests/ --browser firefox
+```
+</En>
+<Vi>
+**pytest-playwright cung cấp các fixture tích hợp:**
+
+| Fixture | Cung cấp gì |
+|---------|------------------|
+| `playwright` | Instance Playwright |
+| `browser` | Trình duyệt đã khởi chạy |
+| `context` | Browser context độc lập |
+| `page` | Trang sẵn sàng sử dụng (dùng nhiều nhất) |
+
+Khi bạn khai báo `page` làm tham số trong hàm test, pytest-playwright tạo browser context mới và page mới cho mỗi test và dọn dẹp sau đó. Không cần code setup/teardown.
+
+**Playwright assertion — `expect()`:**
+Đây là các assertion nhận biết async của Playwright tự động thử lại cho đến khi điều kiện đúng hoặc hết thời gian chờ:
+
+```python
+from playwright.sync_api import expect
+expect(page.locator("h1")).to_be_visible()
+expect(page).to_have_title("My App")
+expect(page).to_have_url("https://app.example.com/dashboard")
+```
+
+**Cài đặt:**
+```bash
+pip install pytest-playwright
+playwright install chromium
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_example_site.py
+import pytest
+from playwright.sync_api import Page, expect
+
+def test_page_title(page: Page):
+    page.goto("https://example.com")
+    expect(page).to_have_title("Example Domain")
+
+def test_heading_is_visible(page: Page):
+    page.goto("https://example.com")
+    heading = page.locator("h1")
+    expect(heading).to_be_visible()
+    expect(heading).to_contain_text("Example Domain")
+
+def test_more_information_link_exists(page: Page):
+    page.goto("https://example.com")
+    link = page.locator("a", has_text="More information")
+    expect(link).to_be_visible()
+    href = link.get_attribute("href")
+    assert href is not None
+    assert href.startswith("https://")
+
+def test_page_has_no_form(page: Page):
+    page.goto("https://example.com")
+    # Count form elements — expect zero
+    form_count = page.locator("form").count()
+    assert form_count == 0
+
+# conftest.py — optional global config
+# You can set base_url, browser, viewport here:
+# @pytest.fixture(scope="session")
+# def browser_context_args(browser_context_args):
+#     return {**browser_context_args, "viewport": {"width": 1280, "height": 720}}
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Create a `tests/` directory, install `pytest-playwright`, and run the demo tests above with `pytest -v` — all should pass
+- [ ] Add a test that navigates to `https://example.com`, gets the page URL, and asserts it equals `"https://example.com/"`
+- [ ] Run the tests with `--headed` flag and watch the browser open and close for each test
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "In a pytest-playwright test, where does the `page` fixture come from?",
+    choices: [
+      "You must create it manually in every test",
+      "pytest-playwright provides it automatically — declare it as a parameter and it's injected",
+      "You import it from playwright.sync_api",
+      "You must define it in conftest.py yourself"
+    ],
+    answer: 1,
+    explain: "pytest-playwright registers page, context, browser, and playwright as built-in fixtures. Declare any of them as a function parameter and pytest injects them automatically, handling setup and teardown."
+  },
+  {
+    q: "How does `expect(locator).to_be_visible()` differ from `assert locator.is_visible()`?",
+    choices: [
+      "They are identical",
+      "expect() auto-retries until the condition is true or times out; assert is a one-shot check",
+      "assert is only for numeric values",
+      "expect() is deprecated in new Playwright versions"
+    ],
+    answer: 1,
+    explain: "Playwright's expect() assertions are polling — they retry on a short interval until the assertion passes or the default 5-second timeout expires. assert is_visible() checks once and fails immediately if the element is not yet visible."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Python — pytest integration", url: "https://playwright.dev/python/docs/test-runners" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

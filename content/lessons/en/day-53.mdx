@@ -1,0 +1,241 @@
+---
+id: 53
+title: "Capstone kickoff"
+phase: 5
+estMinutes: 90
+tags: ["capstone", "planning", "architecture"]
+---
+
+## Intro
+
+<En>
+The capstone project is your chance to demonstrate everything from the past eight weeks in one cohesive, professional framework. Today you kick off the project: you define requirements, choose your target application, scaffold the full directory structure, and write your first passing test. By the end of this session your framework is alive — not just a plan.
+</En>
+<Vi>
+Dự án capstone là cơ hội để bạn thể hiện mọi thứ từ tám tuần qua trong một framework chuyên nghiệp, gắn kết. Hôm nay bạn khởi động dự án: xác định yêu cầu, chọn ứng dụng mục tiêu, khởi tạo cấu trúc thư mục đầy đủ và viết test đầu tiên vượt qua. Đến cuối buổi này framework của bạn đã hoạt động — không chỉ là kế hoạch.
+</Vi>
+
+## Concept
+
+<En>
+**Capstone requirements checklist:**
+
+A portfolio-grade capstone framework must include:
+- [ ] A real target application (not a toy — use JSONPlaceholder, ReqRes, or Restful-Booker)
+- [ ] API tests covering at least 3 endpoints (CRUD)
+- [ ] UI tests covering at least 2 user flows
+- [ ] Schema validation on all GET responses
+- [ ] Positive and negative test cases
+- [ ] Shared fixtures and data factory
+- [ ] Allure report integration
+- [ ] GitHub Actions CI
+- [ ] Written test plan (Day 52)
+- [ ] README with setup instructions
+
+**Choosing a target application:**
+
+| App | API | UI | Auth | Notes |
+|-----|-----|-----|------|-------|
+| JSONPlaceholder | ✓ | ✗ | ✗ | Best for API-only capstone |
+| ReqRes.in | ✓ | ✗ | ✓ | Has login endpoint — good for auth testing |
+| Restful-Booker | ✓ | ✓ | ✓ | Best full-stack capstone target |
+| Swag Labs (Sauce Demo) | ✗ | ✓ | ✓ | Classic UI testing app |
+
+**ReqRes.in** is a strong choice: it has user listing, user creation, login/auth, and pagination — enough to demonstrate all API testing skills with a real auth flow.
+
+**Kickoff checklist (do these today):**
+1. Create the project directory structure
+2. Install all dependencies
+3. Write `conftest.py` with base URL and session fixture
+4. Write one passing API test
+5. Verify `pytest tests/ -v` shows green
+</En>
+<Vi>
+**Checklist yêu cầu capstone:**
+
+Một framework capstone đạt chuẩn portfolio phải bao gồm:
+- [ ] Ứng dụng mục tiêu thực sự (không phải đồ chơi — dùng JSONPlaceholder, ReqRes, hoặc Restful-Booker)
+- [ ] API test bao phủ ít nhất 3 endpoint (CRUD)
+- [ ] UI test bao phủ ít nhất 2 luồng người dùng
+- [ ] Xác thực schema trên tất cả GET response
+- [ ] Test case tích cực và tiêu cực
+- [ ] Fixture dùng chung và data factory
+- [ ] Tích hợp báo cáo Allure
+- [ ] GitHub Actions CI
+- [ ] Kế hoạch test đã viết (Ngày 52)
+- [ ] README với hướng dẫn thiết lập
+
+**Checklist khởi động (làm hôm nay):**
+1. Tạo cấu trúc thư mục dự án
+2. Cài đặt tất cả dependency
+3. Viết `conftest.py` với URL cơ sở và session fixture
+4. Viết một API test vượt qua
+5. Xác minh `pytest tests/ -v` hiển thị màu xanh
+</Vi>
+
+## Code / Demo
+
+```bash
+# Scaffold the full project
+mkdir capstone-framework && cd capstone-framework
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+pip install pytest requests jsonschema playwright allure-pytest pytest-playwright responses
+playwright install chromium
+
+# Create directory structure
+mkdir -p api/endpoints pages schemas fixtures tests/api tests/ui utils .github/workflows
+touch api/__init__.py api/client.py api/endpoints/__init__.py
+touch pages/__init__.py pages/base_page.py pages/login_page.py
+touch tests/__init__.py tests/conftest.py tests/api/__init__.py tests/ui/__init__.py
+touch utils/__init__.py utils/assertions.py utils/data_factory.py
+touch pytest.ini
+```
+
+```python
+# api/client.py
+import requests
+
+class ApiClient:
+    def __init__(self, base_url: str, token: str | None = None) -> None:
+        self._session = requests.Session()
+        self._session.headers["Content-Type"] = "application/json"
+        if token:
+            self._session.headers["Authorization"] = f"Bearer {token}"
+        self.base_url = base_url.rstrip("/")
+
+    def get(self, path: str, **kwargs) -> requests.Response:
+        return self._session.get(f"{self.base_url}{path}", **kwargs)
+
+    def post(self, path: str, **kwargs) -> requests.Response:
+        return self._session.post(f"{self.base_url}{path}", **kwargs)
+
+    def put(self, path: str, **kwargs) -> requests.Response:
+        return self._session.put(f"{self.base_url}{path}", **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self._session.delete(f"{self.base_url}{path}", **kwargs)
+
+    def patch(self, path: str, **kwargs) -> requests.Response:
+        return self._session.patch(f"{self.base_url}{path}", **kwargs)
+```
+
+```python
+# tests/conftest.py
+import pytest
+from api.client import ApiClient
+
+BASE_URL = "https://reqres.in/api"
+
+@pytest.fixture(scope="session")
+def api() -> ApiClient:
+    return ApiClient(BASE_URL)
+
+@pytest.fixture(scope="session")
+def auth_api() -> ApiClient:
+    """Authenticated client — logs in once for the whole session."""
+    client = ApiClient(BASE_URL)
+    resp = client.post("/login", json={"email": "eve.holt@reqres.in", "password": "cityslicka"})
+    assert resp.status_code == 200, f"Login failed: {resp.text}"
+    token = resp.json()["token"]
+    return ApiClient(BASE_URL, token=token)
+```
+
+```python
+# tests/api/test_users.py — first passing test
+import pytest
+import allure
+from jsonschema import validate
+from api.client import ApiClient
+
+USER_SCHEMA = {
+    "type": "object",
+    "required": ["id", "email", "first_name", "last_name", "avatar"],
+    "properties": {
+        "id":         {"type": "integer"},
+        "email":      {"type": "string"},
+        "first_name": {"type": "string"},
+        "last_name":  {"type": "string"},
+        "avatar":     {"type": "string"},
+    },
+}
+
+@allure.epic("User API")
+@allure.feature("Users")
+class TestUsers:
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.CRITICAL)
+    def test_get_user_by_id(self, api: ApiClient):
+        with allure.step("GET /users/2"):
+            response = api.get("/users/2")
+        with allure.step("Verify 200 status"):
+            assert response.status_code == 200
+        with allure.step("Validate schema"):
+            data = response.json()["data"]
+            validate(instance=data, schema=USER_SCHEMA)
+
+    @allure.story("Read")
+    def test_list_users_page_1(self, api: ApiClient):
+        with allure.step("GET /users?page=1"):
+            response = api.get("/users", params={"page": 1})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["page"] == 1
+        assert len(body["data"]) > 0
+
+    @allure.story("Read")
+    def test_user_not_found(self, api: ApiClient):
+        response = api.get("/users/9999")
+        assert response.status_code == 404
+```
+
+```ini
+# pytest.ini
+[pytest]
+testpaths = tests
+addopts = -v --tb=short
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Scaffold the full capstone directory structure and run `pytest tests/ -v` — confirm the first test passes (green) before writing any more tests
+- [ ] Write `utils/assertions.py` with `assert_status()`, `assert_schema()`, and `assert_response_ok()` — refactor the users test to use these helpers instead of raw asserts
+- [ ] Document your chosen target application in your `TEST_PLAN.md` — fill in sections 1 (Objective) and 2 (Scope) with specifics for that app
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why should the `auth_api` fixture have `scope='session'` rather than the default `scope='function'`?",
+    choices: [
+      "Session scope is required for authenticated requests",
+      "It logs in once and reuses the token for all tests — avoiding a login API call before every single test function",
+      "Function scope would cause token expiry",
+      "pytest requires session scope for all fixtures"
+    ],
+    answer: 1,
+    explain: "With scope='session', the login call happens once per test run. With scope='function' (the default), pytest would log in before every test function — 30 login calls for 30 tests. Session scope is the correct choice for expensive setup that produces reusable state."
+  },
+  {
+    q: "What is the first thing you should do when starting a capstone project?",
+    choices: [
+      "Write all 50+ tests",
+      "Set up CI/CD",
+      "Scaffold the directory structure and get one test green — proves the environment works before investing in more code",
+      "Install all dependencies and configure Allure"
+    ],
+    answer: 2,
+    explain: "Walking the project skeleton end-to-end (scaffold → install → first test green) validates the environment before you write dozens of tests. Discovering that pytest can't find the test directory after writing 50 tests is extremely painful — get one green test first."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ReqRes — fake online REST API", url: "https://reqres.in/" },
+  { title: "pytest documentation", url: "https://docs.pytest.org/en/stable/" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+]} />

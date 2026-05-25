@@ -1,0 +1,178 @@
+---
+id: 13
+title: "Loops — for & while"
+phase: 2
+estMinutes: 60
+tags: ["python", "loops"]
+---
+
+## Intro
+
+<En>
+Loops let you automate repetitive actions — running the same check against many inputs, iterating over API response items, or processing rows in a test data file. In QA automation, `for` loops are used constantly; `while` loops appear less often but are useful for polling and retry logic.
+</En>
+<Vi>
+Vòng lặp cho phép bạn tự động hoá các hành động lặp đi lặp lại — chạy cùng một kiểm tra với nhiều đầu vào, lặp qua các mục trong API response, hoặc xử lý các hàng trong file dữ liệu test. Trong tự động hoá QA, vòng lặp `for` được dùng liên tục; vòng lặp `while` ít xuất hiện hơn nhưng hữu ích cho logic polling và retry.
+</Vi>
+
+## Concept
+
+<En>
+**`for` loop — iterate over any sequence:**
+```python
+for item in collection:
+    # process item
+```
+
+**Key built-ins for loops:**
+- `range(n)` — generates 0, 1, …, n-1
+- `range(start, stop, step)` — full control
+- `enumerate(seq)` — gives (index, value) pairs
+- `zip(a, b)` — pairs items from two sequences
+- `list comprehension` — `[expr for item in seq if cond]`
+
+**`while` loop — repeat while condition is true:**
+```python
+while condition:
+    # do work
+    # update condition or break
+```
+
+**Loop control:**
+- `break` — exit the loop immediately
+- `continue` — skip to the next iteration
+- `else` on a loop — runs when the loop completes without `break` (rare but useful for search patterns)
+
+**Common QA patterns:**
+- Run a test case for each item in a list of test inputs (parametrisation precursor)
+- Retry a flaky operation up to N times with a `while` loop
+- Collect failures across all inputs instead of stopping at the first
+</En>
+<Vi>
+**Vòng lặp `for` — lặp qua bất kỳ chuỗi nào:**
+```python
+for item in collection:
+    # xử lý item
+```
+
+**Các built-in quan trọng cho vòng lặp:**
+- `range(n)` — tạo ra 0, 1, …, n-1
+- `enumerate(seq)` — cho các cặp (chỉ số, giá trị)
+- `zip(a, b)` — ghép các phần tử từ hai chuỗi
+- `list comprehension` — `[expr for item in seq if cond]`
+
+**Vòng lặp `while` — lặp khi điều kiện đúng:**
+```python
+while condition:
+    # thực hiện công việc
+    # cập nhật điều kiện hoặc break
+```
+
+**Điều khiển vòng lặp:**
+- `break` — thoát vòng lặp ngay lập tức
+- `continue` — bỏ qua và chuyển sang lần lặp tiếp theo
+
+**Các mẫu QA phổ biến:**
+- Chạy test case cho mỗi phần tử trong danh sách đầu vào test
+- Thử lại một thao tác không ổn định tối đa N lần với vòng lặp `while`
+- Thu thập các lỗi qua tất cả đầu vào thay vì dừng ở lỗi đầu tiên
+</Vi>
+
+## Code / Demo
+
+```python
+# Pattern 1: Run assertions against multiple test inputs
+test_passwords = [
+    ("ValidPass1", True),
+    ("hi", False),      # too short
+    ("a" * 21, False),  # too long
+    ("", False),        # empty
+]
+
+def is_valid_password(p: str) -> bool:
+    return 6 <= len(p) <= 20
+
+failures = []
+for password, expected in test_passwords:
+    actual = is_valid_password(password)
+    if actual != expected:
+        failures.append(f"FAIL: '{password}' → expected {expected}, got {actual}")
+
+if failures:
+    for f in failures:
+        print(f)
+else:
+    print(f"All {len(test_passwords)} password tests passed!")
+
+# Pattern 2: enumerate for test case numbering
+status_codes = [200, 201, 204, 400, 404, 500]
+for i, code in enumerate(status_codes, start=1):
+    is_success = 200 <= code < 300
+    print(f"TC-{i:03d}: status {code} → {'success' if is_success else 'not success'}")
+
+# Pattern 3: while loop for retry logic
+import time
+
+def check_service_ready(attempt: int) -> bool:
+    return attempt >= 3  # simulating: ready after 3 attempts
+
+max_retries = 5
+attempt = 0
+ready = False
+while attempt < max_retries and not ready:
+    attempt += 1
+    ready = check_service_ready(attempt)
+    print(f"Attempt {attempt}: {'ready' if ready else 'not ready yet'}")
+    if not ready:
+        time.sleep(0.1)
+
+assert ready, f"Service not ready after {max_retries} attempts"
+print("Service is ready!")
+
+# Pattern 4: list comprehension for filtering
+all_codes = [200, 201, 301, 400, 404, 500, 503]
+error_codes = [c for c in all_codes if c >= 400]
+print(f"Error codes found: {error_codes}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a loop that runs a "login" simulation for 5 different username/password pairs (stored as tuples) and reports which ones passed and which failed
+- [ ] Implement a `retry(func, max_attempts)` function using a `while` loop that calls `func()` until it returns `True` or max attempts are exhausted
+- [ ] Use a list comprehension to extract all items from a list of dicts where `status == "failed"`
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What does `enumerate(['a', 'b', 'c'], start=1)` produce?",
+    choices: [
+      "[(0,'a'), (1,'b'), (2,'c')]",
+      "[(1,'a'), (2,'b'), (3,'c')]",
+      "[1, 2, 3]",
+      "['a', 'b', 'c']"
+    ],
+    answer: 1,
+    explain: "enumerate with start=1 yields (1,'a'), (2,'b'), (3,'c'). Without start=1 it would default to 0-based indexing."
+  },
+  {
+    q: "In test automation, what is the key advantage of collecting failures in a list instead of asserting inside the loop?",
+    choices: [
+      "It makes the code run faster",
+      "You see ALL failures at once instead of stopping at the first one",
+      "It is required by pytest",
+      "It avoids using the assert keyword"
+    ],
+    answer: 1,
+    explain: "Collecting failures lets you run every test input and report all problems at once. Asserting inside the loop stops on the first failure, hiding subsequent issues."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python for Loops — docs.python.org", url: "https://docs.python.org/3/tutorial/controlflow.html#for-statements" },
+  { title: "Real Python — Python for Loops", url: "https://realpython.com/" }
+]} />

@@ -1,0 +1,206 @@
+---
+id: 34
+title: "Phase 3 mini-project"
+phase: 3
+estMinutes: 120
+tags: ["playwright", "project", "review"]
+---
+
+## Intro
+
+<En>
+Today you build a complete, production-quality Playwright test suite for the TodoMVC application — the same demo app you've been practicing with all week. This mini-project integrates everything from Phase 3: POM, fixtures, parametrize, screenshots, CI config, and proper project structure. At the end you have a portfolio-worthy test project.
+</En>
+<Vi>
+Hôm nay bạn xây dựng một bộ test Playwright hoàn chỉnh, chất lượng production cho ứng dụng TodoMVC — cùng ứng dụng demo bạn đã luyện tập suốt tuần. Mini-project này tích hợp mọi thứ từ Phase 3: POM, fixture, parametrize, ảnh chụp màn hình, cấu hình CI và cấu trúc dự án phù hợp. Cuối ngày bạn có một dự án test xứng đáng để đưa vào portfolio.
+</Vi>
+
+## Concept
+
+<En>
+**Final project structure:**
+```
+playwright-todo-suite/
+├── .github/
+│   └── workflows/
+│       └── playwright.yml
+├── pages/
+│   ├── __init__.py
+│   ├── base_page.py
+│   └── todo_page.py
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── test_add_items.py
+│   ├── test_complete_items.py
+│   ├── test_filters.py
+│   └── test_edge_cases.py
+├── screenshots/         # gitignored
+├── pytest.ini
+├── requirements.txt
+└── README.md
+```
+
+**What "production quality" means here:**
+- No raw locators in test files — everything goes through the page object
+- Every test has a clear, descriptive name
+- Shared setup lives in fixtures, not duplicated in tests
+- Edge cases are covered (empty state, special characters, very long text)
+- CI is configured to run on every push
+- Screenshots are captured on failure
+- The suite runs in under 60 seconds
+</En>
+<Vi>
+**Cấu trúc dự án cuối cùng:**
+```
+playwright-todo-suite/
+├── .github/workflows/playwright.yml
+├── pages/
+│   ├── base_page.py
+│   └── todo_page.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_add_items.py
+│   ├── test_complete_items.py
+│   ├── test_filters.py
+│   └── test_edge_cases.py
+├── pytest.ini
+└── requirements.txt
+```
+
+**"Chất lượng production" có nghĩa là:**
+- Không có locator thô trong file test — mọi thứ đi qua page object
+- Mỗi test có tên rõ ràng, mô tả
+- Setup dùng chung nằm trong fixture, không trùng lặp trong test
+- Các edge case được bao phủ
+- CI được cấu hình để chạy trên mỗi lần push
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/conftest.py — shared fixtures
+import pytest
+from pathlib import Path
+from playwright.sync_api import Page, BrowserContext
+from pages.todo_page import TodoPage
+
+SCREENSHOTS_DIR = Path("screenshots")
+
+@pytest.fixture(autouse=True)
+def screenshot_on_failure(page: Page, request):
+    """Auto-capture screenshot on any test failure."""
+    yield
+    if request.node.rep_call.failed:
+        SCREENSHOTS_DIR.mkdir(exist_ok=True)
+        page.screenshot(path=str(SCREENSHOTS_DIR / f"{request.node.name}.png"))
+
+@pytest.fixture
+def todo(page: Page) -> TodoPage:
+    tp = TodoPage(page)
+    tp.navigate()
+    return tp
+
+@pytest.fixture
+def todo_with_three_items(todo: TodoPage) -> TodoPage:
+    for text in ["First item", "Second item", "Third item"]:
+        todo.add(text)
+    return todo
+```
+
+```python
+# tests/test_add_items.py
+import pytest
+from playwright.sync_api import expect
+from pages.todo_page import TodoPage
+
+def test_empty_state_on_load(todo: TodoPage):
+    assert todo.get_count() == 0
+
+@pytest.mark.parametrize("text", [
+    "Normal todo item",
+    "Item with numbers 12345",
+    "Item with special chars !@#$%",
+    "A very long todo item that exceeds normal length expectations by quite a bit",
+])
+def test_add_various_items(todo: TodoPage, text: str):
+    todo.add(text)
+    todo.expect_item(text)
+    assert todo.get_count() == 1
+
+def test_add_multiple_items_in_sequence(todo: TodoPage):
+    items = ["Item A", "Item B", "Item C"]
+    for item in items:
+        todo.add(item)
+    assert todo.get_count() == len(items)
+    for item in items:
+        todo.expect_item(item)
+
+def test_empty_input_does_not_add_item(todo: TodoPage):
+    todo.new_todo_input.press("Enter")
+    assert todo.get_count() == 0
+```
+
+```python
+# tests/test_complete_items.py
+from pages.todo_page import TodoPage
+
+def test_mark_single_item_complete(todo_with_three_items: TodoPage):
+    todo_with_three_items.complete("First item")
+    completed = todo_with_three_items.page.locator(".todo-list li.completed")
+    assert completed.count() == 1
+
+def test_mark_all_complete(todo_with_three_items: TodoPage):
+    for text in ["First item", "Second item", "Third item"]:
+        todo_with_three_items.complete(text)
+    completed = todo_with_three_items.page.locator(".todo-list li.completed")
+    assert completed.count() == 3
+
+def test_delete_item(todo_with_three_items: TodoPage):
+    initial_count = todo_with_three_items.get_count()
+    todo_with_three_items.delete("Second item")
+    todo_with_three_items.expect_item_absent("Second item")
+    assert todo_with_three_items.get_count() == initial_count - 1
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Set up the complete `playwright-todo-suite/` project, implement all the test files above, and run the full suite — it should pass with at least 12 tests
+- [ ] Add a `test_filters.py` file with tests for the "Active", "Completed", and "All" filter buttons — verify each shows the correct subset of items
+- [ ] Push to GitHub, add the CI workflow from Day 33, and verify the Actions tab shows all tests passing
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Which of these is a sign of a production-quality test suite?",
+    choices: [
+      "All locators are hardcoded CSS selectors in every test file",
+      "Tests only cover the happy path",
+      "Shared setup lives in fixtures, tests read like English, edge cases are covered",
+      "Tests use time.sleep() to ensure elements are loaded"
+    ],
+    answer: 2,
+    explain: "Production quality means: maintainable (POM + fixtures), readable (descriptive test names, no raw locators in tests), robust (edge cases covered), and reliable (no sleep() calls, deterministic waits)."
+  },
+  {
+    q: "Why should `screenshots/` be gitignored?",
+    choices: [
+      "Screenshots cause merge conflicts",
+      "They are generated artifacts — binary, large, and rebuilt on every run",
+      "GitHub does not support PNG files",
+      "Screenshots slow down git push"
+    ],
+    answer: 1,
+    explain: "Generated artifacts (screenshots, compiled files, test reports) don't belong in version control — they're rebuilt each run, can be large, and cause unnecessary merge conflicts. Upload them as CI artifacts instead."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Best Practices", url: "https://playwright.dev/python/docs/best-practices" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

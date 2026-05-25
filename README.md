@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QA Automation Roadmap
 
-## Getting Started
+A fully static, bilingual (English / Vietnamese) educational website for an 8-week QA automation testing roadmap. Built with Next.js 14 App Router, MDX, and Tailwind CSS. No backend — all progress tracked in localStorage.
 
-First, run the development server:
+## Live content
+
+56 daily lessons across 5 phases:
+
+| Phase | Days | Topic |
+|-------|------|-------|
+| 1 | 1–7 | Testing fundamentals |
+| 2 | 8–21 | Python for QA |
+| 3 | 22–35 | Playwright browser automation |
+| 4 | 36–49 | API testing with pytest + requests |
+| 5 | 50–56 | Capstone framework + career |
+
+## Features
+
+- Bilingual EN/VI toggle — switches instantly via CSS, no page reload
+- Dark/light theme
+- Per-day progress tracking with streak counter, persisted to localStorage
+- Interactive quizzes and exercise checklists on every lesson
+- Syntax-highlighted code blocks with copy button
+- Fully static export — deployable to Vercel or any CDN with zero server
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev        # http://localhost:3000
+pnpm build      # produces out/ for static deployment
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Requires Node.js 18+ and pnpm.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Editing lessons
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+All 56 lesson files live in `content/lessons/en/`. Each is an MDX file with this structure:
 
-## Learn More
+```mdx
+---
+id: N
+title: "Lesson title"
+phase: P
+estMinutes: 60
+tags: ["tag"]
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Intro
+<En>English text</En>
+<Vi>Vietnamese text</Vi>
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Concept
+...
+## Code / Demo
+```python
+# code
+```
+## Exercise
+<ExerciseBox>
+- [ ] Task
+</ExerciseBox>
+## Quiz
+<Quiz questions={[{ q: "...", choices: [...], answer: 0, explain: "..." }]} />
+## Resources
+<ResourceList resources={[{ title: "...", url: "https://..." }]} />
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**MDX rules:**
+- Never put blank lines inside `<En>` or `<Vi>` blocks
+- Code blocks are never wrapped in `<En>` / `<Vi>` — always English only
+- Use only trusted, verified URLs in `ResourceList`
+- Postman-style `{{variable}}` syntax must be inside backticks in MDX text
 
-## Deploy on Vercel
+## Metadata
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Lesson metadata (titles, blurbs, estimated time, phase assignments) lives in `src/data/roadmap.ts` — this is the source of truth since `@next/mdx` strips frontmatter at build time.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Rebrand
+
+| What to change | Where |
+|----------------|-------|
+| Site name and description | `src/app/layout.tsx` metadata |
+| Brand colors | `tailwind.config.ts` → `colors.brand` |
+| Phase colors | `src/data/roadmap.ts` → `Phase.color` |
+| Motivation messages | `src/data/motivation.ts` |
+
+## Deploy to Vercel
+
+1. Push to GitHub
+2. Import the `qa-roadmap/` directory in Vercel
+3. Set Framework Preset to **Next.js**
+4. No environment variables required
+
+Vercel will run `pnpm build` and serve the static `out/` directory automatically.

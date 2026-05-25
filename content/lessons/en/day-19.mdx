@@ -1,0 +1,193 @@
+---
+id: 19
+title: "File I/O & working with JSON"
+phase: 2
+estMinutes: 60
+tags: ["python", "files", "json"]
+---
+
+## Intro
+
+<En>
+Test automation frequently reads from and writes to files: loading test data from JSON fixtures, saving screenshots, writing test reports, and reading configuration files. Python makes file I/O simple, and the built-in `json` module handles serialisation and deserialisation automatically. Today you will learn the patterns used in real test codebases.
+</En>
+<Vi>
+Tự động hoá test thường xuyên đọc và ghi file: tải dữ liệu test từ JSON fixture, lưu ảnh chụp màn hình, ghi báo cáo test và đọc file cấu hình. Python làm cho I/O file đơn giản, và module `json` tích hợp xử lý tuần tự hoá và giải tuần tự hoá tự động. Hôm nay bạn sẽ học các mẫu được dùng trong các codebase test thực tế.
+</Vi>
+
+## Concept
+
+<En>
+**Reading and writing files — always use `with`:**
+```python
+# Writing
+with open("output.txt", "w") as f:
+    f.write("content")
+
+# Reading
+with open("input.txt", "r") as f:
+    content = f.read()      # entire file as string
+    lines = f.readlines()   # list of lines
+```
+
+The `with` statement (context manager) guarantees the file is closed even if an exception occurs. Never call `open()` without `with`.
+
+**JSON operations:**
+
+| Task | Code |
+|------|------|
+| Parse string → dict | `json.loads(string)` |
+| Serialize dict → string | `json.dumps(data, indent=2)` |
+| Read JSON file | `json.load(file_object)` |
+| Write JSON file | `json.dump(data, file_object, indent=2)` |
+
+**File modes:**
+- `"r"` — read (default)
+- `"w"` — write (overwrites)
+- `"a"` — append
+- `"r+"` — read and write
+
+**`pathlib.Path`** — the modern way to work with paths:
+```python
+from pathlib import Path
+fixtures = Path("tests/fixtures")
+data = json.loads((fixtures / "users.json").read_text())
+```
+
+**Common QA patterns:**
+- Load a JSON fixture file at the start of a test
+- Write test results to a JSON summary file
+- Read configuration from an environment-specific JSON file
+</En>
+<Vi>
+**Đọc và ghi file — luôn dùng `with`:**
+```python
+# Ghi
+with open("output.txt", "w") as f:
+    f.write("content")
+
+# Đọc
+with open("input.txt", "r") as f:
+    content = f.read()      # toàn bộ file dưới dạng chuỗi
+    lines = f.readlines()   # danh sách các dòng
+```
+
+Câu lệnh `with` (context manager) đảm bảo file được đóng ngay cả khi có ngoại lệ xảy ra. Đừng bao giờ gọi `open()` mà không dùng `with`.
+
+**Các thao tác JSON:**
+
+| Tác vụ | Code |
+|------|------|
+| Phân tích chuỗi → dict | `json.loads(string)` |
+| Tuần tự hoá dict → chuỗi | `json.dumps(data, indent=2)` |
+| Đọc file JSON | `json.load(file_object)` |
+| Ghi file JSON | `json.dump(data, file_object, indent=2)` |
+
+**`pathlib.Path`** — cách hiện đại để làm việc với đường dẫn:
+```python
+from pathlib import Path
+fixtures = Path("tests/fixtures")
+data = json.loads((fixtures / "users.json").read_text())
+```
+</Vi>
+
+## Code / Demo
+
+```python
+import json
+import os
+from pathlib import Path
+
+# --- Write a test fixture ---
+test_users = [
+    {"id": 1, "email": "alice@example.com", "role": "admin"},
+    {"id": 2, "email": "bob@example.com", "role": "viewer"},
+]
+
+fixture_path = Path("tmp_users.json")
+with open(fixture_path, "w", encoding="utf-8") as f:
+    json.dump(test_users, f, indent=2)
+print(f"Wrote fixture to {fixture_path}")
+
+# --- Read it back ---
+with open(fixture_path, "r", encoding="utf-8") as f:
+    loaded_users = json.load(f)
+
+assert len(loaded_users) == 2
+assert loaded_users[0]["email"] == "alice@example.com"
+print("Fixture round-trip verified!")
+
+# --- Parse a JSON string (simulating an API response body) ---
+response_body = '{"status": "created", "id": 42, "email": "charlie@example.com"}'
+parsed = json.loads(response_body)
+assert parsed["status"] == "created"
+assert isinstance(parsed["id"], int)
+
+# --- Write test results ---
+results = {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "failures": [
+        {"test": "TC-003", "error": "Expected 200, got 404"}
+    ]
+}
+
+results_path = Path("tmp_results.json")
+with open(results_path, "w", encoding="utf-8") as f:
+    json.dump(results, f, indent=2)
+
+# --- Verify written results ---
+with open(results_path, "r", encoding="utf-8") as f:
+    loaded = json.load(f)
+assert loaded["total"] == 3
+assert loaded["passed"] == 2
+print(f"Results: {loaded['passed']}/{loaded['total']} passed")
+
+# --- Cleanup temp files ---
+fixture_path.unlink(missing_ok=True)
+results_path.unlink(missing_ok=True)
+print("Cleanup complete. All file I/O tests passed!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Create a `fixtures/` directory, write a JSON file containing 3 test user records, read it back, and assert all users have a non-empty email
+- [ ] Write a function `save_test_report(results: list, output_path: str)` that serialises a list of test result dicts to a formatted JSON file
+- [ ] Use `pathlib.Path` to construct a file path relative to the current script's location (use `Path(__file__).parent`)
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why should you always use `with open(...) as f:` instead of just `f = open(...)`?",
+    choices: [
+      "with open() is faster",
+      "It automatically closes the file when the block exits, even if an exception occurs",
+      "open() without with raises a SyntaxError",
+      "with open() supports more file modes"
+    ],
+    answer: 1,
+    explain: "The with statement is a context manager that calls f.close() automatically. Without it, a file might remain open if an exception occurs, causing resource leaks or data loss."
+  },
+  {
+    q: "What is the difference between json.loads() and json.load()?",
+    choices: [
+      "json.loads() reads from a file, json.load() reads from a string",
+      "json.loads() parses a string, json.load() reads from a file object",
+      "They are identical",
+      "json.load() only works with lists"
+    ],
+    answer: 1,
+    explain: "json.loads() (s = string) parses a JSON string. json.load() reads from an already-opened file object. The same distinction applies to json.dumps() vs json.dump()."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python json module — docs.python.org", url: "https://docs.python.org/3/library/json.html" },
+  { title: "Python pathlib — docs.python.org", url: "https://docs.python.org/3/library/pathlib.html" }
+]} />

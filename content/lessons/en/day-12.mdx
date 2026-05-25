@@ -1,0 +1,158 @@
+---
+id: 12
+title: "if / elif / else — control flow"
+phase: 2
+estMinutes: 45
+tags: ["python", "control-flow"]
+---
+
+## Intro
+
+<En>
+Test logic is full of branching decisions: if the status is 200 do this, otherwise do that. Python's `if`, `elif`, and `else` statements let you express those decisions clearly. Learning to write clean conditionals — and to prefer early returns over deep nesting — makes your test code much easier to read and debug.
+</En>
+<Vi>
+Logic test đầy các quyết định phân nhánh: nếu trạng thái là 200 thì làm điều này, ngược lại thì làm điều khác. Các câu lệnh `if`, `elif` và `else` của Python cho phép bạn diễn đạt những quyết định đó một cách rõ ràng. Học cách viết điều kiện gọn gàng — và ưu tiên return sớm hơn lồng sâu — làm cho code test của bạn dễ đọc và debug hơn nhiều.
+</Vi>
+
+## Concept
+
+<En>
+**Basic structure:**
+```python
+if condition:
+    # runs when condition is True
+elif other_condition:
+    # runs when other_condition is True (and first was False)
+else:
+    # runs when all conditions above are False
+```
+
+**Key rules:**
+- Indentation (4 spaces) defines the block — Python has no `{}` braces.
+- Any value can be used as a condition — Python evaluates its truthiness.
+- `elif` is optional and can be chained. `else` is optional too.
+
+**Prefer early returns over nesting:** Deep nesting is a code smell. Instead of nesting three `if` blocks, return early on the failure cases.
+
+**Ternary expression** — for simple single-line conditionals:
+```python
+label = "pass" if score >= 60 else "fail"
+```
+
+**`match` statement (Python 3.10+):** Useful for checking a value against multiple exact values (similar to `switch`). Use for status codes, error codes, roles.
+</En>
+<Vi>
+**Cấu trúc cơ bản:**
+```python
+if condition:
+    # chạy khi condition là True
+elif other_condition:
+    # chạy khi other_condition là True (và điều đầu tiên là False)
+else:
+    # chạy khi tất cả các điều kiện trên đều False
+```
+
+**Các quy tắc quan trọng:**
+- Thụt lề (4 dấu cách) xác định khối — Python không có dấu ngoặc nhọn `{}`.
+- Bất kỳ giá trị nào cũng có thể dùng làm điều kiện — Python đánh giá tính đúng/sai của nó.
+- `elif` là tùy chọn và có thể được xâu chuỗi. `else` cũng là tùy chọn.
+
+**Ưu tiên return sớm hơn lồng sâu:** Lồng sâu là code smell. Thay vì lồng ba khối `if`, hãy return sớm ở các trường hợp thất bại.
+
+**Biểu thức ba ngôi** — cho điều kiện đơn giản một dòng:
+```python
+label = "pass" if score >= 60 else "fail"
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# Control flow patterns common in test helpers
+
+def classify_status_code(code: int) -> str:
+    if code < 100 or code > 599:
+        return "invalid"
+    elif code < 200:
+        return "informational"
+    elif code < 300:
+        return "success"
+    elif code < 400:
+        return "redirect"
+    elif code < 500:
+        return "client_error"
+    else:
+        return "server_error"
+
+# Test our classifier
+assert classify_status_code(200) == "success"
+assert classify_status_code(404) == "client_error"
+assert classify_status_code(500) == "server_error"
+assert classify_status_code(301) == "redirect"
+
+# Early return pattern — avoids nesting
+def validate_login_response(response: dict) -> str:
+    if response is None:
+        return "No response received"
+    if "token" not in response:
+        return "Missing token in response"
+    if not isinstance(response["token"], str):
+        return "Token must be a string"
+    if len(response["token"]) < 10:
+        return "Token is too short"
+    return "OK"
+
+good = {"token": "eyJhbGciOiJIUzI1NiJ9.abc123"}
+bad_no_token = {"user": "alice"}
+print(validate_login_response(good))          # OK
+print(validate_login_response(bad_no_token))  # Missing token in response
+print(validate_login_response(None))          # No response received
+
+# Ternary for simple flags
+score = 75
+result = "pass" if score >= 60 else "fail"
+print(f"Score {score}: {result}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a function `describe_response(status_code, body)` that returns a human-readable string based on the status code range and whether the body is None or not
+- [ ] Refactor a deeply-nested if/else chain (at least 3 levels deep) using early returns
+- [ ] Write a ternary expression that sets a variable `priority` to "high" if a bug's severity is "critical", otherwise "normal"
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the main advantage of using early returns over deep nesting?",
+    choices: [
+      "Early returns are faster at runtime",
+      "They reduce indentation depth, making the happy path easier to read",
+      "Python requires early returns in functions",
+      "They avoid using the else keyword"
+    ],
+    answer: 1,
+    explain: "Early returns handle edge cases up front and exit immediately, so the main logic stays at the lowest indentation level. This makes the code easier to follow."
+  },
+  {
+    q: "What is printed by: x = 10; print('big' if x > 5 else 'small')?",
+    choices: [
+      "small",
+      "big",
+      "True",
+      "Error"
+    ],
+    answer: 1,
+    explain: "10 > 5 is True, so the ternary expression evaluates to 'big'. This is the Python equivalent of a ternary operator."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Control Flow — docs.python.org", url: "https://docs.python.org/3/tutorial/controlflow.html" },
+  { title: "Real Python — Conditional Statements", url: "https://realpython.com/" }
+]} />

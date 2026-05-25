@@ -1,0 +1,231 @@
+---
+id: 20
+title: "Classes & OOP basics"
+phase: 2
+estMinutes: 75
+tags: ["python", "oop"]
+---
+
+## Intro
+
+<En>
+You don't need to be an OOP expert to write test automation, but you do need to understand classes. The Page Object Model (POM) — the standard design pattern for Playwright and Selenium test suites — is built entirely on classes. Understanding `__init__`, instance methods, and inheritance is what lets you read, write, and maintain POM-based test code.
+</En>
+<Vi>
+Bạn không cần phải là chuyên gia OOP để viết tự động hoá test, nhưng bạn cần hiểu class. Page Object Model (POM) — mẫu thiết kế chuẩn cho bộ test Playwright và Selenium — được xây dựng hoàn toàn trên class. Hiểu `__init__`, instance method và kế thừa là điều cho phép bạn đọc, viết và bảo trì code test dựa trên POM.
+</Vi>
+
+## Concept
+
+<En>
+**Class anatomy:**
+```python
+class ClassName:
+    class_variable = "shared by all instances"
+
+    def __init__(self, param):     # constructor
+        self.instance_variable = param  # 'self' is this instance
+
+    def method(self):              # instance method
+        return self.instance_variable
+
+    @classmethod
+    def from_dict(cls, data):     # alternative constructor
+        return cls(data["param"])
+
+    @staticmethod
+    def helper():                 # utility — no access to self/cls
+        return "no state needed"
+```
+
+**Key concepts for test automation:**
+- `__init__` is the constructor — called when you create an instance.
+- `self` refers to the current instance. Always the first parameter of instance methods.
+- Instance variables are per-object state. Class variables are shared.
+- `@property` creates read-only computed attributes — useful for derived test data.
+
+**Inheritance:**
+```python
+class BasePage:
+    def __init__(self, page):
+        self.page = page
+
+class LoginPage(BasePage):
+    def login(self, email, password):
+        # Uses self.page inherited from BasePage
+        pass
+```
+
+**Dataclasses** (Python 3.7+) — auto-generate `__init__`, `__repr__`, and `__eq__`:
+```python
+from dataclasses import dataclass
+
+@dataclass
+class TestUser:
+    email: str
+    password: str
+    role: str = "viewer"
+```
+</En>
+<Vi>
+**Cấu trúc class:**
+```python
+class ClassName:
+    def __init__(self, param):     # constructor
+        self.instance_variable = param
+
+    def method(self):              # instance method
+        return self.instance_variable
+```
+
+**Các khái niệm quan trọng cho tự động hoá test:**
+- `__init__` là constructor — được gọi khi bạn tạo một instance.
+- `self` tham chiếu đến instance hiện tại. Luôn là tham số đầu tiên của instance method.
+- Biến instance là trạng thái của từng đối tượng. Biến class được chia sẻ.
+
+**Kế thừa:**
+```python
+class BasePage:
+    def __init__(self, page):
+        self.page = page
+
+class LoginPage(BasePage):
+    def login(self, email, password):
+        # Dùng self.page được kế thừa từ BasePage
+        pass
+```
+
+**Dataclasses** (Python 3.7+) — tự tạo `__init__`, `__repr__`, và `__eq__`:
+```python
+from dataclasses import dataclass
+
+@dataclass
+class TestUser:
+    email: str
+    password: str
+    role: str = "viewer"
+```
+</Vi>
+
+## Code / Demo
+
+```python
+from dataclasses import dataclass, field
+from typing import ClassVar
+
+# --- Dataclass for test data ---
+@dataclass
+class TestUser:
+    email: str
+    password: str
+    role: str = "viewer"
+    is_active: bool = True
+
+alice = TestUser("alice@example.com", "SecurePass1", role="admin")
+bob = TestUser("bob@example.com", "AnotherPass2")
+
+assert alice.role == "admin"
+assert bob.role == "viewer"  # default
+assert alice != bob          # dataclass generates __eq__ based on fields
+print(alice)  # TestUser(email='alice@...', password='SecurePass1', role='admin', is_active=True)
+
+# --- Simple Page Object (without a real browser) ---
+class LoginPage:
+    URL = "/login"  # class variable
+
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        self._last_action: str | None = None
+
+    @property
+    def full_url(self) -> str:
+        return f"{self.base_url}{self.URL}"
+
+    def navigate(self) -> None:
+        self._last_action = f"navigated to {self.full_url}"
+
+    def fill_credentials(self, email: str, password: str) -> None:
+        self._last_action = f"filled {email} / [password]"
+
+    def submit(self) -> dict:
+        if self._last_action is None:
+            raise RuntimeError("Must navigate first")
+        return {"status": "ok", "token": "fake-token-123"}
+
+    def __repr__(self) -> str:
+        return f"LoginPage(base_url={self.base_url!r})"
+
+# Use the page object
+login = LoginPage("https://staging.example.com")
+assert login.full_url == "https://staging.example.com/login"
+
+login.navigate()
+login.fill_credentials("alice@example.com", "SecurePass1")
+result = login.submit()
+
+assert result["status"] == "ok"
+assert "token" in result
+print(f"Login page: {login}")
+print(f"Login result: {result}")
+
+# --- Inheritance ---
+class BasePage:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+
+    def navigate_to(self, path: str) -> str:
+        return f"Navigating to {self.base_url}{path}"
+
+class DashboardPage(BasePage):
+    URL = "/dashboard"
+
+    def get_welcome_text(self, username: str) -> str:
+        return f"Welcome, {username}!"
+
+dashboard = DashboardPage("https://staging.example.com")
+print(dashboard.navigate_to(DashboardPage.URL))
+print(dashboard.get_welcome_text("Alice"))
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Create a `TestUser` dataclass with `email`, `password`, `role`, and a class method `make_admin(email, password)` that returns a TestUser with `role="admin"`
+- [ ] Write a `BasePage` class with a `base_url` constructor argument and a `navigate_to(path)` method, then subclass it as `RegistrationPage` with a `fill_form(name, email, password)` method
+- [ ] Explain what `self` does in a class method and why it's always the first parameter
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the purpose of `__init__` in a Python class?",
+    choices: [
+      "It is called when the class is deleted",
+      "It initialises a new instance — sets up instance variables when you call ClassName()",
+      "It defines class-level constants",
+      "It is automatically called every time a method runs"
+    ],
+    answer: 1,
+    explain: "__init__ is the constructor. It runs immediately after a new instance is created, allowing you to initialise instance state via self.variable = value."
+  },
+  {
+    q: "What does `@dataclass` provide automatically?",
+    choices: [
+      "Database connection pooling",
+      "__init__, __repr__, and __eq__ generated from the annotated fields",
+      "Automatic JSON serialisation",
+      "Thread safety for instance variables"
+    ],
+    answer: 1,
+    explain: "The @dataclass decorator auto-generates boilerplate: __init__ to accept and store all fields, __repr__ for readable printing, and __eq__ for value-based equality comparisons."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Classes — docs.python.org", url: "https://docs.python.org/3/tutorial/classes.html" },
+  { title: "Python dataclasses — docs.python.org", url: "https://docs.python.org/3/library/dataclasses.html" },
+  { title: "Real Python — OOP", url: "https://realpython.com/" }
+]} />

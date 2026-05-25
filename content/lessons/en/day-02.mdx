@@ -1,0 +1,109 @@
+---
+id: 2
+title: "Test types"
+phase: 1
+estMinutes: 60
+tags: ["fundamentals", "types"]
+---
+
+## Intro
+
+<En>
+Not all tests are created equal. Different test types serve different purposes, and knowing which to use — and when — is one of the core skills of a QA engineer.
+</En>
+<Vi>
+Không phải tất cả các test đều như nhau. Các loại test khác nhau phục vụ các mục đích khác nhau, và biết cách sử dụng loại nào — và khi nào — là một trong những kỹ năng cốt lõi của kỹ sư QA.
+</Vi>
+
+## Concept
+
+<En>
+**Functional testing** verifies that a feature does what the requirements say it should. Example: the login button submits credentials and navigates to the dashboard.
+
+**Regression testing** ensures that existing features still work after new code is added. Every time a developer ships a change, regression tests catch unintended side effects.
+
+**Smoke testing** is a quick sanity check run immediately after a new build. It checks the most critical paths (can the app start? can a user log in?) to decide whether deeper testing is worthwhile. If smoke tests fail, stop — the build is broken.
+
+**Sanity testing** is a narrow, focused check performed after a specific bug fix or minor change to confirm the fix works and nothing obvious broke around it.
+
+**Exploratory testing** is unscripted investigation. The tester uses intuition, experience, and curiosity to discover unexpected defects that scripted tests would miss. It is especially valuable in areas of high risk or low test coverage.
+</En>
+<Vi>
+**Kiểm thử chức năng** xác minh rằng một tính năng làm đúng những gì yêu cầu đặt ra. Ví dụ: nút đăng nhập gửi thông tin xác thực và điều hướng đến dashboard.
+
+**Kiểm thử hồi quy** đảm bảo rằng các tính năng hiện có vẫn hoạt động sau khi thêm code mới. Mỗi lần developer giao một thay đổi, các test hồi quy sẽ phát hiện các tác dụng phụ không mong muốn.
+
+**Kiểm thử khói** là kiểm tra tỉnh táo nhanh chóng được chạy ngay sau một bản build mới. Nó kiểm tra các đường dẫn quan trọng nhất (ứng dụng có thể khởi động không? Người dùng có thể đăng nhập không?) để quyết định xem kiểm thử sâu hơn có đáng không. Nếu test khói thất bại, hãy dừng lại — bản build bị hỏng.
+
+**Kiểm thử tỉnh táo** là kiểm tra hẹp, tập trung được thực hiện sau khi sửa một bug cụ thể hoặc thay đổi nhỏ để xác nhận rằng bản sửa hoạt động và không có gì hiển nhiên bị vỡ xung quanh đó.
+
+**Kiểm thử khám phá** là điều tra không có kịch bản. Tester sử dụng trực giác, kinh nghiệm và sự tò mò để phát hiện các lỗi bất ngờ mà các test có kịch bản sẽ bỏ lỡ. Điều này đặc biệt có giá trị trong các lĩnh vực có rủi ro cao hoặc độ bao phủ test thấp.
+</Vi>
+
+## Code / Demo
+
+```python
+# Pseudo-code illustrating test type usage in a CI pipeline
+# (This is not real pytest code — just a conceptual illustration)
+
+# Smoke tests run first — fast, critical path only
+def test_smoke_app_starts():
+    response = get("/health")
+    assert response.status == 200
+
+def test_smoke_login():
+    result = login("admin@example.com", "password123")
+    assert result.success is True
+
+# Functional tests run if smoke passes
+def test_login_redirects_to_dashboard():
+    result = login("user@example.com", "secret")
+    assert result.redirect_url == "/dashboard"
+
+# Regression suite runs nightly on all features
+def test_regression_password_reset_still_works():
+    ...
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Pick a website you use daily and name one functional test, one smoke test, and one regression test for it
+- [ ] Explain in your own words why smoke tests are run before the full regression suite
+- [ ] Find an area of a real app where exploratory testing would add more value than scripted tests
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "You just deployed a hotfix. Which test type do you run FIRST?",
+    choices: [
+      "Full regression suite",
+      "Exploratory testing",
+      "Smoke test",
+      "Load test"
+    ],
+    answer: 2,
+    explain: "A smoke test quickly validates that the core of the application is still functioning after the deployment, before you invest time in deeper testing."
+  },
+  {
+    q: "Which test type is deliberately unscripted and relies on tester intuition?",
+    choices: [
+      "Regression testing",
+      "Sanity testing",
+      "Functional testing",
+      "Exploratory testing"
+    ],
+    answer: 3,
+    explain: "Exploratory testing is unscripted — the tester investigates the application freely, using experience and curiosity to find unexpected defects."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB — Test Types", url: "https://www.istqb.org/" },
+  { title: "Ministry of Testing — Test Types Guide", url: "https://www.ministryoftesting.com/" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+]} />

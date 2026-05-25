@@ -1,0 +1,199 @@
+---
+id: 16
+title: "Exceptions & error handling"
+phase: 2
+estMinutes: 60
+tags: ["python", "exceptions"]
+---
+
+## Intro
+
+<En>
+Tests will fail. Network calls will time out. Files won't exist. APIs will return unexpected data. Exception handling lets you write code that deals with these situations gracefully — either by recovering, by providing a useful error message, or by letting the exception propagate so pytest can catch and report it clearly.
+</En>
+<Vi>
+Test sẽ thất bại. Các cuộc gọi mạng sẽ hết thời gian chờ. File sẽ không tồn tại. API sẽ trả về dữ liệu không mong đợi. Xử lý ngoại lệ cho phép bạn viết code xử lý những tình huống này một cách duyên dáng — bằng cách phục hồi, cung cấp thông báo lỗi hữu ích, hoặc để ngoại lệ lan truyền để pytest có thể bắt và báo cáo nó rõ ràng.
+</Vi>
+
+## Concept
+
+<En>
+**Basic structure:**
+```python
+try:
+    # code that might raise an exception
+except SomeError as e:
+    # handle it
+else:
+    # runs only if no exception was raised
+finally:
+    # always runs — cleanup goes here
+```
+
+**Common exceptions in QA automation:**
+
+| Exception | When it occurs |
+|-----------|---------------|
+| `AssertionError` | Failed `assert` statement |
+| `KeyError` | Missing key in dict: `d["missing"]` |
+| `IndexError` | List index out of range |
+| `TypeError` | Wrong type passed to operation |
+| `ValueError` | Right type but invalid value (e.g., `int("abc")`) |
+| `FileNotFoundError` | File doesn't exist |
+| `TimeoutError` | Operation took too long |
+| `requests.HTTPError` | HTTP error response (Phase 4) |
+
+**Raising exceptions:** Use `raise ValueError("message")` to signal that your own code received invalid input.
+
+**Custom exceptions:** Subclass `Exception` to create domain-specific errors:
+```python
+class TestDataError(Exception):
+    pass
+```
+
+**When NOT to catch exceptions:** Don't catch exceptions just to suppress them. Let `AssertionError` from pytest propagate — pytest knows how to format it beautifully.
+</En>
+<Vi>
+**Cấu trúc cơ bản:**
+```python
+try:
+    # code có thể gây ra ngoại lệ
+except SomeError as e:
+    # xử lý nó
+else:
+    # chỉ chạy nếu không có ngoại lệ
+finally:
+    # luôn chạy — dọn dẹp ở đây
+```
+
+**Các ngoại lệ phổ biến trong tự động hoá QA:**
+
+| Ngoại lệ | Khi nào xảy ra |
+|-----------|---------------|
+| `AssertionError` | Câu lệnh `assert` thất bại |
+| `KeyError` | Thiếu key trong dict |
+| `IndexError` | Chỉ số danh sách ngoài phạm vi |
+| `TypeError` | Sai kiểu truyền vào thao tác |
+| `ValueError` | Đúng kiểu nhưng giá trị không hợp lệ |
+| `FileNotFoundError` | File không tồn tại |
+| `TimeoutError` | Thao tác mất quá nhiều thời gian |
+
+**Raise ngoại lệ:** Dùng `raise ValueError("message")` để báo hiệu code của bạn nhận đầu vào không hợp lệ.
+
+**Khi KHÔNG nên bắt ngoại lệ:** Đừng bắt ngoại lệ chỉ để chặn chúng. Hãy để `AssertionError` từ pytest lan truyền — pytest biết cách định dạng nó đẹp.
+</Vi>
+
+## Code / Demo
+
+```python
+# Exception handling patterns for QA code
+
+# Pattern 1: Safe dict access with fallback
+def get_field(data: dict, key: str, default=None):
+    try:
+        return data[key]
+    except KeyError:
+        return default
+
+response = {"status": "ok", "token": "abc123"}
+token = get_field(response, "token")
+missing = get_field(response, "user_id", default=0)
+assert token == "abc123"
+assert missing == 0
+
+# Pattern 2: Validate before using
+def parse_status_code(raw: str) -> int:
+    try:
+        code = int(raw)
+    except ValueError:
+        raise ValueError(f"'{raw}' is not a valid status code")
+    if not 100 <= code <= 599:
+        raise ValueError(f"Status code {code} is out of valid range (100-599)")
+    return code
+
+assert parse_status_code("200") == 200
+
+try:
+    parse_status_code("abc")
+except ValueError as e:
+    print(f"Caught expected error: {e}")
+
+# Pattern 3: finally for cleanup
+def read_test_fixture(path: str) -> str:
+    f = None
+    try:
+        f = open(path, "r")
+        return f.read()
+    except FileNotFoundError:
+        return ""
+    finally:
+        if f:
+            f.close()
+
+content = read_test_fixture("nonexistent.json")
+assert content == ""
+print("File not found handled gracefully")
+
+# Pattern 4: Custom exception class
+class InvalidTestDataError(Exception):
+    pass
+
+def create_user(email: str, role: str) -> dict:
+    valid_roles = {"admin", "editor", "viewer"}
+    if role not in valid_roles:
+        raise InvalidTestDataError(
+            f"Invalid role '{role}'. Must be one of {valid_roles}"
+        )
+    return {"email": email, "role": role}
+
+try:
+    create_user("alice@example.com", "superuser")
+except InvalidTestDataError as e:
+    print(f"Caught custom error: {e}")
+
+user = create_user("bob@example.com", "admin")
+assert user["role"] == "admin"
+print("All exception handling tests passed!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write a function `safe_get_price(data: dict) -> float` that returns the price from a response dict, returns 0.0 if the key is missing, and raises `ValueError` if the price is negative
+- [ ] Create a custom exception `ApiResponseError` and raise it with a descriptive message when a simulated API response has a status outside 200–299
+- [ ] Demonstrate the `finally` block by writing a function that "opens" and "closes" a resource (just print statements), ensuring the close always happens even if an error occurs
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "When does the `finally` block execute?",
+    choices: [
+      "Only when an exception is raised",
+      "Only when no exception is raised",
+      "Always — whether or not an exception was raised",
+      "Only when using a custom exception class"
+    ],
+    answer: 2,
+    explain: "finally always runs. It's designed for cleanup code — closing files, releasing connections, resetting state — that must happen regardless of success or failure."
+  },
+  {
+    q: "Why should you NOT catch exceptions silently (bare `except: pass`)?",
+    choices: [
+      "Because Python 3 removed bare except",
+      "Because it hides bugs — you'll never know something went wrong",
+      "Because it causes memory leaks",
+      "Because it is slower than specific except clauses"
+    ],
+    answer: 1,
+    explain: "Silently swallowing exceptions is one of the worst coding habits. Tests that never fail even when things go wrong give false confidence. Always either handle the exception meaningfully or let it propagate."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Exceptions — docs.python.org", url: "https://docs.python.org/3/tutorial/errors.html" },
+  { title: "Real Python — Exceptions", url: "https://realpython.com/" }
+]} />

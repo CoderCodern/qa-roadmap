@@ -1,0 +1,241 @@
+---
+id: 47
+title: "JSONPlaceholder project — Part 1"
+phase: 4
+estMinutes: 90
+tags: ["api-testing", "project"]
+---
+
+## Intro
+
+<En>
+Over the next two days you build a complete API test project against JSONPlaceholder — the free, public REST API you've been using for practice. This project ties together everything from Phase 4: `requests`, pytest, JSON Schema validation, negative testing, parametrize, fixtures, and CI. Part 1 sets up the project structure and implements tests for the `/posts` and `/users` endpoints.
+</En>
+<Vi>
+Trong hai ngày tới, bạn xây dựng một dự án API test hoàn chỉnh với JSONPlaceholder — API REST công khai, miễn phí bạn đã dùng để luyện tập. Dự án này kết hợp mọi thứ từ Phase 4: `requests`, pytest, xác thực JSON Schema, kiểm thử tiêu cực, parametrize, fixture và CI. Phần 1 thiết lập cấu trúc dự án và triển khai test cho các endpoint `/posts` và `/users`.
+</Vi>
+
+## Concept
+
+<En>
+**Final project structure:**
+```
+jsonplaceholder-api-tests/
+├── .github/
+│   └── workflows/
+│       └── api-tests.yml
+├── api/
+│   ├── __init__.py
+│   └── client.py
+├── schemas/
+│   ├── post.json
+│   └── user.json
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── test_posts.py
+│   ├── test_users.py
+│   └── test_negative.py
+├── pytest.ini
+└── requirements.txt
+```
+
+**Design decisions:**
+- `ApiClient` wraps `requests.Session` — base URL in one place
+- Schemas stored as JSON files — reused across test files
+- `scope="session"` fixture for `ApiClient` — one HTTP session for all tests
+- Separate test files by resource (`test_posts.py`, `test_users.py`)
+- Negative tests in `test_negative.py` — clear separation of concern
+</En>
+<Vi>
+**Cấu trúc dự án cuối cùng:**
+```
+jsonplaceholder-api-tests/
+├── .github/workflows/api-tests.yml
+├── api/
+│   ├── __init__.py
+│   └── client.py
+├── schemas/
+│   ├── post.json
+│   └── user.json
+├── tests/
+│   ├── conftest.py
+│   ├── test_posts.py
+│   ├── test_users.py
+│   └── test_negative.py
+├── pytest.ini
+└── requirements.txt
+```
+
+**Các quyết định thiết kế:**
+- `ApiClient` bọc `requests.Session` — base URL ở một chỗ
+- Schema lưu dưới dạng JSON file — tái sử dụng trên các file test
+- Fixture `scope="session"` cho `ApiClient`
+- File test riêng biệt theo tài nguyên
+</Vi>
+
+## Code / Demo
+
+```python
+# api/client.py
+import requests
+from typing import Any
+
+class ApiClient:
+    BASE_URL = "https://jsonplaceholder.typicode.com"
+
+    def __init__(self) -> None:
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
+
+    def get(self, path: str, **kwargs: Any) -> requests.Response:
+        return self.session.get(f"{self.BASE_URL}{path}", **kwargs)
+
+    def post(self, path: str, **kwargs: Any) -> requests.Response:
+        return self.session.post(f"{self.BASE_URL}{path}", **kwargs)
+
+    def put(self, path: str, **kwargs: Any) -> requests.Response:
+        return self.session.put(f"{self.BASE_URL}{path}", **kwargs)
+
+    def patch(self, path: str, **kwargs: Any) -> requests.Response:
+        return self.session.patch(f"{self.BASE_URL}{path}", **kwargs)
+
+    def delete(self, path: str, **kwargs: Any) -> requests.Response:
+        return self.session.delete(f"{self.BASE_URL}{path}", **kwargs)
+```
+
+```json
+// schemas/post.json
+{
+  "type": "object",
+  "required": ["id", "userId", "title", "body"],
+  "properties": {
+    "id":     {"type": "integer", "minimum": 1},
+    "userId": {"type": "integer", "minimum": 1},
+    "title":  {"type": "string",  "minLength": 1},
+    "body":   {"type": "string",  "minLength": 1}
+  }
+}
+```
+
+```python
+# tests/conftest.py
+import json
+import pytest
+from pathlib import Path
+from api.client import ApiClient
+
+@pytest.fixture(scope="session")
+def api() -> ApiClient:
+    return ApiClient()
+
+@pytest.fixture(scope="session")
+def post_schema() -> dict:
+    return json.loads(Path("schemas/post.json").read_text())
+
+@pytest.fixture(scope="session")
+def user_schema() -> dict:
+    return json.loads(Path("schemas/user.json").read_text())
+```
+
+```python
+# tests/test_posts.py
+import pytest
+from jsonschema import validate
+from api.client import ApiClient
+
+def test_get_post(api: ApiClient, post_schema: dict):
+    response = api.get("/posts/1")
+    assert response.status_code == 200
+    validate(instance=response.json(), schema=post_schema)
+
+def test_get_all_posts(api: ApiClient):
+    response = api.get("/posts")
+    assert response.status_code == 200
+    posts = response.json()
+    assert isinstance(posts, list)
+    assert len(posts) == 100
+
+@pytest.mark.parametrize("post_id", [1, 25, 50, 75, 100])
+def test_get_post_by_id(api: ApiClient, post_id: int, post_schema: dict):
+    response = api.get(f"/posts/{post_id}")
+    assert response.status_code == 200
+    post = response.json()
+    validate(instance=post, schema=post_schema)
+    assert post["id"] == post_id
+
+def test_create_post(api: ApiClient):
+    payload = {"title": "QA Test Post", "body": "Automated test body", "userId": 1}
+    response = api.post("/posts", json=payload)
+    assert response.status_code == 201
+    created = response.json()
+    assert "id" in created
+    assert created["title"] == payload["title"]
+    assert created["userId"] == payload["userId"]
+
+def test_update_post(api: ApiClient):
+    payload = {"id": 1, "title": "Updated Title", "body": "Updated body", "userId": 1}
+    response = api.put("/posts/1", json=payload)
+    assert response.status_code == 200
+    assert response.json()["title"] == "Updated Title"
+
+def test_partial_update_post(api: ApiClient):
+    response = api.patch("/posts/1", json={"title": "Patched Title"})
+    assert response.status_code == 200
+    assert response.json()["title"] == "Patched Title"
+
+def test_delete_post(api: ApiClient):
+    response = api.delete("/posts/1")
+    assert response.status_code == 200
+
+def test_get_post_comments(api: ApiClient):
+    response = api.get("/posts/1/comments")
+    assert response.status_code == 200
+    comments = response.json()
+    assert isinstance(comments, list)
+    assert len(comments) > 0
+    for comment in comments:
+        assert comment["postId"] == 1
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Set up the full project structure, implement `api/client.py` and `schemas/post.json`, write all 8 tests in `test_posts.py`, and run `pytest -v` — all should pass
+- [ ] Create `schemas/user.json` with the full schema for JSONPlaceholder's user object (including `address` and `company` nested objects), then write `tests/test_users.py` with at least 5 tests
+- [ ] Verify that `scope="session"` on the `api` fixture means the `ApiClient` is created only once — add a `print("Creating ApiClient")` inside `__init__` and confirm it appears exactly once in the test output
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why store JSON schemas in separate `.json` files instead of inline Python dicts?",
+    choices: [
+      "Python dicts cannot represent JSON Schema",
+      "Separate files are reusable across test files, version-controlled, and editable without touching Python code",
+      "jsonschema only reads from files",
+      "It is required by the jsonschema specification"
+    ],
+    answer: 1,
+    explain: "Separate schema files can be imported by multiple test files, shared with the API team as contract documentation, edited without touching test logic, and validated with schema linters. Inline dicts are fine for simple schemas but don't scale well."
+  },
+  {
+    q: "What does `api.get('/posts/1/comments')` test that `api.get('/comments?postId=1')` doesn't?",
+    choices: [
+      "They are identical — both test the same thing",
+      "The nested URL tests the hierarchical relationship resource endpoint, which may have different behavior or access control",
+      "The nested URL is faster",
+      "The query parameter form does not return comments"
+    ],
+    answer: 1,
+    explain: "REST APIs often expose both /posts/1/comments (nested resource) and /comments?postId=1 (filtered collection). They may return the same data, but the nested form tests the API's understanding of resource ownership — useful for access control and parent-resource validation."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "JSONPlaceholder — free test API", url: "https://jsonplaceholder.typicode.com/" },
+  { title: "requests library docs", url: "https://requests.readthedocs.io/" }
+]} />

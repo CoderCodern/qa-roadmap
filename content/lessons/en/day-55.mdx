@@ -1,0 +1,275 @@
+---
+id: 55
+title: "Capstone — API + integration"
+phase: 5
+estMinutes: 90
+tags: ["capstone", "api-testing", "integration"]
+---
+
+## Intro
+
+<En>
+Today you complete the API and integration test layers of your capstone framework. Integration tests combine your API client with your UI tests — using the API for fast setup, then verifying through the UI, then cleaning up via API. By the end of today your capstone has full coverage across API, UI, and integration layers, a CI workflow, and Allure reports.
+</En>
+<Vi>
+Hôm nay bạn hoàn thành các lớp API và test tích hợp của framework capstone. Test tích hợp kết hợp API client với UI test — dùng API để thiết lập nhanh, sau đó xác minh qua UI, rồi dọn dẹp qua API. Đến cuối hôm nay capstone của bạn có bao phủ đầy đủ trên các lớp API, UI và tích hợp, workflow CI và báo cáo Allure.
+</Vi>
+
+## Concept
+
+<En>
+**API test checklist for the capstone:**
+
+For each resource you test, cover:
+- [ ] List (GET all)
+- [ ] Get by ID (GET one, valid ID)
+- [ ] Create (POST, verify 201 + schema)
+- [ ] Update (PUT/PATCH, verify changed fields)
+- [ ] Delete (DELETE, verify 204 or 200)
+- [ ] Not found (GET invalid ID → 404)
+- [ ] Validation failure (POST missing fields → 400/422)
+
+**Integration test pattern — API setup + UI verify:**
+
+```
+1. [API]  Create a test user via POST
+2. [UI]   Log in as that user in the browser
+3. [UI]   Verify the user's dashboard/profile
+4. [API]  Clean up — delete the user after the test
+```
+
+This pattern is 5-10x faster than creating the user via UI forms and works even when the UI registration flow is broken.
+
+**Final CI workflow additions:**
+
+- Run all tests: `pytest tests/ -v`
+- Generate Allure results: `--alluredir=allure-results`
+- Upload results artifact in CI
+- Separate jobs or marks for API vs UI (use `@pytest.mark.api` and `@pytest.mark.ui`)
+</En>
+<Vi>
+**Checklist API test cho capstone:**
+
+Với mỗi tài nguyên bạn test, bao phủ:
+- [ ] Liệt kê (GET tất cả)
+- [ ] Lấy theo ID (GET một, ID hợp lệ)
+- [ ] Tạo (POST, xác minh 201 + schema)
+- [ ] Cập nhật (PUT/PATCH, xác minh trường đã thay đổi)
+- [ ] Xoá (DELETE, xác minh 204 hoặc 200)
+- [ ] Không tìm thấy (GET ID không hợp lệ → 404)
+- [ ] Lỗi xác thực (POST thiếu trường → 400/422)
+
+**Pattern test tích hợp — thiết lập API + xác minh UI:**
+
+```
+1. [API]  Tạo user test qua POST
+2. [UI]   Đăng nhập với tư cách user đó trong trình duyệt
+3. [UI]   Xác minh dashboard/hồ sơ của user
+4. [API]  Dọn dẹp — xoá user sau khi test
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/api/test_auth.py
+import allure
+import pytest
+from api.client import ApiClient
+
+@allure.epic("ReqRes API")
+@allure.feature("Auth")
+class TestAuth:
+
+    @allure.story("Login")
+    @allure.severity(allure.severity_level.CRITICAL)
+    def test_login_returns_token(self, api: ApiClient):
+        payload = {"email": "eve.holt@reqres.in", "password": "cityslicka"}
+        with allure.step("POST /login with valid credentials"):
+            response = api.post("/login", json=payload)
+        with allure.step("Verify 200 and token present"):
+            assert response.status_code == 200
+            body = response.json()
+            assert "token" in body
+            assert len(body["token"]) > 0
+
+    @allure.story("Login")
+    @allure.severity(allure.severity_level.NORMAL)
+    def test_login_missing_password(self, api: ApiClient):
+        response = api.post("/login", json={"email": "eve.holt@reqres.in"})
+        assert response.status_code == 400
+        assert "error" in response.json()
+
+    @allure.story("Register")
+    def test_register_success(self, api: ApiClient):
+        payload = {"email": "eve.holt@reqres.in", "password": "pistol"}
+        response = api.post("/register", json=payload)
+        assert response.status_code == 200
+        body = response.json()
+        assert "id" in body and "token" in body
+```
+
+```python
+# tests/api/test_users_crud.py
+import allure
+import pytest
+from jsonschema import validate
+from api.client import ApiClient
+from utils.assertions import assert_status, assert_schema
+
+USER_SCHEMA = {
+    "type": "object",
+    "required": ["id", "email", "first_name", "last_name"],
+    "properties": {
+        "id":         {"type": "integer"},
+        "email":      {"type": "string"},
+        "first_name": {"type": "string"},
+        "last_name":  {"type": "string"},
+    },
+}
+
+@allure.epic("ReqRes API")
+@allure.feature("Users CRUD")
+class TestUsersCRUD:
+
+    @allure.story("Read")
+    def test_list_users(self, api: ApiClient):
+        response = api.get("/users", params={"page": 1})
+        assert_status(response, 200)
+        body = response.json()
+        assert isinstance(body["data"], list)
+        assert body["total"] > 0
+
+    @allure.story("Read")
+    @pytest.mark.parametrize("user_id", [1, 2, 3])
+    def test_get_user_by_id(self, api: ApiClient, user_id: int):
+        response = api.get(f"/users/{user_id}")
+        assert_status(response, 200)
+        assert_schema(response.json()["data"], USER_SCHEMA, label=f"user/{user_id}")
+
+    @allure.story("Create")
+    @allure.severity(allure.severity_level.CRITICAL)
+    def test_create_user(self, api: ApiClient):
+        payload = {"name": "Capstone QA", "job": "automation engineer"}
+        response = api.post("/users", json=payload)
+        assert_status(response, 201)
+        body = response.json()
+        assert body["name"] == payload["name"]
+        assert "id" in body
+        assert "createdAt" in body
+
+    @allure.story("Update")
+    def test_update_user(self, api: ApiClient):
+        payload = {"name": "Updated Name", "job": "senior QA"}
+        response = api.put("/users/2", json=payload)
+        assert_status(response, 200)
+        assert response.json()["name"] == "Updated Name"
+
+    @allure.story("Delete")
+    def test_delete_user(self, api: ApiClient):
+        response = api.delete("/users/2")
+        assert response.status_code == 204
+
+    @allure.story("Read")
+    def test_user_not_found(self, api: ApiClient):
+        response = api.get("/users/9999")
+        assert_status(response, 404)
+
+    @allure.story("Pagination")
+    @pytest.mark.parametrize("page,expected_per_page", [(1, 6), (2, 6)])
+    def test_pagination(self, api: ApiClient, page: int, expected_per_page: int):
+        response = api.get("/users", params={"page": page})
+        assert_status(response, 200)
+        data = response.json()["data"]
+        assert len(data) == expected_per_page
+```
+
+```yaml
+# .github/workflows/tests.yml — final CI workflow
+name: Capstone Test Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - run: pytest tests/api/ -v --tb=short --alluredir=allure-results --junit-xml=api-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-allure-results
+          path: allure-results
+
+  ui-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r requirements.txt
+      - run: playwright install --with-deps chromium
+      - run: pytest tests/ui/ -v --tb=short --alluredir=allure-results --junit-xml=ui-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-allure-results
+          path: allure-results
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Implement `test_users_crud.py` with all 7 test cases (list, get by id parametrized, create, update, delete, not found, pagination) — run the full API suite and confirm all pass
+- [ ] Add `@pytest.mark.api` to all API tests and `@pytest.mark.ui` to all UI tests, register them in `pytest.ini` under `markers`, then run `pytest -m api` to confirm only API tests run
+- [ ] Generate the final Allure report with `pytest tests/ --alluredir=allure-results && allure serve allure-results` — verify the Behaviours view shows the full epic/feature/story hierarchy
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why use `pytest.mark.parametrize` for testing multiple user IDs instead of writing separate test functions?",
+    choices: [
+      "Parametrize is faster because tests run in parallel",
+      "It generates one test case per parameter set with distinct names — the same logic runs against all values without code duplication",
+      "pytest requires parametrize for integer inputs",
+      "Separate test functions don't support fixtures"
+    ],
+    answer: 1,
+    explain: "Parametrize creates individual, independently-reported test cases from a list of inputs. If user ID 2 fails but 1 and 3 pass, you see exactly which one failed. Three separate functions would duplicate the assertion logic — one change to the assertion means three edits."
+  },
+  {
+    q: "What is the benefit of running API tests and UI tests as separate jobs in CI?",
+    choices: [
+      "Required — pytest can only run one type of test at a time",
+      "They can run in parallel (reducing total CI time), and a UI test failure won't block the API results from being reported",
+      "It prevents browser installation from affecting the Python environment",
+      "GitHub Actions requires separate jobs for different test types"
+    ],
+    answer: 1,
+    explain: "Parallel jobs reduce wall-clock CI time — 8 minutes of API + 12 minutes of UI becomes 12 minutes total, not 20. It also means a flaky UI test (browser, network) doesn't block visibility of API test results, which run in a lighter environment."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ReqRes — fake online REST API", url: "https://reqres.in/" },
+  { title: "pytest parametrize docs", url: "https://docs.pytest.org/en/stable/how-to/parametrize.html" },
+  { title: "GitHub Actions — Python CI", url: "https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-python" }
+]} />

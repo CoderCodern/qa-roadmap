@@ -1,0 +1,223 @@
+---
+id: 29
+title: "Page Object Model — concept"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "pom", "design-patterns"]
+---
+
+## Intro
+
+<En>
+The Page Object Model (POM) is the most widely adopted design pattern in browser test automation. Without it, test code becomes fragile: a single UI change requires hunting through dozens of test files to update locators. POM solves this by wrapping each page's interactions in a class, so when the UI changes you update one place, not many.
+</En>
+<Vi>
+Page Object Model (POM) là mẫu thiết kế được áp dụng rộng rãi nhất trong tự động hoá test trình duyệt. Không có nó, code test trở nên dễ vỡ: một thay đổi UI đòi hỏi phải tìm kiếm qua hàng chục file test để cập nhật locator. POM giải quyết điều này bằng cách bọc các tương tác của mỗi trang trong một class, vì vậy khi UI thay đổi bạn chỉ cần cập nhật một chỗ, không phải nhiều chỗ.
+</Vi>
+
+## Concept
+
+<En>
+**The core idea:**
+- Each page (or significant component) gets its own class.
+- Locators are defined once inside the class.
+- Test methods call page object methods — they don't reference locators directly.
+
+**Structure:**
+```
+tests/
+├── pages/
+│   ├── base_page.py      # shared helpers
+│   ├── login_page.py
+│   ├── dashboard_page.py
+│   └── ...
+├── conftest.py
+└── test_login.py
+```
+
+**What a page object should and should not contain:**
+
+| Should contain | Should NOT contain |
+|---------------|--------------------|
+| Locators (as properties) | Assertions about business logic |
+| Actions (login, fill form) | Test data (use fixtures) |
+| Navigation methods | `assert` statements (usually) |
+| Helper properties (is_logged_in) | Test orchestration logic |
+
+**The test reads like English:**
+```python
+# Without POM:
+page.get_by_placeholder("Email").fill("alice@example.com")
+page.get_by_placeholder("Password").fill("SecurePass1")
+page.get_by_role("button", name="Login").click()
+expect(page.locator(".welcome")).to_be_visible()
+
+# With POM:
+login_page.login("alice@example.com", "SecurePass1")
+dashboard_page.expect_welcome_visible()
+```
+
+**Key benefits:**
+1. **Maintainability** — locator changes in one file, not 20 tests
+2. **Readability** — tests describe behaviour, not implementation
+3. **Reusability** — same page object used across multiple test files
+</En>
+<Vi>
+**Ý tưởng cốt lõi:**
+- Mỗi trang (hoặc component quan trọng) có class riêng.
+- Locator được định nghĩa một lần bên trong class.
+- Phương thức test gọi phương thức page object — chúng không tham chiếu locator trực tiếp.
+
+**Cấu trúc:**
+```
+tests/
+├── pages/
+│   ├── base_page.py
+│   ├── login_page.py
+│   └── dashboard_page.py
+├── conftest.py
+└── test_login.py
+```
+
+**Page object nên và không nên chứa gì:**
+
+| Nên chứa | KHÔNG nên chứa |
+|---------------|--------------------|
+| Locator (như property) | Assertion về logic nghiệp vụ |
+| Action (login, điền form) | Dữ liệu test |
+| Phương thức điều hướng | Câu lệnh `assert` (thường) |
+
+**Các lợi ích chính:**
+1. **Khả năng bảo trì** — thay đổi locator ở một file, không phải 20 test
+2. **Khả năng đọc** — test mô tả hành vi, không phải triển khai
+3. **Khả năng tái sử dụng** — cùng page object dùng cho nhiều file test
+</Vi>
+
+## Code / Demo
+
+```python
+# pages/base_page.py
+from playwright.sync_api import Page
+
+class BasePage:
+    def __init__(self, page: Page):
+        self.page = page
+
+    def navigate(self, path: str = "") -> None:
+        self.page.goto(path)
+
+    def get_title(self) -> str:
+        return self.page.title()
+
+    def get_url(self) -> str:
+        return self.page.url
+
+# pages/login_page.py
+from playwright.sync_api import Page, expect
+from .base_page import BasePage
+
+class LoginPage(BasePage):
+    URL = "https://demo.playwright.dev/todomvc"  # using TodoMVC as demo
+
+    # Locators as properties — change once, all tests update
+    @property
+    def new_todo_input(self):
+        return self.page.get_by_placeholder("What needs to be done?")
+
+    @property
+    def todo_items(self):
+        return self.page.get_by_role("listitem")
+
+    def navigate(self) -> None:
+        self.page.goto(self.URL)
+
+    def add_todo(self, text: str) -> None:
+        self.new_todo_input.fill(text)
+        self.new_todo_input.press("Enter")
+
+    def get_item_count(self) -> int:
+        return self.todo_items.count()
+
+    def expect_item_visible(self, text: str) -> None:
+        item = self.todo_items.filter(has_text=text)
+        expect(item).to_be_visible()
+
+# tests/test_pom_concept.py
+import pytest
+from playwright.sync_api import Page
+# from pages.login_page import LoginPage  # real import path
+
+# Inline for demo — in reality, import from pages/
+class TodoPage:
+    def __init__(self, page: Page):
+        self.page = page
+
+    @property
+    def input(self):
+        return self.page.get_by_placeholder("What needs to be done?")
+
+    @property
+    def items(self):
+        return self.page.get_by_role("listitem")
+
+    def go(self) -> None:
+        self.page.goto("https://demo.playwright.dev/todomvc")
+
+    def add(self, text: str) -> None:
+        self.input.fill(text)
+        self.input.press("Enter")
+
+def test_add_items_via_pom(page: Page):
+    todo = TodoPage(page)
+    todo.go()
+    todo.add("Learn Page Object Model")
+    todo.add("Practice POM pattern")
+    assert todo.items.count() == 2
+
+def test_page_title_via_pom(page: Page):
+    todo = TodoPage(page)
+    todo.go()
+    assert "TodoMVC" in page.title()
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Create a `pages/` directory and build a `LoginPage` class for a demo login page with properties for the email input, password input, submit button, and an `error_message` property. Add a `login(email, password)` method
+- [ ] Write two tests that use your `LoginPage` — one happy path (valid credentials) and one negative (empty fields) — and observe that neither test references a locator directly
+- [ ] Explain in your own words: if the email input's placeholder changes from "Email" to "Enter your email", how many files do you need to update with POM vs without?
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the main benefit of defining locators as properties inside a Page Object class?",
+    choices: [
+      "Properties run faster than hardcoded strings",
+      "When a locator changes, you update it in one place and all tests using that page object benefit",
+      "Locators as properties avoid the need for assertions",
+      "It allows tests to run in parallel automatically"
+    ],
+    answer: 1,
+    explain: "Centralising locators in the page object class means that when the UI changes (a button gets a new label, an input gets a new placeholder), you update the locator once in the page object, and every test that uses it is fixed automatically."
+  },
+  {
+    q: "Should a Page Object class contain assert statements?",
+    choices: [
+      "Yes — all assertions belong in page objects",
+      "Generally no — assertions belong in tests; page objects expose state, not test logic",
+      "Only if using pytest",
+      "Only for negative test cases"
+    ],
+    answer: 1,
+    explain: "Page objects model the page's interface, not the test's expectations. Assertions about what should be true in a given test scenario belong in the test function. Some teams add assertion helpers (expect_* methods) to page objects for convenience, but the core assertions remain in tests."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Page Objects Guide", url: "https://playwright.dev/python/docs/pom" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+]} />

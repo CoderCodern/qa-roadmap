@@ -1,0 +1,160 @@
+---
+id: 11
+title: "Operators & comparisons"
+phase: 2
+estMinutes: 45
+tags: ["python", "basics"]
+---
+
+## Intro
+
+<En>
+Operators are the building blocks of any assertion. When you write `assert response.status_code == 200`, you are using a comparison operator. Understanding Python's operators — especially the tricky distinctions between `==` and `is`, and between `and`/`or`/`not` — prevents a whole class of subtle test bugs.
+</En>
+<Vi>
+Toán tử là nền tảng của mọi assertion. Khi bạn viết `assert response.status_code == 200`, bạn đang dùng toán tử so sánh. Hiểu các toán tử của Python — đặc biệt sự khác biệt tinh tế giữa `==` và `is`, và giữa `and`/`or`/`not` — ngăn chặn cả một lớp lỗi test tinh vi.
+</Vi>
+
+## Concept
+
+<En>
+**Comparison operators:**
+
+| Operator | Meaning | Example |
+|----------|---------|---------|
+| `==` | Equal value | `status == 200` |
+| `!=` | Not equal | `error != None` |
+| `<`, `>` | Less / greater | `count > 0` |
+| `<=`, `>=` | Less or equal / greater or equal | `response_time <= 500` |
+| `is` | Same object identity | `x is None` |
+| `is not` | Different object identity | `x is not None` |
+| `in` | Membership | `"admin" in roles` |
+| `not in` | Non-membership | `"banned" not in roles` |
+
+**Critical rule — `==` vs `is`:**
+- `==` compares **value**. Use for numbers, strings, booleans, lists.
+- `is` compares **identity** (same object in memory). Use **only** for `None`, `True`, `False`.
+- Never write `x == None`. Always write `x is None` or `x is not None`.
+
+**Logical operators:**
+
+| Operator | Meaning | Short-circuits at |
+|----------|---------|-------------------|
+| `and` | Both must be true | First `False` |
+| `or` | At least one true | First `True` |
+| `not` | Invert truth | — |
+
+**Chained comparisons** — Python allows `0 < count < 100`, which is cleaner than `count > 0 and count < 100`.
+</En>
+<Vi>
+**Toán tử so sánh:**
+
+| Toán tử | Ý nghĩa | Ví dụ |
+|----------|---------|---------|
+| `==` | Giá trị bằng nhau | `status == 200` |
+| `!=` | Không bằng nhau | `error != None` |
+| `<`, `>` | Nhỏ hơn / lớn hơn | `count > 0` |
+| `<=`, `>=` | Nhỏ hơn hoặc bằng / lớn hơn hoặc bằng | `response_time <= 500` |
+| `is` | Cùng đối tượng (identity) | `x is None` |
+| `is not` | Đối tượng khác nhau | `x is not None` |
+| `in` | Thành viên | `"admin" in roles` |
+| `not in` | Không phải thành viên | `"banned" not in roles` |
+
+**Quy tắc quan trọng — `==` vs `is`:**
+- `==` so sánh **giá trị**. Dùng cho số, chuỗi, boolean, list.
+- `is` so sánh **identity** (cùng đối tượng trong bộ nhớ). Chỉ dùng cho `None`, `True`, `False`.
+- Đừng bao giờ viết `x == None`. Luôn viết `x is None` hoặc `x is not None`.
+
+**Toán tử logic:**
+
+| Toán tử | Ý nghĩa | Ngắn mạch tại |
+|----------|---------|-------------------|
+| `and` | Cả hai phải đúng | `False` đầu tiên |
+| `or` | Ít nhất một đúng | `True` đầu tiên |
+| `not` | Đảo ngược | — |
+</Vi>
+
+## Code / Demo
+
+```python
+# Comparison operators in a QA context
+
+status_code = 200
+response_time_ms = 342
+roles = ["viewer", "editor"]
+error = None
+
+# Basic comparisons
+assert status_code == 200
+assert status_code != 404
+assert response_time_ms <= 500  # performance assertion
+
+# Membership
+assert "editor" in roles
+assert "admin" not in roles
+
+# None checks — always use 'is' not '=='
+assert error is None
+data = {"user": "alice"}
+assert data is not None
+
+# Chained comparison — clean and Pythonic
+count = 5
+assert 0 < count < 100, "Count should be between 1 and 99"
+
+# Logical operators
+is_authenticated = True
+has_permission = True
+assert is_authenticated and has_permission, "User must be authenticated AND have permission"
+
+is_admin = False
+is_superuser = True
+assert is_admin or is_superuser, "Must be admin or superuser"
+
+# Combining comparisons with logic
+assert status_code >= 200 and status_code < 300, f"Expected 2xx but got {status_code}"
+
+print("All operator assertions passed!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Write assertions for an API response: status is 201, response time is under 300ms, the response body is not None, and the word "created" appears in the success message
+- [ ] Explain in your own words why `[] == []` is `True` but `[] is []` is `False`
+- [ ] Rewrite `x > 0 and x <= 100` as a single chained comparison
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Which is the correct way to check if a variable x has no value?",
+    choices: [
+      "x == None",
+      "x === None",
+      "x is None",
+      "not x"
+    ],
+    answer: 2,
+    explain: "Always use 'is None' (not '== None') because None is a singleton. 'not x' would also catch 0, '', [], and other falsy values — too broad for a None check."
+  },
+  {
+    q: "What does `200 <= status_code < 300` evaluate to when status_code is 404?",
+    choices: [
+      "True",
+      "False",
+      "TypeError",
+      "None"
+    ],
+    answer: 1,
+    explain: "404 is not between 200 (inclusive) and 300 (exclusive), so the chained comparison returns False. This is a clean way to check for 2xx status codes."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Python Operators — docs.python.org", url: "https://docs.python.org/3/library/operator.html" },
+  { title: "Real Python — Operators and Expressions", url: "https://realpython.com/" }
+]} />

@@ -1,0 +1,260 @@
+---
+id: 54
+title: "Capstone — UI flows"
+phase: 5
+estMinutes: 90
+tags: ["capstone", "playwright", "ui"]
+---
+
+## Intro
+
+<En>
+Today you add the Playwright UI layer to your capstone framework. This means wiring Playwright into the same project as your API tests, writing Page Objects for at least two user flows, and making the UI tests run alongside the API tests in a single `pytest` command. By the end, one test run covers both API and UI — a professional, integrated test suite.
+</En>
+<Vi>
+Hôm nay bạn thêm lớp UI Playwright vào framework capstone. Điều này có nghĩa là kết nối Playwright vào cùng dự án với API test, viết Page Object cho ít nhất hai luồng người dùng và làm cho UI test chạy cùng với API test trong một lệnh `pytest`. Đến cuối, một lần chạy test bao phủ cả API lẫn UI — một bộ test tích hợp chuyên nghiệp.
+</Vi>
+
+## Concept
+
+<En>
+**Playwright inside an existing pytest project:**
+
+Because `pytest-playwright` is just a pytest plugin, it works seamlessly alongside your existing API fixtures. The key is structuring conftest files so browser fixtures are available only where needed:
+
+```
+tests/
+├── conftest.py          # shared: api, auth_api fixtures
+├── api/
+│   └── conftest.py      # API-specific fixtures (if any)
+└── ui/
+    └── conftest.py      # browser_context, page overrides (if any)
+```
+
+**Two UI flows to implement in Sauce Demo (saucedemo.com):**
+1. Login → inventory page visible
+2. Login → add item to cart → verify cart count
+
+**Why Sauce Demo:**
+- Publicly available, always up
+- Designed for automation practice
+- Has login, inventory, cart, and checkout flows
+- Standard credentials: `standard_user` / `secret_sauce`
+
+**POM structure for capstone:**
+
+```
+pages/
+├── base_page.py       # wait helpers, common assertions
+├── login_page.py      # fill credentials, click login
+└── inventory_page.py  # item list, add to cart, cart badge
+```
+</En>
+<Vi>
+**Playwright trong dự án pytest hiện có:**
+
+Vì `pytest-playwright` chỉ là plugin pytest, nó hoạt động liền mạch cùng với fixture API hiện có. Điều quan trọng là cấu trúc file conftest để browser fixture chỉ khả dụng khi cần:
+
+**Hai luồng UI để triển khai:**
+1. Đăng nhập → trang inventory hiển thị
+2. Đăng nhập → thêm mục vào giỏ → xác minh số lượng giỏ hàng
+
+**Cấu trúc POM cho capstone:**
+
+```
+pages/
+├── base_page.py       # helper chờ, assertion chung
+├── login_page.py      # điền thông tin đăng nhập, nhấp đăng nhập
+└── inventory_page.py  # danh sách mục, thêm vào giỏ, huy hiệu giỏ
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# pages/base_page.py
+from playwright.sync_api import Page, expect
+
+class BasePage:
+    def __init__(self, page: Page) -> None:
+        self.page = page
+
+    def navigate(self, path: str = "") -> None:
+        self.page.goto(f"https://www.saucedemo.com{path}")
+
+    def assert_url_contains(self, fragment: str) -> None:
+        expect(self.page).to_have_url(lambda url: fragment in url)
+```
+
+```python
+# pages/login_page.py
+from playwright.sync_api import Page, expect
+from pages.base_page import BasePage
+
+class LoginPage(BasePage):
+    def __init__(self, page: Page) -> None:
+        super().__init__(page)
+        self._username = page.get_by_placeholder("Username")
+        self._password = page.get_by_placeholder("Password")
+        self._login_btn = page.get_by_role("button", name="Login")
+        self._error = page.locator("[data-test='error']")
+
+    def open(self) -> None:
+        self.navigate("/")
+
+    def login(self, username: str, password: str) -> None:
+        self._username.fill(username)
+        self._password.fill(password)
+        self._login_btn.click()
+
+    def assert_error_visible(self, message: str) -> None:
+        expect(self._error).to_contain_text(message)
+```
+
+```python
+# pages/inventory_page.py
+from playwright.sync_api import Page, expect
+from pages.base_page import BasePage
+
+class InventoryPage(BasePage):
+    def __init__(self, page: Page) -> None:
+        super().__init__(page)
+        self._items = page.locator(".inventory_item")
+        self._cart_badge = page.locator(".shopping_cart_badge")
+
+    def assert_loaded(self) -> None:
+        expect(self.page).to_have_url("https://www.saucedemo.com/inventory.html")
+        expect(self._items.first).to_be_visible()
+
+    def add_first_item_to_cart(self) -> None:
+        self._items.first.get_by_role("button", name="Add to cart").click()
+
+    def cart_count(self) -> int:
+        badge = self._cart_badge
+        if badge.count() == 0:
+            return 0
+        return int(badge.text_content() or "0")
+```
+
+```python
+# tests/ui/test_login.py
+import allure
+import pytest
+from playwright.sync_api import Page
+from pages.login_page import LoginPage
+from pages.inventory_page import InventoryPage
+
+VALID_USER = "standard_user"
+VALID_PASS = "secret_sauce"
+
+@allure.epic("Sauce Demo UI")
+@allure.feature("Login")
+class TestLogin:
+
+    @allure.story("Happy path")
+    @allure.severity(allure.severity_level.CRITICAL)
+    def test_login_success(self, page: Page):
+        login = LoginPage(page)
+        inventory = InventoryPage(page)
+
+        with allure.step("Open login page"):
+            login.open()
+
+        with allure.step("Enter valid credentials and submit"):
+            login.login(VALID_USER, VALID_PASS)
+
+        with allure.step("Verify inventory page is shown"):
+            inventory.assert_loaded()
+
+    @allure.story("Negative")
+    @allure.severity(allure.severity_level.NORMAL)
+    def test_login_wrong_password(self, page: Page):
+        login = LoginPage(page)
+
+        with allure.step("Open and submit wrong credentials"):
+            login.open()
+            login.login(VALID_USER, "wrongpassword")
+
+        with allure.step("Verify error message"):
+            login.assert_error_visible("Username and password do not match")
+
+    @allure.story("Happy path")
+    @allure.severity(allure.severity_level.NORMAL)
+    def test_add_item_to_cart(self, page: Page):
+        login = LoginPage(page)
+        inventory = InventoryPage(page)
+
+        with allure.step("Log in"):
+            login.open()
+            login.login(VALID_USER, VALID_PASS)
+            inventory.assert_loaded()
+
+        with allure.step("Add first item to cart"):
+            inventory.add_first_item_to_cart()
+
+        with allure.step("Verify cart badge shows 1"):
+            assert inventory.cart_count() == 1
+```
+
+```python
+# tests/conftest.py — add screenshot on failure
+import pytest
+import allure
+
+@pytest.fixture(autouse=True)
+def screenshot_on_failure(page, request):
+    yield
+    if request.node.rep_call.failed if hasattr(request.node, "rep_call") else False:
+        screenshot = page.screenshot()
+        allure.attach(screenshot, name="failure_screenshot",
+                      attachment_type=allure.attachment_type.PNG)
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Implement all three Page Objects (`BasePage`, `LoginPage`, `InventoryPage`) and run `pytest tests/ui/ -v --headed` to verify all three UI tests pass while watching the browser
+- [ ] Add a fourth UI test: after adding an item to cart, click the cart icon and verify the cart page URL contains `/cart.html`
+- [ ] Run the full suite `pytest tests/ -v` — confirm API tests and UI tests pass together in a single command with one test report
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why do Page Object properties return locators rather than calling `.click()` directly in the property?",
+    choices: [
+      "Playwright requires deferred locator evaluation",
+      "Returning a locator lets test code choose the action — click, fill, expect — rather than hardcoding it in the POM. This keeps page objects flexible.",
+      "It is faster to return locators",
+      "Locator properties are cached by pytest"
+    ],
+    answer: 1,
+    explain: "A locator is a description of an element, not an immediate DOM query. Storing locators as properties (self._username = page.get_by_placeholder('Username')) means the test calls the action: login._username.fill(). The POM stays focused on WHERE elements are; the test decides WHAT to do with them."
+  },
+  {
+    q: "What does the `autouse=True` screenshot fixture do in the capstone conftest?",
+    choices: [
+      "Takes a screenshot before every test",
+      "Automatically attaches a screenshot to the Allure report when a UI test fails — without needing to call it explicitly in every test",
+      "Saves screenshots to a local folder",
+      "Prevents tests from running headless"
+    ],
+    answer: 1,
+    explain: "autouse=True makes a fixture apply to every test in scope automatically. Combined with the rep_call.failed check, it captures and attaches a screenshot only on failure — giving you visual evidence of what went wrong without cluttering passing test reports."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Python — Page Object Model", url: "https://playwright.dev/python/docs/pom" },
+  { title: "Sauce Labs demo app", url: "https://www.saucedemo.com/" },
+  { title: "Allure Framework Python docs", url: "https://allurereport.org/docs/pytest/" }
+]} />

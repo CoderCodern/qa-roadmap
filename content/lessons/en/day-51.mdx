@@ -1,0 +1,223 @@
+---
+id: 51
+title: "Allure reports"
+phase: 5
+estMinutes: 75
+tags: ["capstone", "reporting"]
+---
+
+## Intro
+
+<En>
+A test suite that produces no report is only half-useful. Stakeholders, developers, and product managers need to see test results in a readable format — not raw terminal output. Allure is the most popular test reporting framework for Python. It produces beautiful, interactive HTML reports with charts, step-by-step breakdowns, screenshots, and attachments. Today you integrate Allure into your capstone framework.
+</En>
+<Vi>
+Một bộ test không tạo ra báo cáo chỉ hữu ích một nửa. Các bên liên quan, developer và quản lý sản phẩm cần xem kết quả test theo định dạng dễ đọc — không phải đầu ra terminal thô. Allure là framework báo cáo test phổ biến nhất cho Python. Nó tạo ra các báo cáo HTML đẹp, tương tác với biểu đồ, phân tích từng bước, ảnh chụp màn hình và tệp đính kèm. Hôm nay bạn tích hợp Allure vào capstone framework của mình.
+</Vi>
+
+## Concept
+
+<En>
+**Install:**
+```bash
+pip install allure-pytest
+# Also need the Allure command-line tool:
+# macOS: brew install allure
+# Windows: scoop install allure or download from github.com/allure-framework
+```
+
+**Generate and view reports:**
+```bash
+pytest tests/ --alluredir=allure-results
+allure serve allure-results   # opens browser automatically
+# OR: allure generate allure-results -o allure-report --clean
+```
+
+**Allure decorators — enrich reports:**
+
+```python
+import allure
+
+@allure.epic("User Management")
+@allure.feature("User CRUD")
+@allure.story("Create User")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_create_user(api):
+    with allure.step("Send POST /users"):
+        response = api.post("/users", json=payload)
+    with allure.step("Verify status 201"):
+        assert response.status_code == 201
+```
+
+**Attach files to reports:**
+```python
+allure.attach(response.text, name="API Response", attachment_type=allure.attachment_type.JSON)
+allure.attach(page.screenshot(), name="Screenshot", attachment_type=allure.attachment_type.PNG)
+```
+
+**Allure report structure:**
+- **Overview** — pass/fail counts, trend chart
+- **Suites** — test hierarchy by file/class/function
+- **Behaviours** — grouped by epic → feature → story
+- **Categories** — failed tests grouped by failure type
+- **Timeline** — test execution order and duration
+</En>
+<Vi>
+**Cài đặt:**
+```bash
+pip install allure-pytest
+# Cũng cần công cụ dòng lệnh Allure
+```
+
+**Tạo và xem báo cáo:**
+```bash
+pytest tests/ --alluredir=allure-results
+allure serve allure-results   # tự động mở trình duyệt
+```
+
+**Decorator Allure — làm phong phú báo cáo:**
+
+```python
+import allure
+
+@allure.epic("User Management")
+@allure.feature("User CRUD")
+@allure.story("Create User")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_create_user(api):
+    with allure.step("Gửi POST /users"):
+        response = api.post("/users", json=payload)
+    with allure.step("Xác minh status 201"):
+        assert response.status_code == 201
+```
+
+**Đính kèm file vào báo cáo:**
+```python
+allure.attach(response.text, name="API Response", attachment_type=allure.attachment_type.JSON)
+allure.attach(page.screenshot(), name="Screenshot", attachment_type=allure.attachment_type.PNG)
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/api/test_posts_allure.py — with Allure annotations
+import allure
+import pytest
+import requests
+from jsonschema import validate
+from api.client import ApiClient
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+POST_SCHEMA = {
+    "type": "object",
+    "required": ["id", "userId", "title", "body"],
+    "properties": {
+        "id":     {"type": "integer"},
+        "userId": {"type": "integer"},
+        "title":  {"type": "string"},
+        "body":   {"type": "string"},
+    },
+}
+
+@pytest.fixture(scope="session")
+def api() -> ApiClient:
+    from api.client import ApiClient
+    return ApiClient()
+
+@allure.epic("Blog API")
+@allure.feature("Posts")
+class TestPosts:
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.title("Get existing post by ID — should return 200 with valid schema")
+    def test_get_post(self, api: ApiClient):
+        with allure.step("Send GET /posts/1"):
+            response = api.get("/posts/1")
+            allure.attach(
+                response.text,
+                name="Response Body",
+                attachment_type=allure.attachment_type.JSON
+            )
+
+        with allure.step("Verify status code is 200"):
+            assert response.status_code == 200
+
+        with allure.step("Validate response schema"):
+            validate(instance=response.json(), schema=POST_SCHEMA)
+
+    @allure.story("Create")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("Create a new post — should return 201 with ID")
+    def test_create_post(self, api: ApiClient):
+        payload = {"title": "Allure Test Post", "body": "Test body", "userId": 1}
+
+        with allure.step(f"Send POST /posts with title='{payload['title']}'"):
+            response = api.post("/posts", json=payload)
+
+        with allure.step("Verify status is 201 Created"):
+            assert response.status_code == 201
+
+        with allure.step("Verify response contains generated ID"):
+            created = response.json()
+            assert "id" in created
+            allure.attach(
+                str(created),
+                name="Created Post",
+                attachment_type=allure.attachment_type.TEXT
+            )
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.MINOR)
+    @allure.title("Get nonexistent post — should return 404")
+    def test_get_nonexistent_post(self, api: ApiClient):
+        with allure.step("Send GET /posts/99999"):
+            response = api.get("/posts/99999")
+
+        with allure.step("Verify status is 404"):
+            assert response.status_code == 404
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Install `allure-pytest` and the Allure CLI, run your existing tests with `--alluredir=allure-results`, then view the report with `allure serve allure-results`
+- [ ] Add `@allure.epic`, `@allure.feature`, `@allure.story`, and `@allure.severity` decorators to all tests in your capstone framework — observe how the report organises them by hierarchy
+- [ ] Add `allure.attach(response.text, ...)` to at least 3 tests and verify the attachments appear in the Allure report when you click on those test cases
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What does `with allure.step('description'):` add to a test?",
+    choices: [
+      "It runs the code block in a separate thread",
+      "It adds a named step to the Allure report — making the test's intent visible step-by-step",
+      "It catches exceptions within the block",
+      "It times the code block and reports the duration"
+    ],
+    answer: 1,
+    explain: "allure.step() groups code into named steps visible in the report. Instead of seeing a raw assertion error, reviewers see 'Step 3: Verify status is 201 — FAILED', making root cause analysis faster without reading code."
+  },
+  {
+    q: "What command generates the Allure HTML report from raw test results?",
+    choices: [
+      "pytest --allure-report",
+      "allure serve allure-results (or allure generate)",
+      "allure build tests/",
+      "pytest --html allure-results"
+    ],
+    answer: 1,
+    explain: "pytest --alluredir=allure-results writes raw JSON result files. Then 'allure serve allure-results' generates and opens the HTML report in a browser. 'allure generate' creates the HTML without opening a browser — useful in CI."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Allure Framework Python docs", url: "https://allurereport.org/docs/pytest/" },
+  { title: "pytest-allure plugin", url: "https://docs.pytest.org/en/stable/" }
+]} />

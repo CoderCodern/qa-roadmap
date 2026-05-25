@@ -1,0 +1,205 @@
+---
+id: 32
+title: "Debugging Playwright tests"
+phase: 3
+estMinutes: 60
+tags: ["playwright", "debugging"]
+---
+
+## Intro
+
+<En>
+Tests fail, and when they do, you need to find out why quickly. Playwright provides a powerful set of debugging tools: the Inspector for step-through debugging, `--headed` mode to watch the browser, trace files for post-mortem analysis, and strategic screenshot and console logging. Mastering these tools cuts debugging time dramatically.
+</En>
+<Vi>
+Test thất bại, và khi chúng thất bại, bạn cần tìm ra lý do nhanh chóng. Playwright cung cấp một bộ công cụ gỡ lỗi mạnh mẽ: Inspector để gỡ lỗi từng bước, chế độ `--headed` để xem trình duyệt, file trace để phân tích sau sự cố, và chụp ảnh màn hình chiến lược và ghi log console. Thành thạo các công cụ này giảm đáng kể thời gian gỡ lỗi.
+</Vi>
+
+## Concept
+
+<En>
+**Debugging toolkit — in order of use:**
+
+**1. `--headed` — watch the browser:**
+```bash
+pytest tests/ --headed
+```
+The browser window opens — you see every click, fill, and navigation happen in real time.
+
+**2. `--slowmo` — slow down actions:**
+```bash
+pytest tests/ --headed --slowmo 500   # 500ms delay between actions
+```
+
+**3. Playwright Inspector:**
+```bash
+PWDEBUG=1 pytest tests/test_file.py::test_name
+```
+Opens the Inspector with a step-through debugger and locator explorer.
+
+**4. Trace viewer — full post-mortem:**
+```python
+# In conftest.py or test:
+context.tracing.start(screenshots=True, snapshots=True)
+# ... run test ...
+context.tracing.stop(path="trace.zip")
+```
+```bash
+playwright show-trace trace.zip
+```
+Shows every action, DOM snapshot, and screenshot at each step.
+
+**5. `page.pause()` — pause in the middle of a test:**
+```python
+page.goto("https://example.com")
+page.pause()  # execution stops here; Inspector opens
+page.click("button")
+```
+
+**6. Screenshots at failure — see Day 27's pattern**
+
+**7. Console logs:**
+```python
+page.on("console", lambda msg: print(f"Browser console: {msg.text}"))
+```
+</En>
+<Vi>
+**Bộ công cụ gỡ lỗi — theo thứ tự sử dụng:**
+
+**1. `--headed` — xem trình duyệt:**
+```bash
+pytest tests/ --headed
+```
+
+**2. `--slowmo` — làm chậm các action:**
+```bash
+pytest tests/ --headed --slowmo 500   # độ trễ 500ms giữa các action
+```
+
+**3. Playwright Inspector:**
+```bash
+PWDEBUG=1 pytest tests/test_file.py::test_name
+```
+
+**4. Trace viewer — phân tích sau sự cố đầy đủ:**
+```python
+context.tracing.start(screenshots=True, snapshots=True)
+# ... chạy test ...
+context.tracing.stop(path="trace.zip")
+```
+```bash
+playwright show-trace trace.zip
+```
+
+**5. `page.pause()` — tạm dừng giữa test:**
+```python
+page.pause()  # dừng thực thi; Inspector mở
+```
+
+**6. Log console trình duyệt:**
+```python
+page.on("console", lambda msg: print(f"Browser console: {msg.text}"))
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# tests/test_debugging_patterns.py
+import pytest
+from playwright.sync_api import Page, BrowserContext, expect
+
+def test_with_console_logging(page: Page):
+    """Capture browser console messages during the test."""
+    console_messages = []
+    page.on("console", lambda msg: console_messages.append(msg.text))
+
+    page.goto("https://example.com")
+    # Trigger a console log via JS
+    page.evaluate("console.log('Test navigation completed')")
+
+    assert any("Test navigation" in m for m in console_messages), \
+        f"Expected log not found. Got: {console_messages}"
+
+def test_screenshot_at_step(page: Page, tmp_path):
+    """Take screenshots at key steps for debugging."""
+    page.goto("https://demo.playwright.dev/todomvc")
+    page.screenshot(path=str(tmp_path / "step1_empty.png"))
+
+    inp = page.get_by_placeholder("What needs to be done?")
+    inp.fill("Debug me")
+    inp.press("Enter")
+    page.screenshot(path=str(tmp_path / "step2_added.png"))
+
+    item = page.get_by_role("listitem").filter(has_text="Debug me")
+    expect(item).to_be_visible()
+    page.screenshot(path=str(tmp_path / "step3_verified.png"))
+
+    print(f"Debug screenshots in: {tmp_path}")
+
+def test_with_tracing(context: BrowserContext, tmp_path):
+    """Record a trace for post-mortem debugging."""
+    context.tracing.start(screenshots=True, snapshots=True, sources=True)
+
+    page = context.new_page()
+    page.goto("https://example.com")
+    assert page.title() == "Example Domain"
+
+    trace_path = str(tmp_path / "trace.zip")
+    context.tracing.stop(path=trace_path)
+    print(f"Trace saved: {trace_path}")
+    # View with: playwright show-trace trace.zip
+
+def test_page_errors_captured(page: Page):
+    """Capture JavaScript errors from the browser."""
+    errors = []
+    page.on("pageerror", lambda err: errors.append(str(err)))
+
+    page.goto("https://example.com")
+    page.evaluate("undefined.property")  # triggers a JS error
+
+    assert len(errors) > 0, "Expected a page error to be captured"
+    print(f"Page errors: {errors}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Run an existing test with `PWDEBUG=1` and use the Inspector to step through it — note what each step shows in the Inspector panel
+- [ ] Add a `conftest.py` fixture that captures a browser trace for every test and saves it with the test name — run a failing test and open the trace with `playwright show-trace`
+- [ ] Add a console listener to a test and use `page.evaluate()` to inject a custom `console.log()` — verify the message appears in your Python output
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What does `PWDEBUG=1` do when running pytest?",
+    choices: [
+      "Enables verbose pytest output",
+      "Launches Playwright Inspector, which pauses execution and lets you step through actions",
+      "Runs tests in headless mode",
+      "Prints every locator to the terminal"
+    ],
+    answer: 1,
+    explain: "PWDEBUG=1 activates Playwright's debug mode, which opens the Inspector GUI. You can step forward one action at a time, inspect the DOM, and evaluate locators interactively — very useful when a locator isn't matching."
+  },
+  {
+    q: "What information does a Playwright trace file contain?",
+    choices: [
+      "Only error messages",
+      "A full recording: every action, DOM snapshot before/after, network requests, and screenshots",
+      "The Python source code that ran the test",
+      "Only the final page screenshot"
+    ],
+    answer: 1,
+    explain: "Playwright trace files (trace.zip) are comprehensive — they include every action's timing, DOM snapshots at each step, screenshots, network traffic, and console logs. Open with 'playwright show-trace trace.zip' for an interactive timeline."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Debugging Guide", url: "https://playwright.dev/python/docs/debug" },
+  { title: "Playwright Trace Viewer", url: "https://playwright.dev/python/docs/trace-viewer-intro" }
+]} />

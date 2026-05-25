@@ -1,0 +1,245 @@
+---
+id: 50
+title: "Framework structure & design"
+phase: 5
+estMinutes: 90
+tags: ["capstone", "architecture"]
+---
+
+## Intro
+
+<En>
+Phase 5 is the capstone — you design and build a complete, professional test framework that integrates everything from the previous four phases. Today you design the framework structure: the folder layout, the layers of abstraction, and the conventions that will make the codebase maintainable as it grows. Good framework design is what separates a collection of test files from a professional test suite.
+</En>
+<Vi>
+Phase 5 là capstone — bạn thiết kế và xây dựng một framework test hoàn chỉnh, chuyên nghiệp tích hợp mọi thứ từ bốn phase trước. Hôm nay bạn thiết kế cấu trúc framework: bố cục thư mục, các lớp trừu tượng và các quy ước làm cho codebase có thể bảo trì khi nó phát triển. Thiết kế framework tốt là điều phân biệt một tập hợp file test với một bộ test chuyên nghiệp.
+</Vi>
+
+## Concept
+
+<En>
+**Professional test framework structure:**
+```
+capstone-framework/
+├── .github/workflows/tests.yml
+├── api/
+│   ├── __init__.py
+│   ├── client.py          # requests.Session wrapper
+│   └── endpoints/
+│       ├── __init__.py
+│       ├── posts.py       # endpoint-specific methods
+│       └── users.py
+├── pages/
+│   ├── __init__.py
+│   ├── base_page.py
+│   ├── login_page.py
+│   └── dashboard_page.py
+├── schemas/
+│   ├── post.json
+│   └── user.json
+├── fixtures/
+│   └── users.json         # static test data
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── api/
+│   │   ├── test_posts.py
+│   │   └── test_users.py
+│   └── ui/
+│       ├── test_login.py
+│       └── test_dashboard.py
+├── utils/
+│   ├── __init__.py
+│   ├── assertions.py      # custom assertion helpers
+│   └── data_factory.py    # test data generators
+├── pytest.ini
+├── pyproject.toml
+└── README.md
+```
+
+**Design layers:**
+1. **Utils** — pure functions: data generation, custom assertions, schema loading
+2. **API/Pages** — thin wrappers around requests/Playwright: no assertions, no test logic
+3. **Tests** — assertions + business logic: calls API/pages, asserts outcomes
+4. **Conftest** — shared fixtures: session management, test data setup
+
+**Key conventions:**
+- Test files only import from `api/`, `pages/`, and `utils/` — never from other test files
+- API clients never import from `pages/` or `utils/` (or vice versa)
+- Fixtures handle setup/teardown — test functions focus on assertions
+- Parametrize at the test layer — not inside API clients
+</En>
+<Vi>
+**Cấu trúc framework test chuyên nghiệp:**
+```
+capstone-framework/
+├── .github/workflows/tests.yml
+├── api/
+│   ├── client.py
+│   └── endpoints/
+│       ├── posts.py
+│       └── users.py
+├── pages/
+│   ├── base_page.py
+│   └── login_page.py
+├── schemas/
+│   ├── post.json
+│   └── user.json
+├── tests/
+│   ├── conftest.py
+│   ├── api/
+│   │   └── test_posts.py
+│   └── ui/
+│       └── test_login.py
+├── utils/
+│   ├── assertions.py
+│   └── data_factory.py
+└── pytest.ini
+```
+
+**Các lớp thiết kế:**
+1. **Utils** — hàm thuần: tạo dữ liệu, assertion tùy chỉnh, tải schema
+2. **API/Pages** — wrapper mỏng: không có assertion, không có logic test
+3. **Tests** — assertion + logic nghiệp vụ
+4. **Conftest** — fixture dùng chung
+
+**Quy ước quan trọng:**
+- File test chỉ import từ `api/`, `pages/` và `utils/`
+- API client không bao giờ import từ `pages/`
+- Fixture xử lý setup/teardown — hàm test tập trung vào assertion
+</Vi>
+
+## Code / Demo
+
+```python
+# utils/assertions.py — reusable assertion helpers
+from jsonschema import validate, ValidationError
+import requests
+from typing import Any
+
+def assert_status(response: requests.Response, expected: int) -> None:
+    assert response.status_code == expected, (
+        f"Expected status {expected}, got {response.status_code}. "
+        f"Body: {response.text[:200]}"
+    )
+
+def assert_schema(data: Any, schema: dict, label: str = "") -> None:
+    try:
+        validate(instance=data, schema=schema)
+    except ValidationError as e:
+        raise AssertionError(
+            f"Schema validation failed{f' for {label}' if label else ''}: {e.message}"
+        ) from e
+
+def assert_response_ok(response: requests.Response, schema: dict | None = None) -> dict:
+    assert_status(response, 200)
+    data = response.json()
+    if schema:
+        assert_schema(data, schema)
+    return data
+
+def assert_no_sensitive_data(response: requests.Response) -> None:
+    text = response.text.lower()
+    sensitive_patterns = ["password", "secret", "token", "stack trace", "syntax error"]
+    for pattern in sensitive_patterns:
+        assert pattern not in text or response.status_code < 400, \
+            f"Possible sensitive data leak in error response: '{pattern}' found"
+```
+
+```python
+# utils/data_factory.py — test data generators
+import uuid
+import time
+from dataclasses import dataclass, field
+
+@dataclass
+class UserData:
+    email: str
+    password: str
+    role: str = "viewer"
+    name: str = ""
+
+    def to_dict(self) -> dict:
+        return {"email": self.email, "password": self.password,
+                "role": self.role, "name": self.name}
+
+def make_unique_email(prefix: str = "test") -> str:
+    return f"{prefix}+{uuid.uuid4().hex[:8]}@example.com"
+
+def make_test_user(role: str = "viewer") -> UserData:
+    return UserData(
+        email=make_unique_email(role),
+        password="TestPass123!",
+        role=role,
+        name=f"Test {role.capitalize()} User",
+    )
+
+def make_post_payload(title: str | None = None, user_id: int = 1) -> dict:
+    title = title or f"Test Post {int(time.time())}"
+    return {"title": title, "body": "Automated test post body", "userId": user_id}
+```
+
+```python
+# api/endpoints/posts.py
+import requests
+from utils.assertions import assert_status
+
+class PostsEndpoint:
+    def __init__(self, session: requests.Session, base_url: str) -> None:
+        self._session = session
+        self._base_url = base_url
+
+    def get(self, post_id: int) -> requests.Response:
+        return self._session.get(f"{self._base_url}/posts/{post_id}")
+
+    def list(self, **params) -> requests.Response:
+        return self._session.get(f"{self._base_url}/posts", params=params)
+
+    def create(self, payload: dict) -> requests.Response:
+        return self._session.post(f"{self._base_url}/posts", json=payload)
+
+    def delete(self, post_id: int) -> requests.Response:
+        return self._session.delete(f"{self._base_url}/posts/{post_id}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Set up the capstone framework directory structure, implement `utils/assertions.py` and `utils/data_factory.py` — write a test that uses `make_test_user()`, `assert_status()`, and `assert_schema()` together
+- [ ] Implement `api/endpoints/posts.py` and write a simple test that creates a post using `make_post_payload()`, then verifies the creation with `assert_response_ok()`
+- [ ] Draw a dependency diagram showing which layers can import from which — verify your diagram has no circular dependencies
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "Why should test files never import from other test files?",
+    choices: [
+      "pytest forbids cross-test imports",
+      "It creates coupling — if one test file changes, all importing test files break. Shared code belongs in utils/ or conftest.py",
+      "It would cause duplicate test discovery",
+      "Python doesn't support relative imports in test directories"
+    ],
+    answer: 1,
+    explain: "Shared logic between tests belongs in fixtures (conftest.py) or utility modules (utils/). Importing from test files creates hidden coupling — a refactor in test_posts.py should never break test_users.py."
+  },
+  {
+    q: "What is the purpose of the `utils/data_factory.py` module?",
+    choices: [
+      "To store the test database connection string",
+      "To centralise test data creation — generating unique, valid test inputs from one place rather than hardcoding data in every test",
+      "To generate HTML test reports",
+      "To mock API responses"
+    ],
+    answer: 1,
+    explain: "A data factory creates test data programmatically. This ensures uniqueness (avoiding conflicts from repeated runs), consistency (all tests use valid data by default), and DRY-ness (changing a user's required fields means updating the factory, not every test)."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "pytest documentation", url: "https://docs.pytest.org/en/stable/" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+]} />

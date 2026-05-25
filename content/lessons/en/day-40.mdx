@@ -1,0 +1,198 @@
+---
+id: 40
+title: "Python requests library"
+phase: 4
+estMinutes: 60
+tags: ["api-testing", "python", "requests"]
+---
+
+## Intro
+
+<En>
+Postman is great for manual exploration, but automated API tests run in Python. The `requests` library is Python's go-to HTTP client — simple, readable, and powerful. Every API testing framework you'll encounter (pytest + requests, API clients, SDK wrappers) uses `requests` under the hood. Today you make your first real HTTP calls from Python.
+</En>
+<Vi>
+Postman rất tốt để khám phá thủ công, nhưng các API test tự động chạy trong Python. Thư viện `requests` là HTTP client hàng đầu của Python — đơn giản, dễ đọc và mạnh mẽ. Mọi framework kiểm thử API bạn sẽ gặp đều dùng `requests` bên dưới. Hôm nay bạn thực hiện các cuộc gọi HTTP thực sự đầu tiên từ Python.
+</Vi>
+
+## Concept
+
+<En>
+**Install:**
+```bash
+pip install requests
+```
+
+**Basic usage:**
+```python
+import requests
+
+response = requests.get("https://api.example.com/users")
+response = requests.post("https://api.example.com/users", json={"email": "a@b.com"})
+response = requests.put("https://api.example.com/users/1", json={"name": "Alice"})
+response = requests.patch("https://api.example.com/users/1", json={"name": "Alice"})
+response = requests.delete("https://api.example.com/users/1")
+```
+
+**The Response object:**
+
+| Property/Method | What it gives you |
+|-----------------|------------------|
+| `response.status_code` | Integer status code (200, 404, etc.) |
+| `response.json()` | Parse response body as dict/list |
+| `response.text` | Response body as string |
+| `response.headers` | Dict of response headers |
+| `response.ok` | `True` if status < 400 |
+| `response.raise_for_status()` | Raise `HTTPError` if status >= 400 |
+
+**Sending data:**
+- `json=` — serialises dict to JSON, sets Content-Type automatically
+- `params=` — query parameters (`?key=value&key2=value2`)
+- `headers=` — custom headers dict
+- `data=` — form-encoded body (not JSON)
+
+**Using a Session (recommended):**
+```python
+session = requests.Session()
+session.headers.update({"Authorization": "Bearer abc123"})
+# All requests via session share headers, cookies, connection pool
+```
+</En>
+<Vi>
+**Cài đặt:**
+```bash
+pip install requests
+```
+
+**Cách dùng cơ bản:**
+```python
+import requests
+
+response = requests.get("https://api.example.com/users")
+response = requests.post("https://api.example.com/users", json={"email": "a@b.com"})
+response = requests.delete("https://api.example.com/users/1")
+```
+
+**Đối tượng Response:**
+
+| Thuộc tính/Phương thức | Cung cấp gì |
+|-----------------|------------------|
+| `response.status_code` | Mã trạng thái số nguyên |
+| `response.json()` | Phân tích body là dict/list |
+| `response.text` | Body là chuỗi |
+| `response.headers` | Dict header response |
+| `response.ok` | `True` nếu status < 400 |
+| `response.raise_for_status()` | Raise `HTTPError` nếu status >= 400 |
+
+**Dùng Session (khuyến nghị):**
+```python
+session = requests.Session()
+session.headers.update({"Authorization": "Bearer abc123"})
+# Tất cả request qua session dùng chung headers, cookie
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# Real HTTP calls to JSONPlaceholder — a free, public REST API for testing
+import requests
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# --- GET a resource ---
+response = requests.get(f"{BASE_URL}/posts/1")
+assert response.status_code == 200
+post = response.json()
+print(f"GET post: id={post['id']}, title={post['title'][:30]}...")
+
+# --- Assert types and fields ---
+assert isinstance(post["id"], int)
+assert isinstance(post["title"], str)
+assert post["id"] == 1
+
+# --- POST to create ---
+new_post = {"title": "My Test Post", "body": "Content here", "userId": 1}
+response = requests.post(f"{BASE_URL}/posts", json=new_post)
+assert response.status_code == 201
+created = response.json()
+assert "id" in created
+assert created["title"] == "My Test Post"
+print(f"Created post id: {created['id']}")
+
+# --- GET a list with query params ---
+response = requests.get(f"{BASE_URL}/posts", params={"userId": 1, "_limit": 3})
+assert response.status_code == 200
+posts = response.json()
+assert isinstance(posts, list)
+assert len(posts) <= 3
+print(f"Got {len(posts)} posts for userId=1")
+
+# --- DELETE ---
+response = requests.delete(f"{BASE_URL}/posts/1")
+assert response.status_code == 200  # JSONPlaceholder returns 200 for delete
+
+# --- Using a Session ---
+session = requests.Session()
+session.headers.update({
+    "Content-Type": "application/json",
+    "X-Test-Run": "automation-phase4"
+})
+
+response = session.get(f"{BASE_URL}/users/1")
+assert response.status_code == 200
+user = response.json()
+assert "email" in user
+print(f"User: {user['name']} ({user['email']})")
+
+# --- raise_for_status pattern ---
+try:
+    response = requests.get(f"{BASE_URL}/posts/99999")
+    response.raise_for_status()
+except requests.exceptions.HTTPError as e:
+    print(f"HTTP error: {e}")
+
+print("All requests tests passed!")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Make a GET request to `https://jsonplaceholder.typicode.com/users` and assert: status is 200, body is a list, each user has an `email` field containing "@", and the list has exactly 10 items
+- [ ] Create a `requests.Session` with a custom header `X-Test-Client: my-qa-suite`, then make a POST request to create a post — verify the session header was sent by printing `response.request.headers`
+- [ ] Write a function `get_post(post_id: int) -> dict` that makes a GET request, raises `ValueError` if the status is not 200, and returns the parsed JSON body
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the difference between `requests.get(url, params={'page': 2})` and manually adding `?page=2` to the URL?",
+    choices: [
+      "params= is slower",
+      "They produce the same URL — params= handles encoding automatically (e.g., spaces → %20)",
+      "params= only works with POST requests",
+      "Manually adding ?page=2 is required for authentication"
+    ],
+    answer: 1,
+    explain: "Both produce ?page=2 in the final URL. The params= keyword argument is preferred because it handles URL encoding automatically — special characters like spaces, &, and = are percent-encoded correctly."
+  },
+  {
+    q: "What does `response.raise_for_status()` do?",
+    choices: [
+      "Returns the status code as an integer",
+      "Raises an HTTPError exception if the response status is 4xx or 5xx",
+      "Retries the request if it fails",
+      "Prints the status code to the terminal"
+    ],
+    answer: 1,
+    explain: "raise_for_status() checks the status code and raises requests.exceptions.HTTPError if it indicates a failure (4xx or 5xx). This allows you to catch API errors with a try/except block instead of manually checking the status code."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "requests library docs", url: "https://requests.readthedocs.io/" },
+  { title: "JSONPlaceholder — free test API", url: "https://jsonplaceholder.typicode.com/" }
+]} />

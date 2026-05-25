@@ -1,0 +1,140 @@
+---
+id: 5
+title: "SDLC & STLC overview"
+phase: 1
+estMinutes: 60
+tags: ["fundamentals", "process"]
+---
+
+## Intro
+
+<En>
+Testing doesn't happen in isolation — it is embedded within two interconnected lifecycles: the Software Development Life Cycle (SDLC) and the Software Testing Life Cycle (STLC). Understanding both helps you know when to test, what to test, and how testing fits into the bigger picture.
+</En>
+<Vi>
+Kiểm thử không xảy ra trong sự cô lập — nó được nhúng trong hai vòng đời liên kết với nhau: Vòng đời Phát triển Phần mềm (SDLC) và Vòng đời Kiểm thử Phần mềm (STLC). Hiểu cả hai giúp bạn biết khi nào cần kiểm thử, kiểm thử gì và cách kiểm thử phù hợp với bức tranh tổng thể.
+</Vi>
+
+## Concept
+
+<En>
+**SDLC** describes how software is built. Common phases:
+1. **Requirements** — What should the software do?
+2. **Design** — How will it be built? (Architecture, database, UI)
+3. **Development** — Code is written.
+4. **Testing** — Software is validated against requirements.
+5. **Deployment** — Software is released to users.
+6. **Maintenance** — Bugs are fixed, features updated.
+
+**STLC** describes how testing is organized within and around the SDLC:
+1. **Requirements analysis** — QA reviews requirements to understand what can be tested.
+2. **Test planning** — Scope, strategy, resources, timeline defined.
+3. **Test case design** — Test cases written and reviewed.
+4. **Test environment setup** — Test data, environments, tools prepared.
+5. **Test execution** — Tests are run; defects logged.
+6. **Test cycle closure** — Results summarised, lessons learned, sign-off.
+
+The key insight: **testing starts at requirements**, not after development. Reviewing requirements early catches ambiguities and errors before a single line of code is written — the cheapest possible fix.
+</En>
+<Vi>
+**SDLC** mô tả cách phần mềm được xây dựng. Các giai đoạn phổ biến:
+1. **Yêu cầu** — Phần mềm nên làm gì?
+2. **Thiết kế** — Nó sẽ được xây dựng như thế nào? (Kiến trúc, cơ sở dữ liệu, UI)
+3. **Phát triển** — Code được viết.
+4. **Kiểm thử** — Phần mềm được xác nhận theo yêu cầu.
+5. **Triển khai** — Phần mềm được phát hành cho người dùng.
+6. **Bảo trì** — Bug được sửa, tính năng được cập nhật.
+
+**STLC** mô tả cách kiểm thử được tổ chức trong và xung quanh SDLC:
+1. **Phân tích yêu cầu** — QA xem xét yêu cầu để hiểu những gì có thể kiểm thử.
+2. **Lập kế hoạch test** — Phạm vi, chiến lược, tài nguyên, lịch trình được xác định.
+3. **Thiết kế test case** — Test case được viết và xem xét.
+4. **Thiết lập môi trường test** — Dữ liệu test, môi trường, công cụ được chuẩn bị.
+5. **Thực hiện test** — Test được chạy; lỗi được ghi lại.
+6. **Kết thúc chu kỳ test** — Kết quả được tóm tắt, bài học được rút ra, ký duyệt.
+
+Điểm mấu chốt: **kiểm thử bắt đầu từ yêu cầu**, không phải sau khi phát triển. Xem xét yêu cầu sớm sẽ phát hiện sự mơ hồ và lỗi trước khi một dòng code nào được viết — đây là bản sửa rẻ nhất có thể.
+</Vi>
+
+## Code / Demo
+
+```python
+# Pseudo-code illustrating when QA activities map to SDLC phases
+sdlc_stlc_mapping = {
+    "Requirements": [
+        "Review user stories for testability",
+        "Identify ambiguous acceptance criteria",
+        "Flag missing edge cases in requirements"
+    ],
+    "Design": [
+        "Create test plan",
+        "Define test strategy (scope, tools, environments)",
+        "Begin test case design for known requirements"
+    ],
+    "Development": [
+        "Finalise test cases",
+        "Prepare test data",
+        "Set up test environments"
+    ],
+    "Testing": [
+        "Execute test cases",
+        "Log defects",
+        "Regression testing after fixes"
+    ],
+    "Deployment": [
+        "Smoke test in production",
+        "Monitor for unexpected errors"
+    ],
+    "Maintenance": [
+        "Add regression tests for every fixed bug",
+        "Update tests when features change"
+    ]
+}
+
+for phase, activities in sdlc_stlc_mapping.items():
+    print(f"\n{phase}:")
+    for activity in activities:
+        print(f"  - {activity}")
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Draw a simple timeline showing where STLC phases fit within a 2-week Agile sprint
+- [ ] List 3 questions a QA engineer should ask during the Requirements phase to improve testability
+- [ ] Explain to a friend what would go wrong if testing only started after development was complete
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "At which SDLC phase should QA ideally begin involvement?",
+    choices: [
+      "Testing phase only",
+      "After deployment",
+      "Requirements phase",
+      "Development phase"
+    ],
+    answer: 2,
+    explain: "QA should be involved from Requirements to catch ambiguities early. Fixing a requirement error costs far less than fixing a coded feature or deployed bug."
+  },
+  {
+    q: "What is the output of the 'Test Planning' phase in STLC?",
+    choices: [
+      "Bug reports",
+      "A test plan document defining scope, strategy, resources, and timeline",
+      "Deployed code",
+      "Executed test cases"
+    ],
+    answer: 1,
+    explain: "The Test Plan is the primary deliverable of Test Planning — it guides the entire testing effort and aligns stakeholders on scope and approach."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB Foundation Syllabus", url: "https://www.istqb.org/certifications/certified-tester-foundation-level" },
+  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+]} />

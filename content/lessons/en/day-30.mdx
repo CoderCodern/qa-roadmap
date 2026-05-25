@@ -1,0 +1,241 @@
+---
+id: 30
+title: "Build your first POM"
+phase: 3
+estMinutes: 90
+tags: ["playwright", "pom", "practice"]
+---
+
+## Intro
+
+<En>
+Yesterday you learned the theory behind the Page Object Model. Today you build a real, multi-page POM implementation — a `BasePage`, a `TodoPage`, and a complete test suite that uses it. By the end, you will have a maintainable test project structure that scales to dozens of tests without repetition.
+</En>
+<Vi>
+Hôm qua bạn đã học lý thuyết đằng sau Page Object Model. Hôm nay bạn xây dựng một POM thực, nhiều trang — `BasePage`, `TodoPage`, và một bộ test hoàn chỉnh sử dụng nó. Cuối ngày, bạn sẽ có một cấu trúc dự án test có thể bảo trì và mở rộng đến hàng chục test mà không lặp lại.
+</Vi>
+
+## Concept
+
+<En>
+**Full project structure:**
+```
+pom_project/
+├── pages/
+│   ├── __init__.py
+│   ├── base_page.py
+│   └── todo_page.py
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py
+│   └── test_todo.py
+├── pytest.ini
+└── requirements.txt
+```
+
+**`conftest.py`** is pytest's configuration and shared fixture file. Put:
+- Browser configuration (viewport, base URL)
+- Page Object instantiation fixtures
+- Any other shared setup
+
+**`pytest.ini`** global settings:
+```ini
+[pytest]
+base_url = https://demo.playwright.dev/todomvc
+```
+
+**Returning a Page Object from a fixture:**
+```python
+@pytest.fixture
+def todo_page(page: Page) -> TodoPage:
+    tp = TodoPage(page)
+    tp.navigate()
+    return tp
+```
+
+Tests that declare `todo_page` as a parameter get a pre-navigated `TodoPage` object — clean and reusable.
+</En>
+<Vi>
+**Cấu trúc dự án đầy đủ:**
+```
+pom_project/
+├── pages/
+│   ├── __init__.py
+│   ├── base_page.py
+│   └── todo_page.py
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py
+│   └── test_todo.py
+├── pytest.ini
+└── requirements.txt
+```
+
+**`conftest.py`** là file cấu hình và fixture dùng chung của pytest.
+
+**`pytest.ini`** cài đặt toàn cục:
+```ini
+[pytest]
+base_url = https://demo.playwright.dev/todomvc
+```
+
+**Trả về Page Object từ fixture:**
+```python
+@pytest.fixture
+def todo_page(page: Page) -> TodoPage:
+    tp = TodoPage(page)
+    tp.navigate()
+    return tp
+```
+</Vi>
+
+## Code / Demo
+
+```python
+# pages/base_page.py
+from playwright.sync_api import Page
+
+class BasePage:
+    def __init__(self, page: Page) -> None:
+        self.page = page
+
+    def navigate(self, url: str = "") -> None:
+        self.page.goto(url)
+
+    @property
+    def title(self) -> str:
+        return self.page.title()
+
+    @property
+    def current_url(self) -> str:
+        return self.page.url
+```
+
+```python
+# pages/todo_page.py
+from playwright.sync_api import Page, Locator, expect
+from .base_page import BasePage
+
+class TodoPage(BasePage):
+    URL = "https://demo.playwright.dev/todomvc"
+
+    def navigate(self) -> None:  # type: ignore[override]
+        self.page.goto(self.URL)
+
+    @property
+    def new_todo_input(self) -> Locator:
+        return self.page.get_by_placeholder("What needs to be done?")
+
+    @property
+    def todo_items(self) -> Locator:
+        return self.page.get_by_role("listitem")
+
+    @property
+    def items_left_label(self) -> Locator:
+        return self.page.locator(".todo-count")
+
+    def add(self, text: str) -> None:
+        self.new_todo_input.fill(text)
+        self.new_todo_input.press("Enter")
+
+    def complete(self, text: str) -> None:
+        checkbox = self.page.get_by_role("checkbox", name=text)
+        checkbox.check()
+
+    def delete(self, text: str) -> None:
+        item = self.todo_items.filter(has_text=text)
+        item.hover()
+        item.get_by_role("button", name="Delete").click()
+
+    def get_count(self) -> int:
+        return self.todo_items.count()
+
+    def expect_item(self, text: str) -> None:
+        expect(self.todo_items.filter(has_text=text)).to_be_visible()
+
+    def expect_item_absent(self, text: str) -> None:
+        expect(self.todo_items.filter(has_text=text)).not_to_be_visible()
+```
+
+```python
+# tests/conftest.py
+import pytest
+from playwright.sync_api import Page
+from pages.todo_page import TodoPage
+
+@pytest.fixture
+def todo_page(page: Page) -> TodoPage:
+    tp = TodoPage(page)
+    tp.navigate()
+    return tp
+```
+
+```python
+# tests/test_todo.py
+from pages.todo_page import TodoPage
+
+def test_add_single_item(todo_page: TodoPage):
+    todo_page.add("Buy milk")
+    todo_page.expect_item("Buy milk")
+    assert todo_page.get_count() == 1
+
+def test_add_multiple_items(todo_page: TodoPage):
+    todo_page.add("Item one")
+    todo_page.add("Item two")
+    todo_page.add("Item three")
+    assert todo_page.get_count() == 3
+
+def test_complete_item(todo_page: TodoPage):
+    todo_page.add("Learn POM")
+    todo_page.complete("Learn POM")
+    completed = todo_page.page.locator(".todo-list li.completed")
+    assert completed.count() == 1
+
+def test_delete_item(todo_page: TodoPage):
+    todo_page.add("Temporary item")
+    todo_page.delete("Temporary item")
+    todo_page.expect_item_absent("Temporary item")
+    assert todo_page.get_count() == 0
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Set up the full `pom_project/` directory structure, copy all files above, install dependencies, and run `pytest -v` — all 4 tests should pass
+- [ ] Add a `clear_completed()` method to `TodoPage` and write a test that: adds 2 items, marks both complete, calls `clear_completed()`, and asserts the list is empty
+- [ ] Add a `filter_by(status: str)` method that clicks the "Active", "Completed", or "All" filter buttons, and write tests for each filter state
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "What is the purpose of a `conftest.py` file in a pytest project?",
+    choices: [
+      "It is a required configuration file that lists all test files",
+      "It defines shared fixtures, hooks, and plugins available to all tests in the same directory",
+      "It replaces pytest.ini for configuration",
+      "It must contain at least one test function"
+    ],
+    answer: 1,
+    explain: "conftest.py is automatically loaded by pytest. Fixtures defined there are available to all tests in the same directory and subdirectories — without needing to import them. It's the central place for shared setup like page objects, API clients, and test data."
+  },
+  {
+    q: "Why do page object methods return `None` instead of returning the current page?",
+    choices: [
+      "Python functions return None by default",
+      "Page objects model actions, not chains — tests control flow explicitly",
+      "Returning the page would cause infinite loops",
+      "It is a Playwright limitation"
+    ],
+    answer: 1,
+    explain: "Some frameworks use method chaining (login().navigate().assert()). For beginners, explicit control flow is clearer: each method does one thing, and the test reads as a list of steps. Method chaining is an alternative style, not a requirement."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "Playwright Page Objects Guide", url: "https://playwright.dev/python/docs/pom" },
+  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+]} />

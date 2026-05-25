@@ -1,0 +1,194 @@
+---
+id: 56
+title: "Wrap-up & career"
+phase: 5
+estMinutes: 60
+tags: ["capstone", "career", "review"]
+---
+
+## Intro
+
+<En>
+You have completed 56 days of QA automation. You now know how to write a test plan, automate API tests with pytest and requests, drive a browser with Playwright, build a maintainable framework, generate Allure reports, and ship everything through CI. Today you consolidate what you have built, prepare it for your portfolio, and chart the path forward in your QA career.
+</En>
+<Vi>
+Bạn đã hoàn thành 56 ngày tự động hoá QA. Bây giờ bạn biết cách viết kế hoạch test, tự động hoá API test với pytest và requests, điều khiển trình duyệt với Playwright, xây dựng framework có thể bảo trì, tạo báo cáo Allure và đưa mọi thứ qua CI. Hôm nay bạn củng cố những gì đã xây dựng, chuẩn bị cho portfolio và vạch ra con đường phía trước trong sự nghiệp QA.
+</Vi>
+
+## Concept
+
+<En>
+**What you have built across 56 days:**
+
+| Phase | Weeks | Core skills |
+|-------|-------|-------------|
+| 1 — Fundamentals | 1 | Testing theory, test cases, bug lifecycle, SDLC, test pyramid |
+| 2 — Python | 2–3 | Variables, functions, OOP, exceptions, file I/O |
+| 3 — Playwright | 4–5 | Browser automation, POM, fixtures, CI |
+| 4 — API Testing | 6–7 | HTTP, pytest + requests, JSON Schema, mocking, negative testing |
+| 5 — Capstone | 8 | Integrated framework, Allure, test plan, CI pipeline |
+
+**Making your capstone portfolio-ready:**
+
+1. **Public GitHub repository** — clean history, no secrets committed
+2. **README** — what is tested, prerequisites, `pip install -r requirements.txt`, `pytest tests/ -v`, CI badge
+3. **CI badge** — paste the GitHub Actions badge URL in your README so recruiters see green instantly
+4. **Allure report screenshot** — include a screenshot of a passing Allure report in the README
+5. **Test plan document** — attach `TEST_PLAN.md` so readers see your thinking process, not just the code
+
+**Certification path:**
+
+- **ISTQB Foundation Level (CTFL)** — the most widely recognised entry-level QA certification globally. Validates test design, bug reporting, and SDLC knowledge. Study time: 4–8 weeks after this course.
+- **ISTQB Test Automation Engineer (CT-TAE)** — advanced certification for automation specialists. Covers framework design, tool selection, and CI/CD integration. Recommended after 6–12 months of hands-on automation work.
+
+**QA career paths:**
+
+| Role | Focus | Typical next step |
+|------|-------|-------------------|
+| QA Engineer (Manual) | Test cases, exploratory | QA Automation Engineer |
+| QA Automation Engineer | pytest, Playwright, API | Senior QA / QA Lead |
+| QA Lead | Strategy, mentoring | QA Manager / Test Architect |
+| SDET | Test infrastructure, CI | DevOps / Platform Engineering |
+
+**What makes a senior QA engineer:**
+- Writes tests that prevent regressions, not just tests that pass
+- Understands the system well enough to predict where bugs hide
+- Treats the test framework as a product — designs for maintainability
+- Communicates risk in business terms, not just pass/fail counts
+- Advocates for quality in planning meetings, not only after code is written
+</En>
+<Vi>
+**Những gì bạn đã xây dựng trong 56 ngày:**
+
+| Phase | Tuần | Kỹ năng cốt lõi |
+|-------|-------|-------------|
+| 1 — Cơ bản | 1 | Lý thuyết test, test case, vòng đời lỗi, SDLC, tháp test |
+| 2 — Python | 2–3 | Biến, hàm, OOP, ngoại lệ, file I/O |
+| 3 — Playwright | 4–5 | Tự động hoá trình duyệt, POM, fixture, CI |
+| 4 — API Testing | 6–7 | HTTP, pytest + requests, JSON Schema, mocking, test tiêu cực |
+| 5 — Capstone | 8 | Framework tích hợp, Allure, kế hoạch test, CI pipeline |
+
+**Con đường chứng chỉ:**
+- **ISTQB Foundation Level (CTFL)** — chứng chỉ QA cấp cơ bản được công nhận rộng rãi nhất trên toàn cầu.
+- **ISTQB Test Automation Engineer (CT-TAE)** — chứng chỉ nâng cao cho chuyên gia tự động hoá.
+
+**Điều làm nên kỹ sư QA cấp senior:**
+- Viết test ngăn ngừa hồi quy, không chỉ test vượt qua
+- Hiểu hệ thống đủ để dự đoán nơi lỗi ẩn náu
+- Coi framework test như một sản phẩm — thiết kế cho khả năng bảo trì
+- Truyền đạt rủi ro theo ngôn ngữ kinh doanh, không chỉ đếm pass/fail
+- Vận động cho chất lượng trong các cuộc họp lập kế hoạch, không chỉ sau khi code được viết
+</Vi>
+
+## Code / Demo
+
+```markdown
+# README.md template for your capstone project
+
+## Capstone QA Framework
+
+Automated test suite for [Target App Name] covering API and UI flows.
+
+## What is tested
+
+**API (ReqRes.in):**
+- User CRUD: list, get by ID, create, update, delete
+- Authentication: login, register, invalid credentials
+- Pagination: page 1 and 2
+
+**UI (Sauce Demo):**
+- Login: valid credentials, wrong password
+- Cart: add item, verify cart count
+
+## Prerequisites
+
+- Python 3.11+
+- Google Chrome (for UI tests)
+
+## Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium
+```
+
+## Running tests
+
+```bash
+# All tests
+pytest tests/ -v
+
+# API only
+pytest tests/api/ -v
+
+# UI only
+pytest tests/ui/ -v
+
+# With Allure report
+pytest tests/ --alluredir=allure-results
+allure serve allure-results
+```
+
+## CI Status
+
+![API Tests](https://github.com/YOUR_USER/capstone-framework/actions/workflows/tests.yml/badge.svg)
+```
+
+```python
+# Final self-assessment: run this to see your full coverage
+# From the project root:
+# pytest tests/ -v --tb=short --alluredir=allure-results
+#
+# Then verify:
+# - All API tests green
+# - All UI tests green
+# - Allure report generated
+# - Behaviours tab shows epic → feature → story hierarchy
+# - Categories tab shows 0 test defects
+```
+
+## Exercise
+
+<ExerciseBox>
+- [ ] Push your completed capstone to a public GitHub repository with a clean README, CI badge, and no secrets in the commit history
+- [ ] Run `pytest tests/ -v --alluredir=allure-results && allure generate allure-results -o allure-report --clean` and take a screenshot of the Allure overview page — add it to your README
+- [ ] Write a 3-sentence reflection in your `TEST_PLAN.md` (or a new `RETROSPECTIVE.md`): what was the hardest thing to test, what would you improve if you had more time, and what skill from this course do you want to develop further
+</ExerciseBox>
+
+## Quiz
+
+<Quiz questions={[
+  {
+    q: "A recruiter has 30 seconds to look at your QA portfolio project. What is the single most important thing to have?",
+    choices: [
+      "100% code coverage",
+      "A green CI badge and a README that explains what is tested and how to run it in under 60 seconds",
+      "At least 100 test cases",
+      "A perfectly structured Allure report"
+    ],
+    answer: 1,
+    explain: "Recruiters look for evidence that the project works and that you can communicate clearly. A green CI badge signals the code runs. A README that explains the target, prerequisites, and run command in under 60 seconds signals communication skill. Coverage numbers and test counts are secondary to those two signals."
+  },
+  {
+    q: "What is the most important quality difference between a junior and senior QA engineer?",
+    choices: [
+      "Senior engineers write more tests",
+      "Senior engineers use more advanced tools",
+      "Senior engineers understand the system well enough to predict where bugs hide — they test risk, not just happy paths",
+      "Senior engineers know ISTQB certification material"
+    ],
+    answer: 2,
+    explain: "Volume of tests is not seniority. Tool knowledge is table stakes. The distinguishing quality is system understanding — a senior QA asks 'what could go wrong here?' based on architectural knowledge, not just 'did the form submit?'. That understanding comes from reading code, attending design discussions, and accumulating experience with how systems fail."
+  }
+]} />
+
+## Resources
+
+<ResourceList resources={[
+  { title: "ISTQB Certifications", url: "https://www.istqb.org/certifications/certified-tester-foundation-level" },
+  { title: "Ministry of Testing — community and learning", url: "https://www.ministryoftesting.com/" },
+  { title: "Test Automation University — free courses", url: "https://testautomationu.applitools.com/" },
+  { title: "Martin Fowler — Practical Test Pyramid", url: "https://martinfowler.com/articles/practical-test-pyramid.html" }
+]} />

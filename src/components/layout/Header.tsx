@@ -19,8 +19,8 @@ const navLinks = [
 export function Header() {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
-  const { streak, language, setLanguage } = useProgressStore()
-  // Defer theme icon to avoid SSR/client mismatch (resolvedTheme is undefined on server)
+  const { streak, language, hydrated, setLanguage } = useProgressStore()
+  // Defer theme icon and active-language highlight to avoid SSR/client mismatch.
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -62,13 +62,28 @@ export function Header() {
             </div>
           )}
 
-          {/* Language toggle */}
+          {/* Language toggle — pill showing active language */}
           <button
             onClick={() => setLanguage(language === 'en' ? 'vi' : 'en')}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
             aria-label="Toggle language"
+            className="flex overflow-hidden rounded-lg border border-gray-200 text-xs font-semibold dark:border-gray-700"
           >
-            {language === 'en' ? 'VI' : 'EN'}
+            {(['en', 'vi'] as const).map((lang) => {
+              const isActive = mounted && hydrated && language === lang
+              return (
+                <span
+                  key={lang}
+                  className={cn(
+                    'px-2.5 py-1.5 transition-colors uppercase',
+                    isActive
+                      ? 'bg-brand-600 text-white dark:bg-brand-500'
+                      : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                  )}
+                >
+                  {lang}
+                </span>
+              )
+            })}
           </button>
 
           {/* Theme toggle */}

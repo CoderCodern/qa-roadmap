@@ -2,7 +2,7 @@
 
 import { ReactNode, useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, Circle, Clock, ArrowLeft, ArrowRight, ChevronLeft, Lock } from 'lucide-react'
+import { CheckCircle2, Circle, Clock, ArrowLeft, ArrowRight, ChevronLeft, Lock, Construction } from 'lucide-react'
 import { useProgressStore } from '@/lib/store'
 import { getDayById, getPhaseForDay, getPrevDay, getNextDay } from '@/data/roadmap'
 import { getCompletionMotivation } from '@/data/motivation'
@@ -16,7 +16,7 @@ interface LessonShellProps {
 }
 
 export function LessonShell({ dayId, children }: LessonShellProps) {
-  const { completed, hydrated, toggleDay, language } = useProgressStore()
+  const { completed, hydrated, toggleDay, language, devPreview } = useProgressStore()
   const [justCompleted, setJustCompleted] = useState(false)
 
   const day = getDayById(dayId)
@@ -34,9 +34,11 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
   if (!day || !phase) return <>{children}</>
 
   // Lock check — only enforce after store is hydrated to avoid pre-hydration flash.
-  const lockInfo = hydrated ? getDayLockInfo(dayId, completed) : { locked: false as const }
+  const lockInfo = hydrated ? getDayLockInfo(dayId, completed, devPreview) : { locked: false as const }
 
   if (lockInfo.locked) {
+    const isComingSoon = lockInfo.type === 'coming-soon'
+
     return (
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {/* Breadcrumb */}
@@ -55,8 +57,14 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
 
         {/* Lock screen */}
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-            <Lock className="h-12 w-12 text-gray-400 dark:text-gray-600" />
+          <div className={cn(
+            'mb-6 flex h-24 w-24 items-center justify-center rounded-full',
+            isComingSoon ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-gray-100 dark:bg-gray-800'
+          )}>
+            {isComingSoon
+              ? <Construction className="h-12 w-12 text-amber-500 dark:text-amber-400" />
+              : <Lock className="h-12 w-12 text-gray-400 dark:text-gray-600" />
+            }
           </div>
 
           <p className="mb-2 text-sm font-semibold text-brand-600 dark:text-brand-400">
@@ -67,37 +75,51 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
             <span className="lang-vi">{day.titleVi}</span>
           </h1>
 
-          <p className="mb-2 text-lg font-semibold text-gray-700 dark:text-gray-300">
-            <span className="lang-en">This lesson is locked</span>
-            <span className="lang-vi">Bài học này đang bị khóa</span>
-          </p>
-
-          {lockInfo.type === 'prev-day' ? (
-            <p className="mb-8 max-w-sm text-gray-500 dark:text-gray-400">
-              <span className="lang-en">
-                You need to complete <strong>Day {lockInfo.prevDayId}</strong> before unlocking this lesson.
-              </span>
-              <span className="lang-vi">
-                Bạn cần hoàn thành <strong>Ngày {lockInfo.prevDayId}</strong> trước khi mở khóa bài học này.
-              </span>
-            </p>
+          {isComingSoon ? (
+            <>
+              <p className="mb-2 text-lg font-semibold text-amber-600 dark:text-amber-400">
+                <span className="lang-en">Coming Soon</span>
+                <span className="lang-vi">Sắp Ra Mắt</span>
+              </p>
+              <p className="mb-8 max-w-sm text-gray-500 dark:text-gray-400">
+                <span className="lang-en">This lesson is being prepared. Check back soon!</span>
+                <span className="lang-vi">Bài học này đang được chuẩn bị. Hãy quay lại sau nhé!</span>
+              </p>
+            </>
           ) : (
-            <p className="mb-8 max-w-sm text-gray-500 dark:text-gray-400">
-              <span className="lang-en">
-                Complete {lockInfo.needed - lockInfo.done} more lesson{lockInfo.needed - lockInfo.done !== 1 ? 's' : ''} in{' '}
-                <strong>{lockInfo.phaseTitle}</strong> to unlock this phase.{' '}
-                ({lockInfo.done}/{lockInfo.needed} done)
-              </span>
-              <span className="lang-vi">
-                Hoàn thành thêm {lockInfo.needed - lockInfo.done} bài trong{' '}
-                <strong>{lockInfo.phaseTitleVi}</strong> để mở khóa giai đoạn này.{' '}
-                ({lockInfo.done}/{lockInfo.needed} đã làm)
-              </span>
-            </p>
+            <>
+              <p className="mb-2 text-lg font-semibold text-gray-700 dark:text-gray-300">
+                <span className="lang-en">This lesson is locked</span>
+                <span className="lang-vi">Bài học này đang bị khóa</span>
+              </p>
+              {lockInfo.type === 'prev-day' ? (
+                <p className="mb-8 max-w-sm text-gray-500 dark:text-gray-400">
+                  <span className="lang-en">
+                    You need to complete <strong>Day {lockInfo.prevDayId}</strong> before unlocking this lesson.
+                  </span>
+                  <span className="lang-vi">
+                    Bạn cần hoàn thành <strong>Ngày {lockInfo.prevDayId}</strong> trước khi mở khóa bài học này.
+                  </span>
+                </p>
+              ) : (
+                <p className="mb-8 max-w-sm text-gray-500 dark:text-gray-400">
+                  <span className="lang-en">
+                    Complete {lockInfo.needed - lockInfo.done} more lesson{lockInfo.needed - lockInfo.done !== 1 ? 's' : ''} in{' '}
+                    <strong>{lockInfo.phaseTitle}</strong> to unlock this phase.{' '}
+                    ({lockInfo.done}/{lockInfo.needed} done)
+                  </span>
+                  <span className="lang-vi">
+                    Hoàn thành thêm {lockInfo.needed - lockInfo.done} bài trong{' '}
+                    <strong>{lockInfo.phaseTitleVi}</strong> để mở khóa giai đoạn này.{' '}
+                    ({lockInfo.done}/{lockInfo.needed} đã làm)
+                  </span>
+                </p>
+              )}
+            </>
           )}
 
           <div className="flex flex-wrap justify-center gap-3">
-            {lockInfo.type === 'prev-day' && (
+            {!isComingSoon && lockInfo.type === 'prev-day' && (
               <Link
                 href={`/day/${lockInfo.prevDayId}`}
                 className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"

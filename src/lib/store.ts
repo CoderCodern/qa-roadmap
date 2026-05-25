@@ -13,11 +13,20 @@ export type ProgressState = {
   streak: number
   longestStreak: number
   language: Language
+  /** AI-generated example answers keyed by dayId — saved after first use. */
+  aiAnswers: Record<number, string>
+  /** Tracks which days have consumed their one AI hint. */
+  aiHintUsed: Record<number, boolean>
   /** True after localStorage has been rehydrated; used to avoid pre-hydration lock flicker. */
   hydrated: boolean
+  /** Developer preview mode — bypasses the available gate so unpublished days are accessible. */
+  devPreview: boolean
   toggleDay: (id: number) => void
   setLanguage: (lang: Language) => void
   setHydrated: () => void
+  setDevPreview: (val: boolean) => void
+  setAiAnswer: (dayId: number, answer: string) => void
+  markAiHintUsed: (dayId: number) => void
   reset: () => void
 }
 
@@ -30,7 +39,10 @@ export const useProgressStore = create<ProgressState>()(
       streak: 0,
       longestStreak: 0,
       language: 'en',
+      aiAnswers: {},
+      aiHintUsed: {},
       hydrated: false,
+      devPreview: false,
 
       toggleDay: (id) => {
         const state = get()
@@ -74,6 +86,14 @@ export const useProgressStore = create<ProgressState>()(
 
       setHydrated: () => set({ hydrated: true }),
 
+      setDevPreview: (val) => set({ devPreview: val }),
+
+      setAiAnswer: (dayId, answer) =>
+        set((s) => ({ aiAnswers: { ...s.aiAnswers, [dayId]: answer } })),
+
+      markAiHintUsed: (dayId) =>
+        set((s) => ({ aiHintUsed: { ...s.aiHintUsed, [dayId]: true } })),
+
       reset: () =>
         set({
           completed: [],
@@ -94,6 +114,8 @@ export const useProgressStore = create<ProgressState>()(
         streak: s.streak,
         longestStreak: s.longestStreak,
         language: s.language,
+        aiAnswers: s.aiAnswers,
+        aiHintUsed: s.aiHintUsed,
       }),
     }
   )

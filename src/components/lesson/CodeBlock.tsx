@@ -26,7 +26,7 @@ export function CodeBlock({ children, className, ...props }: CodeBlockProps) {
       <pre
         ref={preRef}
         className={cn(
-          'overflow-x-auto rounded-xl bg-gray-950 text-sm leading-relaxed dark:bg-gray-900',
+          'overflow-x-auto rounded-xl bg-gray-900 text-sm leading-relaxed',
           className
         )}
         {...props}
@@ -37,9 +37,9 @@ export function CodeBlock({ children, className, ...props }: CodeBlockProps) {
         onClick={handleCopy}
         aria-label="Copy code"
         className={cn(
-          'absolute right-3 top-3 rounded-lg p-1.5 text-gray-400 transition-all',
-          'opacity-0 group-hover:opacity-100',
-          'hover:bg-gray-800 hover:text-gray-200'
+          'absolute right-3 top-3 rounded-lg p-1.5 transition-all',
+          'text-gray-500 hover:bg-gray-700 hover:text-gray-200',
+          copied ? 'opacity-100' : 'opacity-50 hover:opacity-100'
         )}
       >
         {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}

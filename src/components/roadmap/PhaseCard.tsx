@@ -22,9 +22,11 @@ interface PhaseCardProps {
   lockInfo: PhaseLockInfo
   /** Per-day locked IDs — a day is locked if its id is in this set. */
   lockedDayIds: Set<number>
+  /** Per-day coming-soon IDs — content not yet published by the developer. */
+  comingSoonDayIds: Set<number>
 }
 
-export function PhaseCard({ phase, completedDays, lockInfo, lockedDayIds }: PhaseCardProps) {
+export function PhaseCard({ phase, completedDays, lockInfo, lockedDayIds, comingSoonDayIds }: PhaseCardProps) {
   const Icon = iconMap[phase.iconName] ?? BookOpen
   const doneCount = phase.days.filter((d) => completedDays.includes(d.id)).length
   const total = phase.days.length
@@ -108,6 +110,7 @@ export function PhaseCard({ phase, completedDays, lockInfo, lockedDayIds }: Phas
             phase={phase}
             isCompleted={completedDays.includes(day.id)}
             isLocked={lockedDayIds.has(day.id)}
+            isComingSoon={comingSoonDayIds.has(day.id)}
           />
         ))}
       </div>

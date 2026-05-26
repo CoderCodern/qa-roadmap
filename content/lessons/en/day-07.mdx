@@ -137,9 +137,16 @@ for tc in login_test_cases:
 ## Exercise
 
 <ExerciseBox>
+<En>
 - [ ] Write 5 complete test cases for a "Forgot Password" feature (use the template from Day 4)
 - [ ] Draw the STLC phases on paper and write one deliverable for each phase
 - [ ] From memory, explain the difference between smoke and sanity testing to someone else
+</En>
+<Vi>
+- [ ] Viết 5 test case hoàn chỉnh cho tính năng "Quên mật khẩu" (dùng mẫu từ Ngày 4)
+- [ ] Vẽ các giai đoạn STLC trên giấy và viết một kết quả bàn giao cho mỗi giai đoạn
+- [ ] Từ trí nhớ, giải thích sự khác biệt giữa smoke testing và sanity testing cho người khác
+</Vi>
 </ExerciseBox>
 
 ## Quiz
@@ -147,36 +154,60 @@ for tc in login_test_cases:
 <Quiz questions={[
   {
     q: "Which of the following best describes 'regression testing'?",
+    qVi: "Điều nào sau đây mô tả tốt nhất 'kiểm thử hồi quy'?",
     choices: [
       "Testing a brand-new feature for the first time",
       "Verifying that existing functionality still works after a code change",
       "Testing the app immediately after a new deployment",
       "Unscripted investigation of the application"
     ],
+    choicesVi: [
+      "Kiểm thử một tính năng hoàn toàn mới lần đầu tiên",
+      "Xác minh rằng chức năng hiện có vẫn hoạt động sau khi thay đổi code",
+      "Kiểm thử ứng dụng ngay sau khi triển khai mới",
+      "Điều tra không có kịch bản về ứng dụng"
+    ],
     answer: 1,
-    explain: "Regression testing re-runs existing tests after changes to ensure new code hasn't broken previously working features."
+    explain: "Regression testing re-runs existing tests after changes to ensure new code hasn't broken previously working features.",
+    explainVi: "Kiểm thử hồi quy chạy lại các test hiện có sau khi thay đổi để đảm bảo code mới không phá vỡ các tính năng đang hoạt động trước đó."
   },
   {
     q: "A bug causes the app to crash for 0.1% of users, but it's on the checkout page. How should it be classified?",
+    qVi: "Một bug khiến ứng dụng crash với 0.1% người dùng, nhưng nằm trên trang thanh toán. Nên phân loại nó như thế nào?",
     choices: [
       "Low severity, Low priority",
       "High severity, High priority",
       "Low severity, High priority",
       "Medium severity, Low priority"
     ],
+    choicesVi: [
+      "Mức độ nghiêm trọng Thấp, Ưu tiên Thấp",
+      "Mức độ nghiêm trọng Cao, Ưu tiên Cao",
+      "Mức độ nghiêm trọng Thấp, Ưu tiên Cao",
+      "Mức độ nghiêm trọng Trung bình, Ưu tiên Thấp"
+    ],
     answer: 2,
-    explain: "The checkout page is revenue-critical. Even though few users are affected (low severity impact), the business impact makes it High priority. Severity and priority are independent."
+    explain: "The checkout page is revenue-critical. Even though few users are affected (low severity impact), the business impact makes it High priority. Severity and priority are independent.",
+    explainVi: "Trang thanh toán rất quan trọng về doanh thu. Dù ít người dùng bị ảnh hưởng (mức độ nghiêm trọng thấp), tác động kinh doanh khiến nó có Ưu tiên Cao. Mức độ nghiêm trọng và ưu tiên là độc lập nhau."
   },
   {
     q: "According to the test pyramid, which type should have the fewest tests?",
+    qVi: "Theo kim tự tháp kiểm thử, loại nào nên có ÍT test nhất?",
     choices: [
       "Unit tests",
       "Integration tests",
       "End-to-End tests",
       "Manual tests"
     ],
+    choicesVi: [
+      "Unit test",
+      "Integration test",
+      "End-to-End test",
+      "Test thủ công"
+    ],
     answer: 2,
-    explain: "E2E tests sit at the pyramid's tip — they're the most realistic but slowest and most expensive. Keep them focused on the most critical user journeys only."
+    explain: "E2E tests sit at the pyramid's tip — they're the most realistic but slowest and most expensive. Keep them focused on the most critical user journeys only.",
+    explainVi: "E2E test nằm ở đỉnh kim tự tháp — chúng thực tế nhất nhưng chậm và tốn kém nhất. Chỉ giữ chúng tập trung vào các hành trình người dùng quan trọng nhất."
   }
 ]} />
 

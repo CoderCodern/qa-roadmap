@@ -67,18 +67,19 @@ f"Hello, {name}!"   # → "Hello, Alice!"
 
 ## Code / Demo
 
-```python
-# Real-world string operations in a QA context
+<CodePlayground code={`# Real-world string operations in a QA context
 
-# 1. Case-insensitive comparison (common when checking error messages)
+# 1. Case-insensitive comparison
 actual_message = "  Invalid Email Format  "
 expected_keyword = "invalid email"
 assert expected_keyword in actual_message.strip().lower()
+print("Case-insensitive check passed!")
 
 # 2. URL validation
 redirect_url = "https://app.example.com/dashboard"
 assert redirect_url.startswith("https://"), "URL must use HTTPS"
 assert redirect_url.endswith("/dashboard"), "Should redirect to dashboard"
+print("URL assertions passed!")
 
 # 3. Parsing a CSV-style response
 csv_line = "alice,alice@example.com,admin"
@@ -86,6 +87,7 @@ parts = csv_line.split(",")
 assert parts[0] == "alice"
 assert parts[1] == "alice@example.com"
 assert parts[2] == "admin"
+print(f"Parsed: name={parts[0]}, email={parts[1]}, role={parts[2]}")
 
 # 4. f-string in assertion messages
 status_code = 404
@@ -96,46 +98,190 @@ print(message)
 # 5. Length boundary check
 password = "SecurePass123"
 assert 6 <= len(password) <= 20, f"Password length {len(password)} is out of bounds"
+print(f"Password length {len(password)} is valid")
 
-# 6. String building for dynamic test data
+# 6. Dynamic test data
 base_email = "test"
 domain = "@example.com"
 unique_email = f"{base_email}+{id(object())}{domain}"
 print(f"Generated test email: {unique_email}")
-```
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Given the string `"  ERROR: Connection timed out  "`, write code to: strip whitespace, check it contains "connection timed out" (case-insensitive), and extract the error type before the colon
-- [ ] Write an assertion that verifies an API endpoint URL starts with `https://` and contains `/api/v1/`
-- [ ] Use an f-string to build a test failure message that includes the expected value, actual value, and field name
-</ExerciseBox>
+<CodeExerciseGroup exercises={[
+  {
+    title: "Exercise 1 — Parse an error string",
+    code: `# String operations on a real-world error message
+error_msg = "  ERROR: Connection timed out  "
+
+# TODO: Strip leading/trailing whitespace
+cleaned = ???
+print(f"Cleaned: '{cleaned}'")
+
+# TODO: Assert that "connection timed out" appears (case-insensitive)
+assert ??? in cleaned.lower(), "Keyword not found"
+print("Keyword check passed!")
+
+# TODO: Extract the error type before the colon
+# Hint: split on ":" then strip the first part
+error_type = ???
+print(f"Error type: {error_type}")`
+  },
+  {
+    title: "Exercise 2 — Validate an API URL",
+    code: `# Assert properties of an API endpoint URL
+api_url = "https://api.example.com/api/v1/users"
+
+# TODO: Assert the URL uses HTTPS
+assert ???, "URL must use HTTPS"
+
+# TODO: Assert the URL contains the versioned path prefix
+assert ???, "URL must contain /api/v1/"
+
+print("URL assertions passed!")`
+  },
+  {
+    title: "Exercise 3 — Build a failure message with f-strings",
+    code: `# Use an f-string to build a descriptive test failure message
+field_name = "email"
+expected_value = "alice@example.com"
+actual_value = "alice@example"   # intentionally wrong
+
+# TODO: Build a failure_msg using an f-string that includes:
+#   - the field name
+#   - the expected value
+#   - the actual value
+# Example output: "Field 'email': expected 'alice@example.com', got 'alice@example'"
+failure_msg = ???
+
+print(failure_msg)`
+  }
+]}>
+<En>
+Complete the three exercises below. Each editor has comments guiding you — fill in the blanks, then click **Run** to verify. When done, submit all for AI review.
+</En>
+<Vi>
+Hoàn thành ba bài tập bên dưới. Mỗi editor có comment hướng dẫn — điền vào chỗ trống, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Which expression checks if 'error' appears anywhere in the string 'Internal Server Error'?",
+    qVi: "Biểu thức nào kiểm tra xem 'error' có xuất hiện ở bất kỳ đâu trong chuỗi 'Internal Server Error' không?",
     choices: [
       "'error' in 'Internal Server Error'",
       "'error' in 'Internal Server Error'.lower()",
       "'Internal Server Error'.contains('error')",
       "'Internal Server Error'.find('error') > 0"
     ],
+    choicesVi: [
+      "'error' in 'Internal Server Error'",
+      "'error' in 'Internal Server Error'.lower()",
+      "'Internal Server Error'.contains('error')",
+      "'Internal Server Error'.find('error') > 0"
+    ],
     answer: 1,
-    explain: "Python strings don't have a .contains() method. The 'in' operator is the idiomatic way. We also .lower() so the case-insensitive comparison works correctly."
+    explain: "Python strings don't have a .contains() method. The 'in' operator is the idiomatic way. We also .lower() so the case-insensitive comparison works correctly.",
+    explainVi: "Chuỗi Python không có phương thức .contains(). Toán tử 'in' là cách thành ngữ. Chúng ta cũng dùng .lower() để so sánh không phân biệt chữ hoa/thường hoạt động đúng."
   },
   {
     q: "What does 'hello world'.split() return?",
+    qVi: "'hello world'.split() trả về gì?",
     choices: [
       "['hello world']",
       "['h','e','l','l','o',' ','w','o','r','l','d']",
       "['hello', 'world']",
       "('hello', 'world')"
     ],
+    choicesVi: [
+      "['hello world']",
+      "['h','e','l','l','o',' ','w','o','r','l','d']",
+      "['hello', 'world']",
+      "('hello', 'world')"
+    ],
     answer: 2,
-    explain: "split() with no argument splits on any whitespace and removes it, returning a list of words. split(',') would split on commas specifically."
+    explain: "split() with no argument splits on any whitespace and removes it, returning a list of words. split(',') would split on commas specifically.",
+    explainVi: "split() không có đối số sẽ tách trên bất kỳ khoảng trắng nào và loại bỏ nó, trả về danh sách các từ. split(',') sẽ tách trên dấu phẩy cụ thể."
+  },
+  {
+    q: "What does `'  hello  '.strip()` return?",
+    qVi: "`'  hello  '.strip()` trả về gì?",
+    choices: [
+      "'  hello  '",
+      "'hello  '",
+      "'hello'",
+      "['hello']"
+    ],
+    choicesVi: [
+      "'  hello  '",
+      "'hello  '",
+      "'hello'",
+      "['hello']"
+    ],
+    answer: 2,
+    explain: "strip() removes leading and trailing whitespace (spaces, tabs, newlines) and returns a new string. lstrip() strips only the left side, rstrip() only the right side.",
+    explainVi: "strip() xoá khoảng trắng đầu và cuối (dấu cách, tab, xuống dòng) và trả về chuỗi mới. lstrip() chỉ xoá bên trái, rstrip() chỉ xoá bên phải."
+  },
+  {
+    q: "Which method checks if a URL starts with 'https://'?",
+    qVi: "Phương thức nào kiểm tra xem URL có bắt đầu bằng 'https://' không?",
+    choices: [
+      "url.starts('https://')",
+      "url.startswith('https://')",
+      "url.beginswith('https://')",
+      "'https://' in url"
+    ],
+    choicesVi: [
+      "url.starts('https://')",
+      "url.startswith('https://')",
+      "url.beginswith('https://')",
+      "'https://' in url"
+    ],
+    answer: 1,
+    explain: "startswith() is the correct Python string method. The last option ('https://' in url) also works but doesn't guarantee the prefix is at the start — it would match 'http://redirect.com?to=https://safe.com' incorrectly.",
+    explainVi: "startswith() là phương thức chuỗi Python đúng. Lựa chọn cuối ('https://' in url) cũng hoạt động nhưng không đảm bảo tiền tố ở đầu — nó sẽ khớp sai với 'http://redirect.com?to=https://safe.com'."
+  },
+  {
+    q: "What does `', '.join(['a', 'b', 'c'])` return?",
+    qVi: "`', '.join(['a', 'b', 'c'])` trả về gì?",
+    choices: [
+      "['a', 'b', 'c']",
+      "'a,b,c'",
+      "'a, b, c'",
+      "'abc'"
+    ],
+    choicesVi: [
+      "['a', 'b', 'c']",
+      "'a,b,c'",
+      "'a, b, c'",
+      "'abc'"
+    ],
+    answer: 2,
+    explain: "join() is called on the separator string and takes an iterable. ', '.join(['a','b','c']) inserts ', ' between each element, producing 'a, b, c'. This is the inverse of split().",
+    explainVi: "join() được gọi trên chuỗi phân cách và nhận một iterable. ', '.join(['a','b','c']) chèn ', ' giữa mỗi phần tử, tạo ra 'a, b, c'. Đây là nghịch đảo của split()."
+  },
+  {
+    q: "What is the output of `f'Status: {200}'`?",
+    qVi: "Kết quả của `f'Status: {200}'` là gì?",
+    choices: [
+      "'Status: {200}'",
+      "'Status: 200'",
+      "SyntaxError",
+      "200"
+    ],
+    choicesVi: [
+      "'Status: {200}'",
+      "'Status: 200'",
+      "SyntaxError",
+      "200"
+    ],
+    answer: 1,
+    explain: "f-strings evaluate the expression inside {} at runtime and embed the result into the string. f'Status: {200}' embeds the integer 200, producing the string 'Status: 200'.",
+    explainVi: "f-string đánh giá biểu thức trong {} lúc chạy và nhúng kết quả vào chuỗi. f'Status: {200}' nhúng số nguyên 200, tạo ra chuỗi 'Status: 200'."
   }
 ]} />
 

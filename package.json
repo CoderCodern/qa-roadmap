@@ -9,10 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@codemirror/lang-python": "^6.2.1",
     "@mdx-js/loader": "3.1.1",
     "@mdx-js/react": "3.1.1",
     "@next/mdx": "14.2.35",
     "@tailwindcss/typography": "0.5.19",
+    "@uiw/react-codemirror": "^4.25.10",
     "clsx": "2.1.1",
     "lucide-react": "^1.16.0",
     "next": "14.2.35",

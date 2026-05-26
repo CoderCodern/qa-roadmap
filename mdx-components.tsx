@@ -5,6 +5,8 @@ import { Callout } from '@/components/lesson/Callout'
 import { En, Vi } from '@/components/lesson/LangWrappers'
 import { ResourceList } from '@/components/lesson/ResourceList'
 import { CodeBlock } from '@/components/lesson/CodeBlock'
+import { CodePlayground } from '@/components/lesson/CodePlayground'
+import { CodeExerciseGroup } from '@/components/lesson/CodeExerciseGroup'
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
@@ -15,6 +17,8 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     En,
     Vi,
     ResourceList,
+    CodePlayground,
+    CodeExerciseGroup,
     ...components,
   }
 }

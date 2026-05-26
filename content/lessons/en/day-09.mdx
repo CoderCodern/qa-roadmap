@@ -58,8 +58,7 @@ Mọi chương trình Python đều làm việc với dữ liệu. Biến là c�
 
 ## Code / Demo
 
-```python
-# Variables — no type declarations needed
+<CodePlayground code={`# Variables — no type declarations needed
 status_code = 200
 username = "alice"
 is_logged_in = True
@@ -81,7 +80,7 @@ assert status_code          # 200 is truthy
 assert not response_body    # None is falsy
 assert is_logged_in         # True is truthy
 
-# Explicit None check (preferred over 'if x is not None')
+# Explicit None check
 if response_body is None:
     print("No response body — expected for 204 responses")
 
@@ -90,40 +89,188 @@ raw = "404"
 code = int(raw)
 assert code == 404
 print(f"Converted '{raw}' to integer {code}")
-```
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Create variables representing a hypothetical API response: status code (int), message (str), success flag (bool), data payload (None for now)
-- [ ] Use `type()` to print the type of each variable, then verify each with `isinstance()`
-- [ ] Write two assertions: one that passes and one that intentionally fails — observe the `AssertionError` message
-</ExerciseBox>
+<CodeExerciseGroup exercises={[
+  {
+    title: "Exercise 1 — Create typed variables",
+    code: `# Represent a hypothetical API response with typed variables
+# Replace each ??? with an appropriate value
+
+# An HTTP status code (int)
+status_code = ???
+
+# A response message (str)
+message = ???
+
+# Did the request succeed? (bool)
+success = ???
+
+# Response body not yet loaded (None)
+data_payload = ???
+
+# --- Verify: print types ---
+print(type(status_code))    # should be <class 'int'>
+print(type(message))        # should be <class 'str'>
+print(type(success))        # should be <class 'bool'>
+print(type(data_payload))   # should be <class 'NoneType'>`
+  },
+  {
+    title: "Exercise 2 — Inspect types with isinstance()",
+    code: `# Use type() and isinstance() to inspect variables
+status_code = 200
+message = "Login successful"
+success = True
+data_payload = None
+
+# TODO: Print the type of each variable using type()
+
+
+# TODO: Assert each variable has the correct type with isinstance()
+# e.g.  assert isinstance(status_code, int)
+
+
+print("All type assertions passed!")`
+  },
+  {
+    title: "Exercise 3 — Write passing and failing assertions",
+    code: `# Write assertions and observe what happens when they fail
+status_code = 200
+
+# TODO: Write an assertion that PASSES (should not raise an error)
+assert ???
+
+# TODO: Write an assertion that intentionally FAILS
+# Run it to see the AssertionError, then comment it out to continue
+assert ???, "Custom failure message here"`
+  }
+]}>
+<En>
+Complete the three exercises below. Each editor has comments guiding you — replace the `???` with real Python code, then click **Run** to verify. When done, submit all for AI review.
+</En>
+<Vi>
+Hoàn thành ba bài tập bên dưới. Mỗi editor có comment hướng dẫn — thay `???` bằng code Python thực tế, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What does `isinstance(x, str)` return if x = 'hello'?",
+    qVi: "`isinstance(x, str)` trả về gì nếu x = 'hello'?",
     choices: [
       "False",
       "True",
       "TypeError",
       "'str'"
     ],
+    choicesVi: [
+      "False",
+      "True",
+      "TypeError",
+      "'str'"
+    ],
     answer: 1,
-    explain: "isinstance checks whether a value is an instance of a given type. 'hello' is a str, so it returns True. isinstance is preferred over type(x) == str because it handles subclasses correctly."
+    explain: "isinstance checks whether a value is an instance of a given type. 'hello' is a str, so it returns True. isinstance is preferred over type(x) == str because it handles subclasses correctly.",
+    explainVi: "isinstance kiểm tra xem một giá trị có phải là instance của kiểu đã cho không. 'hello' là str, nên trả về True. isinstance được ưu tiên hơn type(x) == str vì nó xử lý lớp con đúng cách."
   },
   {
     q: "Which of these values is falsy in Python?",
+    qVi: "Giá trị nào trong số này là falsy trong Python?",
     choices: [
       "1",
       "'False'",
       "None",
       "0.1"
     ],
+    choicesVi: [
+      "1",
+      "'False'",
+      "None",
+      "0.1"
+    ],
     answer: 2,
-    explain: "None is falsy in Python, as are 0, 0.0, empty strings '', empty lists [], and empty dicts {}. The string 'False' is truthy because it's a non-empty string."
+    explain: "None is falsy in Python, as are 0, 0.0, empty strings '', empty lists [], and empty dicts {}. The string 'False' is truthy because it's a non-empty string.",
+    explainVi: "None là falsy trong Python, cũng như 0, 0.0, chuỗi rỗng '', danh sách rỗng [] và dict rỗng {}. Chuỗi 'False' là truthy vì đó là chuỗi không rỗng."
+  },
+  {
+    q: "What does `int('404')` return?",
+    qVi: "`int('404')` trả về gì?",
+    choices: [
+      "'404' (unchanged string)",
+      "404 (integer)",
+      "404.0 (float)",
+      "TypeError"
+    ],
+    choicesVi: [
+      "'404' (chuỗi không đổi)",
+      "404 (số nguyên)",
+      "404.0 (số thực)",
+      "TypeError"
+    ],
+    answer: 1,
+    explain: "int() converts a string to an integer when the string contains a valid integer literal. This is explicit type conversion — Python never does it automatically.",
+    explainVi: "int() chuyển đổi chuỗi thành số nguyên khi chuỗi chứa ký tự số nguyên hợp lệ. Đây là chuyển đổi kiểu tường minh — Python không bao giờ tự động làm điều này."
+  },
+  {
+    q: "Which is the correct way to check if a variable is None?",
+    qVi: "Cách nào đúng để kiểm tra xem một biến có phải là None không?",
+    choices: [
+      "if value == None:",
+      "if value is None:",
+      "if value === None:",
+      "if not value:"
+    ],
+    choicesVi: [
+      "if value == None:",
+      "if value is None:",
+      "if value === None:",
+      "if not value:"
+    ],
+    answer: 1,
+    explain: "Use 'is None' for identity checks against None. '== None' works but is considered bad style (PEP 8). '===' doesn't exist in Python. 'not value' is too broad — it's also True for 0, False, and empty strings.",
+    explainVi: "Dùng 'is None' để kiểm tra đồng nhất với None. '== None' hoạt động nhưng bị coi là xấu (PEP 8). '===' không tồn tại trong Python. 'not value' quá rộng — nó cũng True với 0, False và chuỗi rỗng."
+  },
+  {
+    q: "What happens when you run `'5' + 5` in Python?",
+    qVi: "Điều gì xảy ra khi chạy `'5' + 5` trong Python?",
+    choices: [
+      "Returns 10",
+      "Returns '55'",
+      "Raises TypeError",
+      "Returns '5 + 5'"
+    ],
+    choicesVi: [
+      "Trả về 10",
+      "Trả về '55'",
+      "Ném TypeError",
+      "Trả về '5 + 5'"
+    ],
+    answer: 2,
+    explain: "Python doesn't silently coerce types. Adding a str and an int raises TypeError: can only concatenate str (not 'int') to str. You must convert explicitly: int('5') + 5 or '5' + str(5).",
+    explainVi: "Python không tự động ép kiểu. Cộng str và int ném TypeError: chỉ có thể nối str (không phải 'int') vào str. Bạn phải chuyển đổi tường minh: int('5') + 5 hoặc '5' + str(5)."
+  },
+  {
+    q: "Which function returns the type of a variable as a string you can print?",
+    qVi: "Hàm nào trả về kiểu của biến dưới dạng chuỗi có thể in ra?",
+    choices: [
+      "typeof(x)",
+      "x.type()",
+      "type(x)",
+      "gettype(x)"
+    ],
+    choicesVi: [
+      "typeof(x)",
+      "x.type()",
+      "type(x)",
+      "gettype(x)"
+    ],
+    answer: 2,
+    explain: "type(x) is the built-in function that returns the type object, e.g. <class 'int'>. typeof is JavaScript, x.type() and gettype() don't exist in Python.",
+    explainVi: "type(x) là hàm tích hợp trả về đối tượng kiểu, ví dụ <class 'int'>. typeof là JavaScript, x.type() và gettype() không tồn tại trong Python."
   }
 ]} />
 

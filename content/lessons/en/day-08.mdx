@@ -76,9 +76,16 @@ print("First assertion passed!")
 ## Exercise
 
 <ExerciseBox>
+<En>
 - [ ] Install Python 3.11+ from python.org and verify with `python --version` in your terminal
 - [ ] Install VS Code and the Microsoft Python extension, then open the command palette and select a Python interpreter
 - [ ] Create a folder `qa-practice/`, create a virtual environment inside it, activate it, and run the demo script above
+</En>
+<Vi>
+- [ ] Cài Python 3.11+ từ python.org và xác minh bằng `python --version` trong terminal của bạn
+- [ ] Cài VS Code và Python extension của Microsoft, sau đó mở command palette và chọn Python interpreter
+- [ ] Tạo thư mục `qa-practice/`, tạo môi trường ảo bên trong, kích hoạt nó và chạy script demo ở trên
+</Vi>
 </ExerciseBox>
 
 ## Quiz
@@ -86,25 +93,41 @@ print("First assertion passed!")
 <Quiz questions={[
   {
     q: "What is the purpose of a Python virtual environment?",
+    qVi: "Mục đích của môi trường ảo Python là gì?",
     choices: [
       "To make Python run faster",
       "To isolate project dependencies so they don't conflict with other projects",
       "To enable dark mode in VS Code",
       "To connect to a remote server"
     ],
+    choicesVi: [
+      "Để Python chạy nhanh hơn",
+      "Để cô lập các phụ thuộc của dự án để không xung đột với các dự án khác",
+      "Để bật chế độ tối trong VS Code",
+      "Để kết nối với máy chủ từ xa"
+    ],
     answer: 1,
-    explain: "Virtual environments create a project-specific sandbox for packages. Without them, installing a new version of a library for one project could break another."
+    explain: "Virtual environments create a project-specific sandbox for packages. Without them, installing a new version of a library for one project could break another.",
+    explainVi: "Môi trường ảo tạo ra một hộp cát riêng cho các gói của dự án. Không có chúng, cài đặt phiên bản mới của thư viện cho một dự án có thể làm hỏng dự án khác."
   },
   {
     q: "Which command installs a Python package?",
+    qVi: "Lệnh nào cài đặt gói Python?",
     choices: [
       "python install requests",
       "pip install requests",
       "npm install requests",
       "python -m install requests"
     ],
+    choicesVi: [
+      "python install requests",
+      "pip install requests",
+      "npm install requests",
+      "python -m install requests"
+    ],
     answer: 1,
-    explain: "pip is Python's package installer. Always activate your virtual environment first so packages are installed into the project sandbox, not system-wide."
+    explain: "pip is Python's package installer. Always activate your virtual environment first so packages are installed into the project sandbox, not system-wide.",
+    explainVi: "pip là trình cài đặt gói của Python. Luôn kích hoạt môi trường ảo của bạn trước để các gói được cài vào hộp cát của dự án, không phải toàn hệ thống."
   }
 ]} />
 

@@ -105,9 +105,16 @@ print(f"E2E: {(time.time() - start)*1000:.1f}ms")
 ## Exercise
 
 <ExerciseBox>
+<En>
 - [ ] Draw your own version of the test pyramid for an e-commerce website — label each layer with examples
 - [ ] Find a project on GitHub and look at its test folder — does it follow the pyramid or the ice cream cone?
 - [ ] Calculate: if you have 500 tests and follow the 70/20/10 split, how many of each type should you have?
+</En>
+<Vi>
+- [ ] Vẽ phiên bản kim tự tháp kiểm thử của bạn cho một website thương mại điện tử — đặt tên cho mỗi lớp với các ví dụ cụ thể
+- [ ] Tìm một dự án trên GitHub và xem thư mục test của nó — nó có theo kim tự tháp hay hình nón kem không?
+- [ ] Tính toán: nếu bạn có 500 test và theo tỷ lệ 70/20/10, bao nhiêu test cho mỗi loại?
+</Vi>
 </ExerciseBox>
 
 ## Quiz
@@ -115,25 +122,41 @@ print(f"E2E: {(time.time() - start)*1000:.1f}ms")
 <Quiz questions={[
   {
     q: "Which layer of the test pyramid should have the MOST tests?",
+    qVi: "Lớp nào của kim tự tháp kiểm thử nên có NHIỀU test nhất?",
     choices: [
       "E2E tests",
       "Integration tests",
       "Unit tests",
       "Manual tests"
     ],
+    choicesVi: [
+      "E2E test",
+      "Integration test",
+      "Unit test",
+      "Test thủ công"
+    ],
     answer: 2,
-    explain: "Unit tests are at the base of the pyramid — they are fast, cheap, and precise. The pyramid recommends writing the most unit tests (~70% of the test suite)."
+    explain: "Unit tests are at the base of the pyramid — they are fast, cheap, and precise. The pyramid recommends writing the most unit tests (~70% of the test suite).",
+    explainVi: "Unit test nằm ở nền của kim tự tháp — chúng nhanh, rẻ và chính xác. Kim tự tháp khuyến nghị viết nhiều unit test nhất (~70% của bộ test)."
   },
   {
     q: "What is the 'ice cream cone' anti-pattern?",
+    qVi: "Anti-pattern 'hình nón kem' là gì?",
     choices: [
       "Writing too many unit tests",
       "An inverted pyramid with too many E2E tests and too few unit tests",
       "Running tests on ice cream flavour preferences",
       "Having no tests at all"
     ],
+    choicesVi: [
+      "Viết quá nhiều unit test",
+      "Kim tự tháp bị đảo ngược với quá nhiều E2E test và quá ít unit test",
+      "Chạy test về sở thích hương vị kem",
+      "Không có test nào cả"
+    ],
     answer: 1,
-    explain: "The ice cream cone inverts the pyramid — lots of slow E2E tests, few fast unit tests. This leads to a slow, brittle, and expensive test suite."
+    explain: "The ice cream cone inverts the pyramid — lots of slow E2E tests, few fast unit tests. This leads to a slow, brittle, and expensive test suite.",
+    explainVi: "Hình nón kem đảo ngược kim tự tháp — nhiều E2E test chậm, ít unit test nhanh. Điều này dẫn đến bộ test chậm, dễ vỡ và tốn kém."
   }
 ]} />
 

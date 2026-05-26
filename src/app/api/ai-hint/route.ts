@@ -15,30 +15,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { dayId, items, userAnswers } = body
+  const { dayId, items, userAnswers, isCode } = body
 
   if (!dayId || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
   const answers = Array.isArray(userAnswers) ? (userAnswers as string[]) : []
-  const hasAnswers = answers.some((a) => typeof a === 'string' && a.trim().length > 0)
+  const isCodeMode = isCode === true
+
+  // For code exercises, treat "unchanged starter code" (still has ???) as blank
+  const hasAnswers = answers.some((a) => {
+    if (typeof a !== 'string' || !a.trim()) return false
+    return isCodeMode ? !a.includes('???') : a.trim().length > 0
+  })
 
   let taskContent: string
   if (hasAnswers) {
     taskContent = (items as string[])
       .map((task, i) => {
         const ans = answers[i]?.trim() || ''
-        return `Task ${i + 1}: ${task}\nStudent answer: ${ans || '(no answer provided)'}`
+        const label = isCodeMode ? 'Student code' : 'Student answer'
+        return `Task ${i + 1}: ${task}\n${label}:\n${ans || '(no answer provided)'}`
       })
       .join('\n\n')
   } else {
     taskContent = (items as string[]).map((t, i) => `${i + 1}. ${t}`).join('\n')
   }
 
-  const instruction = hasAnswers
-    ? `Review the student's answers. For each task: acknowledge what they got right, point out gaps, and give a brief tip to improve. Be specific and encouraging. Keep each response concise.`
-    : `Provide a practical example answer for each task so the student understands what a good response looks like. Be helpful and keep answers brief.`
+  const instruction = isCodeMode
+    ? hasAnswers
+      ? `Review the student's Python code solutions. For each exercise: confirm if the logic is correct, point out any bugs or improvements (e.g. edge cases, style), and give a short tip. Be specific and encouraging.`
+      : `Provide a complete working Python solution for each exercise so the student can see what correct code looks like. Include brief inline comments explaining key lines.`
+    : hasAnswers
+      ? `Review the student's answers. For each task: acknowledge what they got right, point out gaps, and give a brief tip to improve. Be specific and encouraging. Keep each response concise.`
+      : `Provide a practical example answer for each task so the student understands what a good response looks like. Be helpful and keep answers brief.`
 
   try {
     const response = await openai.chat.completions.create({

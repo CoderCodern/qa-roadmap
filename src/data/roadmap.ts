@@ -43,8 +43,8 @@ export const PHASES: Phase[] = [
       { id: 3, title: 'Test case design', titleVi: 'Thiết kế test case', blurb: 'Equivalence partitioning & boundary values.', blurbVi: 'Phân vùng tương đương & giá trị biên.', estMinutes: 75, tags: ['fundamentals', 'design'] },
       { id: 4, title: 'Bug lifecycle', titleVi: 'Vòng đời của bug', blurb: 'Severity vs priority — write bug reports that get fixed.', blurbVi: 'Mức độ nghiêm trọng vs ưu tiên — viết báo cáo bug hiệu quả.', estMinutes: 60, tags: ['fundamentals', 'bugs'] },
       { id: 5, title: 'SDLC & STLC overview', titleVi: 'Tổng quan SDLC & STLC', blurb: 'Where testing fits in the software development lifecycle.', blurbVi: 'Kiểm thử nằm ở đâu trong vòng đời phát triển phần mềm.', estMinutes: 60, tags: ['fundamentals', 'process'] },
-      { id: 6, title: 'The test pyramid', titleVi: 'Kim tự tháp kiểm thử', blurb: 'Unit, integration, E2E — and why the ratio matters.', blurbVi: 'Unit, tích hợp, E2E — tại sao tỷ lệ quan trọng.', estMinutes: 60, tags: ['fundamentals', 'strategy'], available: false },
-      { id: 7, title: 'Week 1 review', titleVi: 'Ôn tập tuần 1', blurb: 'Quiz, reflection, and write 5 test cases for a login form.', blurbVi: 'Kiểm tra, suy ngẫm và viết 5 test case cho form đăng nhập.', estMinutes: 90, tags: ['review', 'practice'], available: false },
+      { id: 6, title: 'The test pyramid', titleVi: 'Kim tự tháp kiểm thử', blurb: 'Unit, integration, E2E — and why the ratio matters.', blurbVi: 'Unit, tích hợp, E2E — tại sao tỷ lệ quan trọng.', estMinutes: 60, tags: ['fundamentals', 'strategy'] },
+      { id: 7, title: 'Week 1 review', titleVi: 'Ôn tập tuần 1', blurb: 'Quiz, reflection, and write 5 test cases for a login form.', blurbVi: 'Kiểm tra, suy ngẫm và viết 5 test case cho form đăng nhập.', estMinutes: 90, tags: ['review', 'practice'] },
     ],
   },
   {
@@ -59,9 +59,9 @@ export const PHASES: Phase[] = [
     iconName: 'Code2',
     unlockThreshold: 10,
     days: [
-      { id: 8, title: 'Install Python & VS Code', titleVi: 'Cài Python & VS Code', blurb: 'Get your environment ready and run hello world.', blurbVi: 'Thiết lập môi trường và chạy chương trình đầu tiên.', estMinutes: 60, tags: ['python', 'setup'], available: false },
-      { id: 9, title: 'Variables & type hints', titleVi: 'Biến & type hints', blurb: 'Primitives, naming, and why type hints matter.', blurbVi: 'Kiểu nguyên thủy, đặt tên và tại sao type hints quan trọng.', estMinutes: 60, tags: ['python', 'basics'], available: false },
-      { id: 10, title: 'Strings & f-strings', titleVi: 'Chuỗi & f-strings', blurb: 'String operations, formatting, and f-string magic.', blurbVi: 'Thao tác chuỗi, định dạng và sức mạnh của f-string.', estMinutes: 60, tags: ['python', 'strings'], available: false },
+      { id: 8, title: 'Install Python & VS Code', titleVi: 'Cài Python & VS Code', blurb: 'Get your environment ready and run hello world.', blurbVi: 'Thiết lập môi trường và chạy chương trình đầu tiên.', estMinutes: 60, tags: ['python', 'setup'] },
+      { id: 9, title: 'Variables & type hints', titleVi: 'Biến & type hints', blurb: 'Primitives, naming, and why type hints matter.', blurbVi: 'Kiểu nguyên thủy, đặt tên và tại sao type hints quan trọng.', estMinutes: 60, tags: ['python', 'basics'] },
+      { id: 10, title: 'Strings & f-strings', titleVi: 'Chuỗi & f-strings', blurb: 'String operations, formatting, and f-string magic.', blurbVi: 'Thao tác chuỗi, định dạng và sức mạnh của f-string.', estMinutes: 60, tags: ['python', 'strings'] },
       { id: 11, title: 'Operators & expressions', titleVi: 'Toán tử & biểu thức', blurb: 'Arithmetic, comparison, logical — the building blocks.', blurbVi: 'Số học, so sánh, logic — những khối nền tảng.', estMinutes: 60, tags: ['python', 'basics'], available: false },
       { id: 12, title: 'if / elif / else', titleVi: 'if / elif / else', blurb: 'Decision-making in Python — control flow fundamentals.', blurbVi: 'Ra quyết định trong Python — nền tảng luồng điều khiển.', estMinutes: 60, tags: ['python', 'control-flow'], available: false },
       { id: 13, title: 'for and while loops', titleVi: 'Vòng lặp for và while', blurb: 'Iterate, repeat, and avoid infinite loops.', blurbVi: 'Lặp, lặp lại và tránh vòng lặp vô hạn.', estMinutes: 60, tags: ['python', 'loops'], available: false },

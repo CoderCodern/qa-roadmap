@@ -17,6 +17,14 @@ export type ProgressState = {
   aiAnswers: Record<number, { en: string; vi: string }>
   /** Tracks which days have consumed their one AI review. */
   aiHintUsed: Record<number, boolean>
+  /** Accumulated XP points. */
+  totalPoints: number
+  /** Tracks which days have already had their quiz points awarded (one-time per day). */
+  quizPointsEarned: Record<number, boolean>
+  /** Dates (YYYY-MM-DD) on which streak bonus points were already awarded. */
+  streakPointsDates: string[]
+  /** Product IDs that have been redeemed from the shop. */
+  purchasedItems: number[]
   /** True after localStorage has been rehydrated; used to avoid pre-hydration lock flicker. */
   hydrated: boolean
   /** Developer preview mode — bypasses the available gate so unpublished days are accessible. */
@@ -27,6 +35,10 @@ export type ProgressState = {
   setDevPreview: (val: boolean) => void
   setAiAnswer: (dayId: number, answer: { en: string; vi: string }) => void
   markAiHintUsed: (dayId: number) => void
+  addPoints: (pts: number) => void
+  markQuizPointsEarned: (dayId: number) => void
+  /** Deducts pts and records purchase. Returns false if not enough points. */
+  spendPoints: (pts: number, productId: number) => boolean
   reset: () => void
 }
 
@@ -41,6 +53,10 @@ export const useProgressStore = create<ProgressState>()(
       language: 'en',
       aiAnswers: {},
       aiHintUsed: {},
+      totalPoints: 0,
+      quizPointsEarned: {},
+      streakPointsDates: [],
+      purchasedItems: [],
       hydrated: false,
       devPreview: false,
 
@@ -73,12 +89,20 @@ export const useProgressStore = create<ProgressState>()(
 
         const newLongest = Math.max(state.longestStreak, newStreak)
 
+        // Award 5 streak pts once per calendar day
+        const alreadyAwardedToday = state.streakPointsDates.includes(today)
+        const streakPtsEarned = alreadyAwardedToday ? 0 : 5
+
         set({
           completed: [...state.completed, id],
           completedDates: { ...state.completedDates, [id]: today },
           lastCompletedDate: today,
           streak: newStreak,
           longestStreak: newLongest,
+          totalPoints: state.totalPoints + streakPtsEarned,
+          streakPointsDates: alreadyAwardedToday
+            ? state.streakPointsDates
+            : [...state.streakPointsDates, today],
         })
       },
 
@@ -93,6 +117,21 @@ export const useProgressStore = create<ProgressState>()(
 
       markAiHintUsed: (dayId) =>
         set((s) => ({ aiHintUsed: { ...s.aiHintUsed, [dayId]: true } })),
+
+      addPoints: (pts) => set((s) => ({ totalPoints: s.totalPoints + pts })),
+
+      markQuizPointsEarned: (dayId) =>
+        set((s) => ({ quizPointsEarned: { ...s.quizPointsEarned, [dayId]: true } })),
+
+      spendPoints: (pts, productId) => {
+        const s = get()
+        if (s.totalPoints < pts) return false
+        set({
+          totalPoints: s.totalPoints - pts,
+          purchasedItems: [...s.purchasedItems, productId],
+        })
+        return true
+      },
 
       reset: () =>
         set({
@@ -116,6 +155,10 @@ export const useProgressStore = create<ProgressState>()(
         language: s.language,
         aiAnswers: s.aiAnswers,
         aiHintUsed: s.aiHintUsed,
+        totalPoints: s.totalPoints,
+        quizPointsEarned: s.quizPointsEarned,
+        streakPointsDates: s.streakPointsDates,
+        purchasedItems: s.purchasedItems,
       }),
     }
   )

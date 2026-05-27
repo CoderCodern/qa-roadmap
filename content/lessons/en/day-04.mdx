@@ -142,6 +142,82 @@ for key, value in bug_report.items():
     answer: 2,
     explain: "QA must independently verify the fix works before closing the bug. This ensures the developer's fix actually resolved the issue in the target environment.",
     explainVi: "QA phải độc lập xác nhận bản sửa hoạt động trước khi đóng bug. Điều này đảm bảo bản sửa của developer thực sự giải quyết vấn đề trong môi trường mục tiêu."
+  },
+  {
+    q: "What does 'severity' mean in bug classification?",
+    qVi: "'Mức độ nghiêm trọng' (severity) có nghĩa gì trong phân loại bug?",
+    choices: [
+      "How quickly the bug needs to be fixed",
+      "The technical impact and extent of damage the bug causes to the system",
+      "The number of users currently affected",
+      "How long the bug has existed in the codebase"
+    ],
+    choicesVi: [
+      "Tốc độ cần sửa bug nhanh như thế nào",
+      "Tác động kỹ thuật và mức độ thiệt hại mà bug gây ra cho hệ thống",
+      "Số lượng người dùng hiện đang bị ảnh hưởng",
+      "Bug đã tồn tại trong codebase bao lâu"
+    ],
+    answer: 1,
+    explain: "Severity is a technical measure of the damage a bug causes (crash vs. cosmetic). Priority is a business measure of how urgently it should be fixed. They are independent — a typo on the homepage can be low severity but high priority.",
+    explainVi: "Severity là thước đo kỹ thuật về thiệt hại mà bug gây ra (crash so với bề ngoài). Priority là thước đo kinh doanh về mức độ khẩn cấp cần sửa. Chúng độc lập — lỗi chính tả trên trang chủ có thể có severity thấp nhưng priority cao."
+  },
+  {
+    q: "What should a well-written bug report always include?",
+    qVi: "Một báo cáo bug được viết tốt luôn phải bao gồm điều gì?",
+    choices: [
+      "Just a screenshot and a title",
+      "Steps to reproduce, expected result, actual result, and environment details",
+      "The developer's name and estimated fix time",
+      "Only the test case ID that caught the bug"
+    ],
+    choicesVi: [
+      "Chỉ ảnh chụp màn hình và tiêu đề",
+      "Các bước tái hiện, kết quả mong đợi, kết quả thực tế và chi tiết môi trường",
+      "Tên developer và thời gian sửa ước tính",
+      "Chỉ ID test case đã phát hiện bug"
+    ],
+    answer: 1,
+    explain: "Steps to reproduce make the bug repeatable. Expected vs. actual results define the defect clearly. Environment details (OS, browser, version) help the developer isolate and reproduce the issue.",
+    explainVi: "Các bước tái hiện làm cho bug có thể lặp lại. Kết quả mong đợi so với thực tế xác định rõ ràng lỗi. Chi tiết môi trường (HĐH, trình duyệt, phiên bản) giúp developer cô lập và tái hiện vấn đề."
+  },
+  {
+    q: "When would a team mark a bug as 'Won't Fix'?",
+    qVi: "Khi nào một nhóm sẽ đánh dấu bug là 'Không sửa' (Won't Fix)?",
+    choices: [
+      "When the developer cannot reproduce it",
+      "When the cost or effort to fix outweighs the business benefit",
+      "When the bug was found after the release deadline",
+      "When the bug only appears in older browser versions"
+    ],
+    choicesVi: [
+      "Khi developer không thể tái hiện nó",
+      "Khi chi phí hoặc nỗ lực sửa vượt quá lợi ích kinh doanh",
+      "Khi bug được tìm thấy sau hạn chót phát hành",
+      "Khi bug chỉ xuất hiện trong các phiên bản trình duyệt cũ hơn"
+    ],
+    answer: 1,
+    explain: "'Won't Fix' is a conscious business decision — the fix cost, risk of regression, or low user impact means the team chooses not to fix it. It's documented so it isn't re-reported later.",
+    explainVi: "'Won't Fix' là quyết định kinh doanh có ý thức — chi phí sửa, rủi ro regression hoặc tác động thấp đến người dùng khiến nhóm chọn không sửa. Nó được ghi lại để không bị báo cáo lại sau này."
+  },
+  {
+    q: "A bug appears in production but cannot be reproduced in the test environment. What status should it receive?",
+    qVi: "Một bug xuất hiện trong môi trường production nhưng không thể tái hiện trong môi trường test. Nó nên nhận trạng thái gì?",
+    choices: [
+      "Fixed",
+      "Closed",
+      "Not Reproducible / Need More Info",
+      "Duplicate"
+    ],
+    choicesVi: [
+      "Đã sửa",
+      "Đóng",
+      "Không tái hiện được / Cần thêm thông tin",
+      "Trùng lặp"
+    ],
+    answer: 2,
+    explain: "If a bug can't be reproduced, it stays open as 'Not Reproducible' so QA can gather more environment data (logs, screenshots, exact steps) rather than silently closing it.",
+    explainVi: "Nếu bug không thể tái hiện, nó vẫn mở là 'Không tái hiện được' để QA có thể thu thập thêm dữ liệu môi trường (log, ảnh chụp, các bước chính xác) thay vì đóng lặng lẽ."
   }
 ]} />
 

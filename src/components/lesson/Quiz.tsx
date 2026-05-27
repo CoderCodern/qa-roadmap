@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, XCircle, HelpCircle } from 'lucide-react'
+import { CheckCircle2, XCircle, HelpCircle, Star } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { useProgressStore } from '@/lib/store'
@@ -20,16 +21,38 @@ interface QuizProps {
   questions: QuizQuestion[]
 }
 
+const PTS_PER_CORRECT = 5
+
 export function Quiz({ questions }: QuizProps) {
   const [selected, setSelected] = useState<Record<number, number>>({})
   const [submitted, setSubmitted] = useState(false)
-  const language = useProgressStore((s) => s.language)
+  const [pointsEarned, setPointsEarned] = useState<number | null>(null)
+
+  const pathname = usePathname()
+  const dayId = Number(pathname?.split('/').at(-1)) || 0
+
+  const { language, quizPointsEarned, addPoints, markQuizPointsEarned } = useProgressStore()
 
   const allAnswered = questions.every((_, i) => selected[i] !== undefined)
+  const alreadyEarned = dayId > 0 && !!quizPointsEarned[dayId]
+
+  const handleSubmit = () => {
+    setSubmitted(true)
+
+    // Award points only on the very first submission per day
+    if (dayId > 0 && !alreadyEarned) {
+      const correct = questions.filter((q, i) => selected[i] === q.answer).length
+      const earned = correct * PTS_PER_CORRECT
+      if (earned > 0) addPoints(earned)
+      markQuizPointsEarned(dayId)
+      setPointsEarned(earned)
+    }
+  }
 
   const reset = () => {
     setSelected({})
     setSubmitted(false)
+    // pointsEarned intentionally kept — banner already showed once
   }
 
   return (
@@ -38,6 +61,9 @@ export function Quiz({ questions }: QuizProps) {
         <HelpCircle className="h-4 w-4 text-brand-500" />
         <span className="lang-en">Quick Quiz</span>
         <span className="lang-vi">Câu hỏi nhanh</span>
+        <span className="ml-auto text-xs font-normal text-gray-400 dark:text-gray-500">
+          {PTS_PER_CORRECT} pts / correct answer
+        </span>
       </div>
 
       <div className="space-y-6">
@@ -94,9 +120,9 @@ export function Quiz({ questions }: QuizProps) {
         })}
       </div>
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6 flex items-center gap-3">
         {!submitted ? (
-          <Button onClick={() => setSubmitted(true)} disabled={!allAnswered} size="sm">
+          <Button onClick={handleSubmit} disabled={!allAnswered} size="sm">
             <span className="lang-en">Submit Answers</span>
             <span className="lang-vi">Nộp bài</span>
           </Button>
@@ -105,6 +131,30 @@ export function Quiz({ questions }: QuizProps) {
             <span className="lang-en">Try Again</span>
             <span className="lang-vi">Thử lại</span>
           </Button>
+        )}
+
+        {/* Points banner — shown once after first submission */}
+        {submitted && pointsEarned !== null && (
+          <div className={cn(
+            'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold',
+            pointsEarned > 0
+              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'
+              : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+          )}>
+            <Star className="h-3.5 w-3.5" />
+            {pointsEarned > 0
+              ? <><span className="lang-en">+{pointsEarned} pts earned!</span><span className="lang-vi">+{pointsEarned} điểm!</span></>
+              : <><span className="lang-en">0 pts — try again to improve</span><span className="lang-vi">0 điểm — thử lại để cải thiện</span></>
+            }
+          </div>
+        )}
+
+        {/* Already-earned notice on retry attempts */}
+        {submitted && pointsEarned === null && alreadyEarned && (
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            <span className="lang-en">Points already earned for this session</span>
+            <span className="lang-vi">Điểm đã được tính cho buổi này</span>
+          </span>
         )}
       </div>
     </div>

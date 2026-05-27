@@ -124,6 +124,82 @@ print("All EP and BVA tests passed!")
     answer: 1,
     explain: "Off-by-one errors and fence-post bugs cluster at boundaries — a 'greater than' check written as 'greater than or equal to' only shows up when you test the exact boundary.",
     explainVi: "Lỗi off-by-one tập trung ở các biên — điều kiện 'lớn hơn' viết nhầm thành 'lớn hơn hoặc bằng' chỉ lộ ra khi bạn kiểm thử đúng biên đó."
+  },
+  {
+    q: "A password field accepts 8–20 characters. Using BVA, which set of values is most important to test?",
+    qVi: "Trường mật khẩu chấp nhận 8–20 ký tự. Dùng BVA, tập giá trị nào quan trọng nhất để kiểm thử?",
+    choices: [
+      "7, 8, 20, 21",
+      "1, 10, 30",
+      "8, 14, 20",
+      "Any three values inside the valid range"
+    ],
+    choicesVi: [
+      "7, 8, 20, 21",
+      "1, 10, 30",
+      "8, 14, 20",
+      "Bất kỳ ba giá trị nào trong phạm vi hợp lệ"
+    ],
+    answer: 0,
+    explain: "BVA focuses on values just outside and just inside each boundary. For 8–20: 7 (just below min), 8 (min), 20 (max), 21 (just above max) cover all four critical boundary points.",
+    explainVi: "BVA tập trung vào các giá trị ngay ngoài và ngay trong mỗi biên. Cho 8–20: 7 (ngay dưới min), 8 (min), 20 (max), 21 (ngay trên max) bao phủ bốn điểm biên quan trọng."
+  },
+  {
+    q: "When is decision table testing most useful?",
+    qVi: "Khi nào kiểm thử bảng quyết định hữu ích nhất?",
+    choices: [
+      "When testing a single input variable in isolation",
+      "When multiple input combinations produce different outputs or actions",
+      "When measuring API response times",
+      "When creating test data for a database"
+    ],
+    choicesVi: [
+      "Khi kiểm thử một biến đầu vào duy nhất riêng lẻ",
+      "Khi nhiều tổ hợp đầu vào tạo ra các đầu ra hoặc hành động khác nhau",
+      "Khi đo thời gian phản hồi API",
+      "Khi tạo dữ liệu test cho cơ sở dữ liệu"
+    ],
+    answer: 1,
+    explain: "Decision tables systematically capture all combinations of conditions and their expected actions. They're ideal for business rules with multiple interacting inputs (e.g., discount eligibility logic).",
+    explainVi: "Bảng quyết định ghi lại có hệ thống tất cả tổ hợp điều kiện và hành động mong đợi. Chúng lý tưởng cho các quy tắc kinh doanh có nhiều đầu vào tương tác (ví dụ: logic điều kiện giảm giá)."
+  },
+  {
+    q: "What makes a test case 'good'?",
+    qVi: "Điều gì tạo nên một test case 'tốt'?",
+    choices: [
+      "It is as long as possible to cover every scenario",
+      "It is clear, repeatable, and has an unambiguous expected result",
+      "It only covers the happy path",
+      "It was written after the bug was found"
+    ],
+    choicesVi: [
+      "Nó càng dài càng tốt để bao phủ mọi kịch bản",
+      "Nó rõ ràng, có thể lặp lại và có kết quả mong đợi không mơ hồ",
+      "Nó chỉ bao phủ happy path",
+      "Nó được viết sau khi bug được tìm thấy"
+    ],
+    answer: 1,
+    explain: "A good test case is clear (anyone can execute it), repeatable (same result every time), and has an unambiguous expected result so pass/fail is never a judgment call.",
+    explainVi: "Một test case tốt là rõ ràng (ai cũng có thể thực thi), có thể lặp lại (kết quả giống nhau mỗi lần) và có kết quả mong đợi không mơ hồ để đạt/không đạt không bao giờ là phán đoán chủ quan."
+  },
+  {
+    q: "State transition testing is most appropriate when:",
+    qVi: "Kiểm thử chuyển đổi trạng thái phù hợp nhất khi:",
+    choices: [
+      "The system has a fixed database schema",
+      "The software changes behaviour based on its current state and triggering events",
+      "You need to test all boundary values",
+      "The application has no UI"
+    ],
+    choicesVi: [
+      "Hệ thống có schema cơ sở dữ liệu cố định",
+      "Phần mềm thay đổi hành vi dựa trên trạng thái hiện tại và sự kiện kích hoạt",
+      "Bạn cần kiểm thử tất cả giá trị biên",
+      "Ứng dụng không có UI"
+    ],
+    answer: 1,
+    explain: "State transition testing models how a system transitions between states in response to events. It's ideal for workflows, login flows, order statuses, or any feature with discrete states.",
+    explainVi: "Kiểm thử chuyển đổi trạng thái mô hình hóa cách hệ thống chuyển đổi giữa các trạng thái theo sự kiện. Lý tưởng cho quy trình công việc, luồng đăng nhập, trạng thái đơn hàng hoặc bất kỳ tính năng nào có trạng thái rời rạc."
   }
 ]} />
 

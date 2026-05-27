@@ -69,7 +69,7 @@ export function ExerciseBox({ children }: ExerciseBoxProps) {
   const pathname = usePathname()
   const dayId = Number(pathname?.split('/').at(-1)) || 0
 
-  const { language, aiAnswers, aiHintUsed, setAiAnswer, markAiHintUsed } = useProgressStore()
+  const { language, aiAnswers, aiHintUsed, setAiAnswer, markAiHintUsed, addPoints } = useProgressStore()
   const items = extractItems(children, language)
   const hintUsed = dayId > 0 && !!aiHintUsed[dayId]
   const savedBilingual = dayId > 0 ? aiAnswers[dayId] : undefined
@@ -122,6 +122,7 @@ export function ExerciseBox({ children }: ExerciseBoxProps) {
       if (data.answer) {
         setAiAnswer(dayId, data.answer)
         markAiHintUsed(dayId)
+        addPoints(items.length * 5)
         setShowAnswer(true)
       } else {
         throw new Error(data.error ?? 'Empty response')

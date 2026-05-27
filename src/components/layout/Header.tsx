@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Flame, FlaskConical } from 'lucide-react'
+import { Sun, Moon, Flame, FlaskConical, Star } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useProgressStore } from '@/lib/store'
 import { MobileNav } from './MobileNav'
+import { ShopModal } from '@/components/ShopModal'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
@@ -19,12 +20,13 @@ const navLinks = [
 export function Header() {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
-  const { streak, language, hydrated, setLanguage } = useProgressStore()
-  // Defer theme icon and active-language highlight to avoid SSR/client mismatch.
+  const { streak, totalPoints, language, hydrated, setLanguage } = useProgressStore()
   const [mounted, setMounted] = useState(false)
+  const [shopOpen, setShopOpen] = useState(false)
   useEffect(() => setMounted(true), [])
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/95">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         {/* Logo */}
@@ -60,6 +62,17 @@ export function Header() {
               <Flame className="h-3.5 w-3.5" />
               <span>{streak}</span>
             </div>
+          )}
+
+          {/* Points chip — opens shop */}
+          {mounted && hydrated && (
+            <button
+              onClick={() => setShopOpen(true)}
+              className="flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700 transition-colors hover:bg-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-400 dark:hover:bg-yellow-800/60"
+            >
+              <Star className="h-3.5 w-3.5" />
+              <span>{totalPoints} pts</span>
+            </button>
           )}
 
           {/* Language toggle — pill showing active language */}
@@ -102,5 +115,8 @@ export function Header() {
         </div>
       </div>
     </header>
+
+    <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} />
+  </>
   )
 }

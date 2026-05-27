@@ -120,6 +120,82 @@ def test_regression_password_reset_still_works():
     answer: 3,
     explain: "Exploratory testing is unscripted — the tester investigates the application freely, using experience and curiosity to find unexpected defects.",
     explainVi: "Kiểm thử khám phá không có kịch bản — tester điều tra ứng dụng tự do, dùng kinh nghiệm và sự tò mò để tìm ra lỗi bất ngờ."
+  },
+  {
+    q: "Which test type verifies that different modules or components work correctly together?",
+    qVi: "Loại kiểm thử nào xác minh rằng các module hoặc thành phần khác nhau hoạt động đúng cùng nhau?",
+    choices: [
+      "Unit testing",
+      "Integration testing",
+      "E2E testing",
+      "Smoke testing"
+    ],
+    choicesVi: [
+      "Unit testing",
+      "Integration testing",
+      "E2E testing",
+      "Smoke testing"
+    ],
+    answer: 1,
+    explain: "Integration testing focuses on the interfaces and interactions between components. It sits between unit tests (single units in isolation) and E2E tests (full user flows).",
+    explainVi: "Integration testing tập trung vào các giao diện và tương tác giữa các thành phần. Nó nằm giữa unit test (đơn vị độc lập) và E2E test (luồng người dùng đầy đủ)."
+  },
+  {
+    q: "What is the difference between re-testing and regression testing?",
+    qVi: "Sự khác biệt giữa re-testing và regression testing là gì?",
+    choices: [
+      "They are the same thing with different names",
+      "Re-testing verifies a specific fixed bug; regression testing checks nothing else was broken by the fix",
+      "Regression testing is automated; re-testing is always manual",
+      "Re-testing is done by developers; regression by QA"
+    ],
+    choicesVi: [
+      "Chúng giống nhau, chỉ khác tên",
+      "Re-testing xác minh một bug đã sửa cụ thể; regression testing kiểm tra không có gì khác bị phá vỡ bởi bản sửa đó",
+      "Regression testing là tự động; re-testing luôn là thủ công",
+      "Re-testing do developer thực hiện; regression do QA"
+    ],
+    answer: 1,
+    explain: "Re-testing confirms the specific bug is fixed. Regression testing then checks the broader system to ensure the fix didn't inadvertently break previously working features.",
+    explainVi: "Re-testing xác nhận bug cụ thể đã được sửa. Regression testing sau đó kiểm tra hệ thống rộng hơn để đảm bảo bản sửa không vô tình phá vỡ các tính năng đang hoạt động trước đó."
+  },
+  {
+    q: "Which test type simulates expected production load to check system stability?",
+    qVi: "Loại kiểm thử nào mô phỏng tải sản xuất dự kiến để kiểm tra sự ổn định của hệ thống?",
+    choices: [
+      "Smoke testing",
+      "Regression testing",
+      "Load testing",
+      "Unit testing"
+    ],
+    choicesVi: [
+      "Smoke testing",
+      "Regression testing",
+      "Load testing",
+      "Unit testing"
+    ],
+    answer: 2,
+    explain: "Load testing verifies the system behaves correctly under expected concurrent user loads. It's a subset of performance testing — distinct from stress testing which pushes beyond normal limits.",
+    explainVi: "Load testing xác minh hệ thống hoạt động đúng dưới tải người dùng đồng thời dự kiến. Đây là tập con của performance testing — khác với stress testing vượt quá giới hạn bình thường."
+  },
+  {
+    q: "Which test type validates the full user journey from start to finish across all system layers?",
+    qVi: "Loại kiểm thử nào xác nhận toàn bộ hành trình người dùng từ đầu đến cuối trên tất cả các tầng hệ thống?",
+    choices: [
+      "Unit testing",
+      "Integration testing",
+      "End-to-End (E2E) testing",
+      "Static testing"
+    ],
+    choicesVi: [
+      "Unit testing",
+      "Integration testing",
+      "Kiểm thử End-to-End (E2E)",
+      "Kiểm thử tĩnh"
+    ],
+    answer: 2,
+    explain: "E2E testing exercises the entire application stack — UI, APIs, databases — simulating real user scenarios. It provides the highest confidence but is also the slowest and most expensive to maintain.",
+    explainVi: "E2E testing kiểm tra toàn bộ ngăn xếp ứng dụng — UI, API, cơ sở dữ liệu — mô phỏng các kịch bản người dùng thực. Nó cho độ tin cậy cao nhất nhưng cũng chậm nhất và tốn kém nhất để bảo trì."
   }
 ]} />
 

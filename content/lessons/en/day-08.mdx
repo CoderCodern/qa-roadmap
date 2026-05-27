@@ -128,6 +128,82 @@ print("First assertion passed!")
     answer: 1,
     explain: "pip is Python's package installer. Always activate your virtual environment first so packages are installed into the project sandbox, not system-wide.",
     explainVi: "pip là trình cài đặt gói của Python. Luôn kích hoạt môi trường ảo của bạn trước để các gói được cài vào hộp cát của dự án, không phải toàn hệ thống."
+  },
+  {
+    q: "Which command creates a virtual environment named 'venv'?",
+    qVi: "Lệnh nào tạo môi trường ảo có tên 'venv'?",
+    choices: [
+      "python create venv",
+      "python -m venv venv",
+      "pip create venv",
+      "virtualenv install venv"
+    ],
+    choicesVi: [
+      "python create venv",
+      "python -m venv venv",
+      "pip create venv",
+      "virtualenv install venv"
+    ],
+    answer: 1,
+    explain: "python -m venv venv runs the built-in venv module (-m flag) and creates a virtual environment directory named 'venv'. The second 'venv' is just the chosen folder name — you can use any name.",
+    explainVi: "python -m venv venv chạy module venv tích hợp (cờ -m) và tạo thư mục môi trường ảo có tên 'venv'. 'venv' thứ hai chỉ là tên thư mục được chọn — bạn có thể dùng bất kỳ tên nào."
+  },
+  {
+    q: "On macOS/Linux, how do you activate a virtual environment located in a folder called 'venv'?",
+    qVi: "Trên macOS/Linux, làm thế nào để kích hoạt môi trường ảo nằm trong thư mục 'venv'?",
+    choices: [
+      "venv/activate",
+      "source venv/bin/activate",
+      "python venv/activate",
+      "pip activate venv"
+    ],
+    choicesVi: [
+      "venv/activate",
+      "source venv/bin/activate",
+      "python venv/activate",
+      "pip activate venv"
+    ],
+    answer: 1,
+    explain: "On macOS/Linux use 'source venv/bin/activate'. On Windows use '.\\venv\\Scripts\\activate'. After activation, your terminal prompt changes and pip installs go into the sandbox.",
+    explainVi: "Trên macOS/Linux dùng 'source venv/bin/activate'. Trên Windows dùng '.\\venv\\Scripts\\activate'. Sau khi kích hoạt, dấu nhắc terminal thay đổi và pip cài vào hộp cát."
+  },
+  {
+    q: "What is the purpose of a `requirements.txt` file?",
+    qVi: "Mục đích của file `requirements.txt` là gì?",
+    choices: [
+      "It documents all test cases for the project",
+      "It lists the project's dependencies so anyone can install the same packages with one command",
+      "It stores environment variables like API keys",
+      "It configures VS Code settings and extensions"
+    ],
+    choicesVi: [
+      "Nó ghi lại tất cả test case cho dự án",
+      "Nó liệt kê các phụ thuộc của dự án để bất kỳ ai cũng có thể cài các gói giống nhau bằng một lệnh",
+      "Nó lưu trữ các biến môi trường như API key",
+      "Nó cấu hình cài đặt và tiện ích mở rộng VS Code"
+    ],
+    answer: 1,
+    explain: "requirements.txt is generated with 'pip freeze > requirements.txt' and restored with 'pip install -r requirements.txt'. It ensures every team member and CI environment uses identical package versions.",
+    explainVi: "requirements.txt được tạo bằng 'pip freeze > requirements.txt' và khôi phục bằng 'pip install -r requirements.txt'. Nó đảm bảo mọi thành viên nhóm và môi trường CI sử dụng cùng phiên bản gói."
+  },
+  {
+    q: "What does running `python --version` verify?",
+    qVi: "Chạy `python --version` xác minh điều gì?",
+    choices: [
+      "Whether your Python script has any syntax errors",
+      "Whether Python is installed and shows the installed version number",
+      "Whether your virtual environment is currently active",
+      "Whether pip is up to date"
+    ],
+    choicesVi: [
+      "Liệu script Python của bạn có lỗi cú pháp không",
+      "Liệu Python đã được cài đặt và hiển thị số phiên bản đã cài",
+      "Liệu môi trường ảo của bạn hiện đang hoạt động",
+      "Liệu pip có được cập nhật không"
+    ],
+    answer: 1,
+    explain: "python --version (or python3 --version on some systems) prints the installed Python version, confirming the interpreter is on your PATH. It's the first thing to check after installation.",
+    explainVi: "python --version (hoặc python3 --version trên một số hệ thống) in phiên bản Python đã cài đặt, xác nhận trình thông dịch có trong PATH của bạn. Đây là điều đầu tiên cần kiểm tra sau khi cài đặt."
   }
 ]} />
 

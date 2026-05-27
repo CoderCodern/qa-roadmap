@@ -123,6 +123,63 @@ print("All checks passed.")
     answer: 1,
     explain: "Visual correctness and aesthetics are best evaluated by humans (or visual regression tools), not by simple pass/fail automated assertions.",
     explainVi: "Tính đúng đắn về mặt hình ảnh được đánh giá tốt nhất bởi con người (hoặc công cụ hồi quy trực quan), không phải bởi các xác nhận tự động đơn giản."
+  },
+  {
+    q: "What is the difference between verification and validation?",
+    qVi: "Sự khác biệt giữa xác minh (verification) và xác nhận (validation) là gì?",
+    choices: [
+      "They are two names for the same activity",
+      "Verification checks we built the product right; validation checks we built the right product",
+      "Verification is automated; validation is manual",
+      "Validation happens before verification in the SDLC"
+    ],
+    choicesVi: [
+      "Chúng là hai tên gọi cho cùng một hoạt động",
+      "Verification kiểm tra chúng ta xây dựng đúng cách; validation kiểm tra chúng ta xây dựng đúng sản phẩm",
+      "Verification là tự động; validation là thủ công",
+      "Validation xảy ra trước verification trong SDLC"
+    ],
+    answer: 1,
+    explain: "Verification ('Are we building the product right?') checks processes and documents. Validation ('Are we building the right product?') checks the final software against real user needs.",
+    explainVi: "Verification ('Chúng ta có xây dựng sản phẩm đúng cách không?') kiểm tra quy trình và tài liệu. Validation ('Chúng ta có xây dựng đúng sản phẩm không?') kiểm tra phần mềm cuối cùng so với nhu cầu thực tế của người dùng."
+  },
+  {
+    q: "Which testing approach involves testing without any knowledge of the internal source code?",
+    qVi: "Phương pháp kiểm thử nào không cần kiến thức về mã nguồn nội bộ?",
+    choices: [
+      "White-box testing",
+      "Grey-box testing",
+      "Black-box testing",
+      "Code review"
+    ],
+    choicesVi: [
+      "Kiểm thử hộp trắng",
+      "Kiểm thử hộp xám",
+      "Kiểm thử hộp đen",
+      "Đánh giá code"
+    ],
+    answer: 2,
+    explain: "Black-box testing treats the system as an opaque box — the tester only sees inputs and expected outputs, not the implementation. This closely simulates the end-user perspective.",
+    explainVi: "Kiểm thử hộp đen xem hệ thống như một hộp mờ — tester chỉ thấy đầu vào và đầu ra mong đợi, không thấy cài đặt. Điều này mô phỏng sát góc nhìn của người dùng cuối."
+  },
+  {
+    q: "What is a 'defect' in software testing?",
+    qVi: "'Lỗi' (defect) trong kiểm thử phần mềm là gì?",
+    choices: [
+      "A slow-running automated test",
+      "A difference between the expected and actual behaviour of software",
+      "A missing test case in the test suite",
+      "A comment left in code by a developer"
+    ],
+    choicesVi: [
+      "Một test tự động chạy chậm",
+      "Sự khác biệt giữa hành vi mong đợi và hành vi thực tế của phần mềm",
+      "Một test case còn thiếu trong bộ test",
+      "Một comment được developer để lại trong code"
+    ],
+    answer: 1,
+    explain: "A defect is any deviation from the expected behaviour defined in requirements. It becomes a failure when it surfaces at runtime and impacts the user.",
+    explainVi: "Lỗi là bất kỳ sự lệch lạc nào so với hành vi mong đợi được định nghĩa trong yêu cầu. Nó trở thành sự cố khi xuất hiện lúc chạy và ảnh hưởng đến người dùng."
   }
 ]} />
 

@@ -157,6 +157,82 @@ print(f"E2E: {(time.time() - start)*1000:.1f}ms")
     answer: 1,
     explain: "The ice cream cone inverts the pyramid — lots of slow E2E tests, few fast unit tests. This leads to a slow, brittle, and expensive test suite.",
     explainVi: "Hình nón kem đảo ngược kim tự tháp — nhiều E2E test chậm, ít unit test nhanh. Điều này dẫn đến bộ test chậm, dễ vỡ và tốn kém."
+  },
+  {
+    q: "Why are E2E tests considered more fragile than unit tests?",
+    qVi: "Tại sao E2E test được coi là dễ vỡ hơn unit test?",
+    choices: [
+      "They are written in a different programming language",
+      "They depend on multiple systems, services, and data, making them vulnerable to unrelated changes",
+      "They run too fast and miss bugs",
+      "They require a paid license to execute"
+    ],
+    choicesVi: [
+      "Chúng được viết bằng ngôn ngữ lập trình khác",
+      "Chúng phụ thuộc vào nhiều hệ thống, dịch vụ và dữ liệu, khiến chúng dễ bị ảnh hưởng bởi những thay đổi không liên quan",
+      "Chúng chạy quá nhanh và bỏ lỡ bug",
+      "Chúng yêu cầu giấy phép trả phí để thực thi"
+    ],
+    answer: 1,
+    explain: "E2E tests exercise the entire stack — UI, network, APIs, databases. Any change in any layer can break the test even if the feature still works. This brittleness is the main reason to keep E2E tests minimal and focused.",
+    explainVi: "E2E test kiểm tra toàn bộ ngăn xếp — UI, mạng, API, cơ sở dữ liệu. Bất kỳ thay đổi nào ở bất kỳ tầng nào đều có thể phá vỡ test ngay cả khi tính năng vẫn hoạt động. Sự dễ vỡ này là lý do chính để giữ E2E test ở mức tối thiểu và tập trung."
+  },
+  {
+    q: "What is a healthy test distribution that follows the test pyramid?",
+    qVi: "Phân phối test nào là lành mạnh theo kim tự tháp kiểm thử?",
+    choices: [
+      "10% unit, 20% integration, 70% E2E",
+      "Equal thirds: 33% each",
+      "70% unit, 20% integration, 10% E2E",
+      "50% unit, 50% E2E, 0% integration"
+    ],
+    choicesVi: [
+      "10% unit, 20% integration, 70% E2E",
+      "Ba phần bằng nhau: 33% mỗi loại",
+      "70% unit, 20% integration, 10% E2E",
+      "50% unit, 50% E2E, 0% integration"
+    ],
+    answer: 2,
+    explain: "The pyramid recommends roughly 70% unit, 20% integration, 10% E2E. More unit tests because they're fast and cheap; fewer E2E tests because they're slow and brittle.",
+    explainVi: "Kim tự tháp khuyến nghị khoảng 70% unit, 20% integration, 10% E2E. Nhiều unit test hơn vì chúng nhanh và rẻ; ít E2E test hơn vì chúng chậm và dễ vỡ."
+  },
+  {
+    q: "Which test type would you write to verify that a database query returns the correct records?",
+    qVi: "Loại test nào bạn sẽ viết để xác minh rằng một truy vấn cơ sở dữ liệu trả về đúng bản ghi?",
+    choices: [
+      "Unit test",
+      "Integration test",
+      "E2E test",
+      "Performance test"
+    ],
+    choicesVi: [
+      "Unit test",
+      "Integration test",
+      "E2E test",
+      "Performance test"
+    ],
+    answer: 1,
+    explain: "A database query involves the application code interacting with an external system (the database) — that's integration territory. Unit tests mock dependencies; integration tests use real ones.",
+    explainVi: "Truy vấn cơ sở dữ liệu liên quan đến code ứng dụng tương tác với hệ thống bên ngoài (cơ sở dữ liệu) — đó là lãnh thổ integration. Unit test giả lập phụ thuộc; integration test dùng phụ thuộc thực."
+  },
+  {
+    q: "Integration tests sit in the middle of the pyramid because:",
+    qVi: "Integration test nằm ở giữa kim tự tháp vì:",
+    choices: [
+      "They are written midway through a project timeline",
+      "They are slower and broader than unit tests but faster and cheaper than E2E tests",
+      "They are optional and can be skipped",
+      "They integrate with the shape of the pyramid model itself"
+    ],
+    choicesVi: [
+      "Chúng được viết vào giữa dòng thời gian dự án",
+      "Chúng chậm hơn và rộng hơn unit test nhưng nhanh hơn và rẻ hơn E2E test",
+      "Chúng tùy chọn và có thể bỏ qua",
+      "Chúng tích hợp với hình dạng của mô hình kim tự tháp"
+    ],
+    answer: 1,
+    explain: "Integration tests verify interactions between components (e.g., service + database). They're slower than unit tests but faster than E2E tests, giving a good cost-to-confidence ratio for inter-component behaviour.",
+    explainVi: "Integration test xác minh tương tác giữa các thành phần (ví dụ: service + cơ sở dữ liệu). Chúng chậm hơn unit test nhưng nhanh hơn E2E test, cho tỷ lệ chi phí-độ tin cậy tốt cho hành vi giữa các thành phần."
   }
 ]} />
 

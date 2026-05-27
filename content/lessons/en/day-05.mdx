@@ -152,6 +152,82 @@ for phase, activities in sdlc_stlc_mapping.items():
     answer: 1,
     explain: "The Test Plan is the primary deliverable of Test Planning — it guides the entire testing effort and aligns stakeholders on scope and approach.",
     explainVi: "Kế hoạch kiểm thử là sản phẩm chính của Lập kế hoạch Kiểm thử — nó hướng dẫn toàn bộ nỗ lực kiểm thử và điều chỉnh các bên liên quan về phạm vi và cách tiếp cận."
+  },
+  {
+    q: "What does 'Shift Left' testing mean?",
+    qVi: "'Shift Left' testing có nghĩa là gì?",
+    choices: [
+      "Moving the QA team to the left side of the org chart",
+      "Involving testing activities earlier in the SDLC, starting from requirements",
+      "Running tests after deployment instead of before",
+      "Shifting priorities away from automated testing"
+    ],
+    choicesVi: [
+      "Chuyển nhóm QA sang bên trái sơ đồ tổ chức",
+      "Tham gia các hoạt động kiểm thử sớm hơn trong SDLC, bắt đầu từ yêu cầu",
+      "Chạy test sau khi triển khai thay vì trước",
+      "Chuyển ưu tiên khỏi kiểm thử tự động"
+    ],
+    answer: 1,
+    explain: "Shift Left moves testing earlier in the lifecycle — reviewing requirements, writing tests before code, and catching defects when they're cheapest to fix rather than after deployment.",
+    explainVi: "Shift Left chuyển kiểm thử sớm hơn trong vòng đời — xem xét yêu cầu, viết test trước khi viết code và phát hiện lỗi khi chúng rẻ nhất để sửa thay vì sau khi triển khai."
+  },
+  {
+    q: "In the STLC, what phase comes immediately AFTER test execution?",
+    qVi: "Trong STLC, giai đoạn nào đến ngay SAU khi thực thi kiểm thử?",
+    choices: [
+      "Test Planning",
+      "Test Design",
+      "Test Closure",
+      "Environment Setup"
+    ],
+    choicesVi: [
+      "Lập kế hoạch Kiểm thử",
+      "Thiết kế Kiểm thử",
+      "Kết thúc Kiểm thử",
+      "Thiết lập Môi trường"
+    ],
+    answer: 2,
+    explain: "STLC phases: Requirements Analysis → Test Planning → Test Design → Environment Setup → Test Execution → Test Closure. Closure involves producing the final test summary report and archiving test artefacts.",
+    explainVi: "Các giai đoạn STLC: Phân tích yêu cầu → Lập kế hoạch → Thiết kế → Thiết lập Môi trường → Thực thi → Kết thúc. Kết thúc bao gồm tạo báo cáo tóm tắt kiểm thử cuối cùng và lưu trữ các tài liệu."
+  },
+  {
+    q: "How is testing typically handled in Agile development?",
+    qVi: "Kiểm thử thường được xử lý như thế nào trong phát triển Agile?",
+    choices: [
+      "All testing happens at the end of the project in a dedicated phase",
+      "Testing is integrated into each sprint alongside development",
+      "Only developers test in Agile — QA is not needed",
+      "Agile skips testing to deliver features faster"
+    ],
+    choicesVi: [
+      "Tất cả kiểm thử xảy ra ở cuối dự án trong một giai đoạn riêng",
+      "Kiểm thử được tích hợp vào mỗi sprint cùng với phát triển",
+      "Chỉ developer kiểm thử trong Agile — QA không cần thiết",
+      "Agile bỏ qua kiểm thử để giao tính năng nhanh hơn"
+    ],
+    answer: 1,
+    explain: "In Agile, testing is a continuous activity within each sprint. QA collaborates with developers from the start of each story, ensuring quality is built in rather than inspected at the end.",
+    explainVi: "Trong Agile, kiểm thử là hoạt động liên tục trong mỗi sprint. QA cộng tác với developer từ đầu mỗi user story, đảm bảo chất lượng được xây dựng vào thay vì kiểm tra ở cuối."
+  },
+  {
+    q: "In the V-model, what is the key principle?",
+    qVi: "Trong V-model, nguyên tắc chính là gì?",
+    choices: [
+      "Testing always happens after all development is complete",
+      "Each development phase has a corresponding testing phase planned in parallel",
+      "V-model is a visual tool for drawing test case diagrams",
+      "Developers and testers never work at the same time"
+    ],
+    choicesVi: [
+      "Kiểm thử luôn xảy ra sau khi toàn bộ phát triển hoàn thành",
+      "Mỗi giai đoạn phát triển có giai đoạn kiểm thử tương ứng được lên kế hoạch song song",
+      "V-model là công cụ hình ảnh để vẽ sơ đồ test case",
+      "Developer và tester không bao giờ làm việc cùng một lúc"
+    ],
+    answer: 1,
+    explain: "The V-model pairs each development phase with a corresponding test phase: requirements ↔ acceptance tests, design ↔ integration tests, coding ↔ unit tests. This ensures testing is planned early even if executed later.",
+    explainVi: "V-model ghép từng giai đoạn phát triển với giai đoạn kiểm thử tương ứng: yêu cầu ↔ acceptance test, thiết kế ↔ integration test, coding ↔ unit test. Điều này đảm bảo kiểm thử được lên kế hoạch sớm ngay cả khi thực thi muộn hơn."
   }
 ]} />
 

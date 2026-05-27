@@ -208,6 +208,63 @@ for tc in login_test_cases:
     answer: 2,
     explain: "E2E tests sit at the pyramid's tip — they're the most realistic but slowest and most expensive. Keep them focused on the most critical user journeys only.",
     explainVi: "E2E test nằm ở đỉnh kim tự tháp — chúng thực tế nhất nhưng chậm và tốn kém nhất. Chỉ giữ chúng tập trung vào các hành trình người dùng quan trọng nhất."
+  },
+  {
+    q: "Which technique tests all valid and invalid input classes with the minimum number of test cases?",
+    qVi: "Kỹ thuật nào kiểm thử tất cả các lớp đầu vào hợp lệ và không hợp lệ với số lượng test case tối thiểu?",
+    choices: [
+      "Boundary Value Analysis",
+      "Equivalence Partitioning",
+      "Decision Table Testing",
+      "State Transition Testing"
+    ],
+    choicesVi: [
+      "Phân tích Giá trị Biên",
+      "Phân vùng Tương đương",
+      "Kiểm thử Bảng Quyết định",
+      "Kiểm thử Chuyển đổi Trạng thái"
+    ],
+    answer: 1,
+    explain: "Equivalence Partitioning divides inputs into classes where all values in a class are expected to behave the same way — one representative per class gives maximum coverage with minimum cases.",
+    explainVi: "Phân vùng Tương đương chia đầu vào thành các lớp mà tất cả giá trị trong một lớp được kỳ vọng hoạt động giống nhau — một đại diện mỗi lớp cho phạm vi bao phủ tối đa với số case tối thiểu."
+  },
+  {
+    q: "A developer says 'I already tested it, it works.' Why should QA still test it independently?",
+    qVi: "Một developer nói 'Tôi đã test rồi, nó hoạt động.' Tại sao QA vẫn nên kiểm thử độc lập?",
+    choices: [
+      "Because developers always make mistakes",
+      "Because testing should be independent — developers test their own assumptions, not the full requirements",
+      "Because QA is solely responsible for all bugs found in production",
+      "Because developers don't understand business requirements"
+    ],
+    choicesVi: [
+      "Vì developer luôn mắc sai lầm",
+      "Vì kiểm thử nên độc lập — developer kiểm thử các giả định của họ, không phải toàn bộ yêu cầu",
+      "Vì QA chịu trách nhiệm duy nhất về tất cả bug được tìm thấy trong production",
+      "Vì developer không hiểu yêu cầu kinh doanh"
+    ],
+    answer: 1,
+    explain: "Independent testing removes confirmation bias. Developers test what they built; QA tests what was specified. They also check edge cases, non-functional concerns, and cross-feature interactions that developers may not consider.",
+    explainVi: "Kiểm thử độc lập loại bỏ thiên kiến xác nhận. Developer kiểm thử những gì họ đã xây dựng; QA kiểm thử những gì đã được chỉ định. Họ cũng kiểm tra các trường hợp biên, vấn đề phi chức năng và tương tác giữa các tính năng mà developer có thể không xem xét."
+  },
+  {
+    q: "What is the main benefit of automating regression tests?",
+    qVi: "Lợi ích chính của việc tự động hóa regression test là gì?",
+    choices: [
+      "It completely eliminates the need for manual testing",
+      "It allows fast, reliable re-execution after every code change without human effort",
+      "It discovers more new bugs than manual exploratory testing",
+      "It reduces the total number of test cases needed"
+    ],
+    choicesVi: [
+      "Nó hoàn toàn loại bỏ nhu cầu kiểm thử thủ công",
+      "Nó cho phép tái thực thi nhanh, đáng tin cậy sau mỗi thay đổi code mà không cần nỗ lực của con người",
+      "Nó phát hiện nhiều bug mới hơn kiểm thử khám phá thủ công",
+      "Nó giảm tổng số test case cần thiết"
+    ],
+    answer: 1,
+    explain: "Automated regression tests can run in CI on every commit — catching regressions immediately at zero marginal cost per run. Manual regression is slow, expensive, and error-prone at scale.",
+    explainVi: "Regression test tự động có thể chạy trong CI trên mỗi commit — phát hiện regression ngay lập tức với chi phí biên bằng không mỗi lần chạy. Regression thủ công chậm, tốn kém và dễ mắc lỗi ở quy mô lớn."
   }
 ]} />
 

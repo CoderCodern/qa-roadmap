@@ -45,10 +45,10 @@ export async function POST(req: NextRequest) {
 
   const instruction = isCodeMode
     ? hasAnswers
-      ? `Review the student's Python code solutions. For each exercise: confirm if the logic is correct, point out any bugs or improvements (e.g. edge cases, style), and give a short tip. Be specific and encouraging.`
-      : `Provide a complete working Python solution for each exercise so the student can see what correct code looks like. Include brief inline comments explaining key lines.`
+      ? `Review the student's Python code solutions. Start with an overall score on its own line (e.g. "Score: 7/10"). Then for each exercise: confirm if the logic is correct, point out any bugs or improvements, and give a short tip. Be specific and encouraging.`
+      : `Provide a complete working Python solution for each exercise so the student can see what correct code looks like. Include brief inline comments explaining key lines. End with a note encouraging them to attempt it themselves first next time.`
     : hasAnswers
-      ? `Review the student's answers. For each task: acknowledge what they got right, point out gaps, and give a brief tip to improve. Be specific and encouraging. Keep each response concise.`
+      ? `Review the student's answers. Start with an overall score on its own line (e.g. "Score: 7/10"). Then for each task: acknowledge what they got right, point out gaps, and give a brief tip. Be specific and encouraging.`
       : `Provide a practical example answer for each task so the student understands what a good response looks like. Be helpful and keep answers brief.`
 
   try {

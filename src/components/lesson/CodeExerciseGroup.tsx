@@ -91,7 +91,7 @@ export function CodeExerciseGroup({ exercises, children }: CodeExerciseGroupProp
   const pathname = usePathname()
   const dayId = Number(pathname?.split('/').at(-1)) || 0
 
-  const { language, aiAnswers, aiHintUsed, setAiAnswer, markAiHintUsed } = useProgressStore()
+  const { language, aiAnswers, aiHintUsed, setAiAnswer, markAiHintUsed, addPoints } = useProgressStore()
 
   const [editors, setEditors] = useState<EditorState[]>(
     exercises.map((ex) => ({
@@ -195,6 +195,7 @@ __buf.getvalue()
       if (data.answer) {
         setAiAnswer(dayId, data.answer)
         markAiHintUsed(dayId)
+        addPoints(exercises.length * 5)
         setShowAnswer(true)
       } else {
         throw new Error(data.error ?? 'Empty response')

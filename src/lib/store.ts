@@ -39,6 +39,12 @@ export type ProgressState = {
   markQuizPointsEarned: (dayId: number) => void
   /** Deducts pts and records purchase. Returns false if not enough points. */
   spendPoints: (pts: number, productId: number) => boolean
+  /** Phase reward status — absent key means the reward is pending for that phase. */
+  phaseRewards: Record<number, 'claimed' | 'declined'>
+  /** Awards the product for free and marks phase reward as claimed. */
+  claimPhaseReward: (phaseId: number, productId: number) => void
+  /** Marks phase reward as declined (user explicitly skipped). */
+  declinePhaseReward: (phaseId: number) => void
   reset: () => void
 }
 
@@ -57,6 +63,7 @@ export const useProgressStore = create<ProgressState>()(
       quizPointsEarned: {},
       streakPointsDates: [],
       purchasedItems: [],
+      phaseRewards: {},
       hydrated: false,
       devPreview: false,
 
@@ -133,6 +140,19 @@ export const useProgressStore = create<ProgressState>()(
         return true
       },
 
+      claimPhaseReward: (phaseId, productId) =>
+        set((s) => ({
+          phaseRewards: { ...s.phaseRewards, [phaseId]: 'claimed' },
+          purchasedItems: s.purchasedItems.includes(productId)
+            ? s.purchasedItems
+            : [...s.purchasedItems, productId],
+        })),
+
+      declinePhaseReward: (phaseId) =>
+        set((s) => ({
+          phaseRewards: { ...s.phaseRewards, [phaseId]: 'declined' },
+        })),
+
       reset: () =>
         set({
           completed: [],
@@ -159,6 +179,7 @@ export const useProgressStore = create<ProgressState>()(
         quizPointsEarned: s.quizPointsEarned,
         streakPointsDates: s.streakPointsDates,
         purchasedItems: s.purchasedItems,
+        phaseRewards: s.phaseRewards,
       }),
     }
   )

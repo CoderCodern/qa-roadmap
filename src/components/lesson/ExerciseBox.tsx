@@ -192,16 +192,26 @@ export function ExerciseBox({ children }: ExerciseBoxProps) {
                     ? (language === 'vi' ? '(đã nộp)' : '(submitted)')
                     : (language === 'vi' ? 'Viết câu trả lời của bạn…' : 'Write your answer…')
                 }
-                rows={2}
+                rows={5}
                 className={cn(
-                  'w-full resize-none rounded-lg border px-3 py-2 text-sm transition-colors',
+                  'w-full resize-y rounded-lg border px-4 py-3 text-sm leading-7 transition-colors',
+                  '[background-size:100%_1.75rem]',
                   hintUsed
-                    ? 'border-gray-100 bg-gray-50 text-gray-400 dark:border-gray-800 dark:bg-gray-900/30 dark:text-gray-600'
+                    ? [
+                        'border-gray-100 text-gray-400',
+                        'bg-gray-50 dark:bg-gray-900/30',
+                        'dark:border-gray-800 dark:text-gray-600',
+                        '[background-image:repeating-linear-gradient(transparent,transparent_calc(1.75rem_-_1px),#e5e7eb_calc(1.75rem_-_1px),#e5e7eb_1.75rem)]',
+                        'dark:[background-image:repeating-linear-gradient(transparent,transparent_calc(1.75rem_-_1px),#1f2937_calc(1.75rem_-_1px),#1f2937_1.75rem)]',
+                      ]
                     : [
-                        'border-gray-200 bg-white text-gray-700 placeholder-gray-400',
-                        'dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-300 dark:placeholder-gray-600',
-                        'focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/50',
-                        'dark:focus:border-brand-500 dark:focus:ring-brand-500/40',
+                        'border-amber-200 text-gray-700 placeholder-gray-400',
+                        'bg-[#fdfbf5] dark:bg-[#1a1f16]',
+                        'dark:border-gray-700 dark:text-gray-300 dark:placeholder-gray-600',
+                        '[background-image:repeating-linear-gradient(transparent,transparent_calc(1.75rem_-_1px),#d6cdb8_calc(1.75rem_-_1px),#d6cdb8_1.75rem)]',
+                        'dark:[background-image:repeating-linear-gradient(transparent,transparent_calc(1.75rem_-_1px),#2d3a25_calc(1.75rem_-_1px),#2d3a25_1.75rem)]',
+                        'focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400/50',
+                        'dark:focus:border-emerald-700 dark:focus:ring-emerald-700/40',
                       ]
                 )}
               />

@@ -5,6 +5,8 @@ import { StoreHydration } from '@/lib/store-hydration'
 import { LangEffect } from '@/components/layout/LangEffect'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
+import { NavigationProgress } from '@/components/layout/NavigationProgress'
+import { PhaseRewardChecker } from '@/components/PhaseRewardChecker'
 import './globals.css'
 
 const inter = Inter({
@@ -31,8 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${inter.variable} font-sans antialiased bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100`}>
         <ThemeProviderWrapper>
+          <NavigationProgress />
           <StoreHydration />
           <LangEffect />
+          <PhaseRewardChecker />
           <div className="flex min-h-screen flex-col">
             <Header />
             <main className="flex-1">{children}</main>

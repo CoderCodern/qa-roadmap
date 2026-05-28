@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { X, Star, ShoppingBag, CheckCircle2, Lock } from 'lucide-react'
+import { X, Star, ShoppingBag, Lock, AlertTriangle, Mail, CheckCircle2 } from 'lucide-react'
 import { useProgressStore } from '@/lib/store'
 import { SHOP_PRODUCTS } from '@/data/shopProducts'
+import { sendAwardEmail } from '@/lib/sendAwardEmail'
 import { cn } from '@/lib/utils'
 
 interface ShopModalProps {
@@ -13,11 +14,11 @@ interface ShopModalProps {
 }
 
 export function ShopModal({ open, onClose }: ShopModalProps) {
-  const { totalPoints, purchasedItems, spendPoints, language } = useProgressStore()
+  const { totalPoints, spendPoints, language } = useProgressStore()
   const [justPurchased, setJustPurchased] = useState<number | null>(null)
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -25,18 +26,36 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  // Lock body scroll
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  const handleRedeem = (productId: number, points: number) => {
+  // Cancel confirmation when modal closes
+  useEffect(() => { if (!open) setConfirmingId(null) }, [open])
+
+  const handleRedeemClick = (productId: number) => {
+    if (confirmingId === productId) return // already confirming
+    setConfirmingId(productId)
+  }
+
+  const handleConfirmRedeem = (productId: number, points: number) => {
     const ok = spendPoints(points, productId)
     if (ok) {
       setJustPurchased(productId)
-      setTimeout(() => setJustPurchased(null), 2000)
+      setTimeout(() => setJustPurchased(null), 4000)
+      const product = SHOP_PRODUCTS.find((p) => p.id === productId)
+      if (product) {
+        sendAwardEmail({
+          productName: product.name,
+          productNameVi: product.nameVi,
+          price: product.price,
+          points,
+          type: 'shop',
+        })
+      }
     }
+    setConfirmingId(null)
   }
 
   if (!open) return null
@@ -45,12 +64,10 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+      onClick={(e) => { if (e.target === overlayRef.current) { setConfirmingId(null); onClose() } }}
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-      {/* Panel */}
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
@@ -65,9 +82,7 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
               </p>
             </div>
           </div>
-
           <div className="flex items-center gap-3">
-            {/* Balance chip */}
             <div className="flex items-center gap-1.5 rounded-full bg-yellow-100 px-3 py-1.5 text-sm font-bold text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400">
               <Star className="h-4 w-4" />
               <span>{totalPoints} pts</span>
@@ -83,26 +98,39 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
 
         {/* How to earn */}
         <div className="flex flex-wrap gap-3 border-b border-gray-100 bg-gray-50 px-6 py-3 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
-          <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" /> +5 pts daily streak</span>
-          <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" /> +5 pts per correct quiz answer</span>
-          <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" /> +5 pts per exercise item</span>
+          <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" />+5 pts daily streak</span>
+          <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" />+5 pts per correct quiz answer</span>
+          <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" />+5 pts per exercise item</span>
         </div>
 
+        {/* Redeem success banner */}
+        {justPurchased && (
+          <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50 px-6 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+            <Mail className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              {language === 'vi'
+                ? 'Đã đổi thành công! Admin đã được thông báo chuẩn bị đơn hàng cho bạn.'
+                : 'Redeemed! Admin has been notified to prepare your order.'}
+            </p>
+          </div>
+        )}
+
         {/* Product grid */}
-        <div className="overflow-y-auto p-6">
+        <div className="overflow-y-auto p-6" onClick={() => setConfirmingId(null)}>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {SHOP_PRODUCTS.map((product) => {
-              const owned = purchasedItems.includes(product.id)
               const canAfford = totalPoints >= product.points
               const isJust = justPurchased === product.id
+              const isConfirming = confirmingId === product.id
 
               return (
                 <div
                   key={product.id}
+                  onClick={(e) => e.stopPropagation()}
                   className={cn(
                     'group relative flex flex-col overflow-hidden rounded-xl border transition-all',
-                    owned
-                      ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/30'
+                    isConfirming
+                      ? 'border-yellow-400 bg-yellow-50/60 shadow-lg dark:border-yellow-600 dark:bg-yellow-950/30'
                       : 'border-gray-200 bg-white hover:border-yellow-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800/60 dark:hover:border-yellow-600'
                   )}
                 >
@@ -113,21 +141,8 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
                       alt={product.name}
                       fill
                       sizes="(max-width: 640px) 50vw, 33vw"
-                      className={cn(
-                        'object-cover transition-transform group-hover:scale-105',
-                        (owned || product.imagePending) && 'opacity-70'
-                      )}
+                      className="object-cover transition-transform group-hover:scale-105"
                     />
-                    {owned && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                        <CheckCircle2 className="h-8 w-8 text-emerald-400 drop-shadow" />
-                      </div>
-                    )}
-                    {product.imagePending && !owned && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1 py-0.5 text-center text-[10px] text-gray-300">
-                        photo coming soon
-                      </div>
-                    )}
                   </div>
 
                   {/* Info */}
@@ -146,31 +161,50 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
                       <span className="text-xs text-gray-400">{product.price}</span>
                     </div>
 
-                    {owned ? (
+                    {isJust ? (
                       <div className="mt-1 flex items-center justify-center gap-1 rounded-lg bg-emerald-100 py-1.5 text-xs font-semibold text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        {language === 'vi' ? 'Đã đổi' : 'Redeemed'}
+                        {language === 'vi' ? 'Đã đổi!' : 'Redeemed!'}
+                      </div>
+                    ) : isConfirming ? (
+                      /* Confirmation panel */
+                      <div className="mt-1 space-y-1.5 rounded-lg border border-yellow-200 bg-yellow-50 p-2 dark:border-yellow-800 dark:bg-yellow-950/40">
+                        <div className="flex items-center gap-1 text-xs font-semibold text-yellow-700 dark:text-yellow-400">
+                          <AlertTriangle className="h-3 w-3" />
+                          {language === 'vi'
+                            ? `Dùng ${product.points} pts?`
+                            : `Spend ${product.points} pts?`}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => handleConfirmRedeem(product.id, product.points)}
+                            className="flex-1 rounded-lg bg-yellow-400 py-1 text-xs font-bold text-yellow-900 transition-colors hover:bg-yellow-500 dark:bg-yellow-500 dark:text-yellow-950"
+                          >
+                            {language === 'vi' ? 'Xác nhận' : 'Confirm'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmingId(null)}
+                            className="flex-1 rounded-lg bg-gray-100 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+                          >
+                            {language === 'vi' ? 'Huỷ' : 'Cancel'}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
-                        onClick={() => handleRedeem(product.id, product.points)}
-                        disabled={!canAfford || isJust}
+                        onClick={() => canAfford && handleRedeemClick(product.id)}
+                        disabled={!canAfford}
                         className={cn(
                           'mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all',
-                          isJust
-                            ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
-                            : canAfford
-                              ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 dark:bg-yellow-500 dark:text-yellow-950 dark:hover:bg-yellow-400'
-                              : 'cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                          canAfford
+                            ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 dark:bg-yellow-500 dark:text-yellow-950 dark:hover:bg-yellow-400'
+                            : 'cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
                         )}
                       >
-                        {isJust ? (
-                          <><CheckCircle2 className="h-3.5 w-3.5" />{language === 'vi' ? 'Đã đổi!' : 'Redeemed!'}</>
-                        ) : canAfford ? (
-                          language === 'vi' ? 'Đổi ngay' : 'Redeem'
-                        ) : (
-                          <><Lock className="h-3 w-3" />{language === 'vi' ? 'Chưa đủ pts' : 'Not enough pts'}</>
-                        )}
+                        {canAfford
+                          ? (language === 'vi' ? 'Đổi ngay' : 'Redeem')
+                          : <><Lock className="h-3 w-3" />{language === 'vi' ? 'Chưa đủ pts' : 'Not enough pts'}</>
+                        }
                       </button>
                     )}
                   </div>

@@ -5,8 +5,6 @@ export interface ShopProduct {
   description: string
   descriptionVi: string
   image: string
-  /** true = real image downloaded; false = temp placeholder, needs replacing */
-  imagePending?: boolean
   price: string
   points: number
 }
@@ -19,9 +17,8 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     description: 'Everyday matcha latte — smooth, balanced, easy to love',
     descriptionVi: 'Matcha latte mỗi ngày — mịn màng, cân bằng, dễ uống',
     image: '/shop/matcha-latte-thuong-nhat.jpg',
-    imagePending: true,
     price: '50.000đ',
-    points: 45,
+    points: 300,
   },
   {
     id: 2,
@@ -31,7 +28,7 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     descriptionVi: 'Matcha Nhật cao cấp, hậu vị Umami đặc trưng',
     image: '/shop/matcha-latte-cao-cap.jpg',
     price: '70.000đ',
-    points: 65,
+    points: 450,
   },
   {
     id: 3,
@@ -41,7 +38,7 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     descriptionVi: 'Matcha kết hợp kem earl grey thơm — hoa cỏ và mịn màng',
     image: '/shop/matcha-earlgrey.jpg',
     price: '55.000đ',
-    points: 50,
+    points: 350,
   },
   {
     id: 4,
@@ -51,7 +48,7 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     descriptionVi: 'Matcha nguyên chất với kem mặn đặc trưng',
     image: '/shop/matcha-muoi.jpg',
     price: '55.000đ',
-    points: 50,
+    points: 350,
   },
   {
     id: 5,
@@ -60,9 +57,8 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     description: 'Matcha infused with delicate jasmine — fragrant and refreshing',
     descriptionVi: 'Matcha kết hợp hoa ngọc lan tinh tế — thơm mát',
     image: '/shop/matcha-ngoc-lan.jpg',
-    imagePending: true,
     price: '60.000đ',
-    points: 55,
+    points: 380,
   },
   {
     id: 6,
@@ -71,9 +67,8 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     description: 'Roasted houjicha with salted cream — warm, nutty, comforting',
     descriptionVi: 'Houjicha rang thơm với kem mặn — ấm áp, hơi đắng, dễ chịu',
     image: '/shop/houjicha-kem-man.jpg',
-    imagePending: true,
     price: '60.000đ',
-    points: 55,
+    points: 380,
   },
   {
     id: 7,
@@ -82,9 +77,8 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     description: 'Traditional thin matcha prepared whisked — clean and pure',
     descriptionVi: 'Matcha pha theo kiểu truyền thống — thuần khiết và tinh tế',
     image: '/shop/usucha.jpg',
-    imagePending: true,
     price: '65.000đ',
-    points: 60,
+    points: 420,
   },
   {
     id: 8,
@@ -93,9 +87,8 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     description: 'Rich cacao with creamy milk — deep chocolate comfort',
     descriptionVi: 'Cacao đậm đà kết hợp sữa tươi béo ngậy',
     image: '/shop/cacao-sua.jpg',
-    imagePending: true,
     price: '55.000đ',
-    points: 50,
+    points: 350,
   },
   {
     id: 9,
@@ -104,9 +97,8 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     description: 'Cacao with sweet-salty cream — the perfect contrast',
     descriptionVi: 'Cacao với kem mặn — vị ngọt mặn tương phản hoàn hảo',
     image: '/shop/cacao-kem-muoi.jpg',
-    imagePending: true,
     price: '60.000đ',
-    points: 55,
+    points: 380,
   },
   {
     id: 10,
@@ -116,6 +108,15 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     descriptionVi: 'Matcha Dừa + Matcha Oreo Kem Mặn — combo được yêu thích nhất',
     image: '/shop/combo-must-try.jpg',
     price: '99.000đ',
-    points: 90,
+    points: 650,
   },
 ]
+
+/** Which shop product is awarded for completing each phase (free, no points). */
+export const PHASE_REWARD_PRODUCTS: Record<number, number> = {
+  1: 1,  // Phase 1 → Matcha Latte Thường Nhật
+  2: 2,  // Phase 2 → Matcha Latte Cao Cấp
+  3: 5,  // Phase 3 → Matcha Ngọc Lan
+  4: 6,  // Phase 4 → Houjicha Kem Mặn
+  5: 10, // Phase 5 → Combo Must Try
+}

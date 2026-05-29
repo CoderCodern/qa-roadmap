@@ -76,8 +76,7 @@ Toán tử là nền tảng của mọi assertion. Khi bạn viết `assert resp
 
 ## Code / Demo
 
-```python
-# Comparison operators in a QA context
+<CodePlayground code={`# Comparison operators in a QA context
 
 status_code = 200
 response_time_ms = 342
@@ -114,41 +113,191 @@ assert is_admin or is_superuser, "Must be admin or superuser"
 # Combining comparisons with logic
 assert status_code >= 200 and status_code < 300, f"Expected 2xx but got {status_code}"
 
-print("All operator assertions passed!")
-```
+print("All operator assertions passed!")`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write assertions for an API response: status is 201, response time is under 300ms, the response body is not None, and the word "created" appears in the success message
-- [ ] Explain in your own words why `[] == []` is `True` but `[] is []` is `False`
-- [ ] Rewrite `x > 0 and x <= 100` as a single chained comparison
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — API response assertions",
+    code: `# Assertion cho API response / API response assertions
+status_code = 201
+response_time_ms = 250
+body = {"message": "User created successfully"}
+
+# TODO (VI): Điền 201 để kiểm tra đúng status code
+# TODO (EN): Fill in 201 to assert the correct status code
+assert status_code == ???
+
+# TODO (VI): Điền 300 để kiểm tra response time dưới giới hạn
+# TODO (EN): Fill in 300 to assert response time is under the limit
+assert response_time_ms < ???
+
+# TODO (VI): Điền "created" để kiểm tra từ này xuất hiện trong message
+# TODO (EN): Fill in "created" to check it appears in the message
+assert ??? in body["message"].lower()
+print("All assertions passed!")`
+  },
+  {
+    title: "Exercise 2 — is vs ==",
+    code: `# Phân biệt is và == / Distinguish is from ==
+x = None
+my_list = []
+
+# TODO (VI): Dùng "is" để kiểm tra x là None (không dùng ==)
+# TODO (EN): Use "is" to check x is None (not ==)
+assert x ??? None
+print(f"x is None check passed!")
+
+# TODO (VI): Dùng "==" để so sánh giá trị danh sách (không phải identity)
+# TODO (EN): Use "==" to compare list values (not identity)
+assert my_list ??? []
+print("Value equality check passed!")`
+  },
+  {
+    title: "Exercise 3 — Logical operators",
+    code: `# Toán tử logic / Logical operators
+count = 50
+
+# So sánh chuỗi (đã điền sẵn) / Chained comparison (already filled in)
+assert 0 < count <= 100
+print(f"count={count} is in valid range!")
+
+# TODO (VI): Điền "and" để kiểm tra cả hai điều kiện đều đúng
+# TODO (EN): Fill in "and" to require both conditions to be true
+is_authenticated = True
+has_permission = True
+assert is_authenticated ??? has_permission
+print("Access granted!")
+
+# TODO (VI): Điền "or" để chấp nhận khi ít nhất một vai trò hợp lệ
+# TODO (EN): Fill in "or" to pass when at least one role is valid
+is_admin = False
+is_editor = True
+assert is_admin ??? is_editor
+print("Role check passed!")`
+  }
+]}>
+<En>
+Complete the three exercises below. Replace each `???` with the correct value or operator, then click **Run** to verify. When done, submit all for AI review.
+</En>
+<Vi>
+Hoàn thành ba bài tập bên dưới. Thay mỗi `???` bằng giá trị hoặc toán tử đúng, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Which is the correct way to check if a variable x has no value?",
-    choices: [
-      "x == None",
-      "x === None",
-      "x is None",
-      "not x"
-    ],
+    qVi: "Cách nào đúng để kiểm tra biến x không có giá trị?",
+    choices: ["x == None", "x === None", "x is None", "not x"],
+    choicesVi: ["x == None", "x === None", "x is None", "not x"],
     answer: 2,
-    explain: "Always use 'is None' (not '== None') because None is a singleton. 'not x' would also catch 0, '', [], and other falsy values — too broad for a None check."
+    explain: "Always use 'is None' for identity checks. '== None' works but violates PEP 8. '===' does not exist in Python. 'not x' is too broad — it also matches 0, False, and empty strings.",
+    explainVi: "Luôn dùng 'is None' để kiểm tra identity. '== None' hoạt động nhưng vi phạm PEP 8. '===' không tồn tại trong Python. 'not x' quá rộng — nó cũng khớp với 0, False và chuỗi rỗng."
   },
   {
     q: "What does `200 <= status_code < 300` evaluate to when status_code is 404?",
+    qVi: "`200 <= status_code < 300` trả về gì khi status_code là 404?",
+    choices: ["True", "False", "TypeError", "None"],
+    choicesVi: ["True", "False", "TypeError", "None"],
+    answer: 1,
+    explain: "404 is not in the range [200, 300), so the chained comparison returns False. Chained comparisons are cleaner than writing status_code >= 200 and status_code < 300.",
+    explainVi: "404 không nằm trong khoảng [200, 300), nên so sánh chuỗi trả về False. So sánh chuỗi gọn hơn việc viết status_code >= 200 and status_code < 300."
+  },
+  {
+    q: "What does `\"admin\" in [\"viewer\", \"editor\"]` return?",
+    qVi: "`\"admin\" in [\"viewer\", \"editor\"]` trả về gì?",
+    choices: ["True", "False", "TypeError", "None"],
+    choicesVi: ["True", "False", "TypeError", "None"],
+    answer: 1,
+    explain: "The 'in' operator checks membership. 'admin' is not in the list ['viewer', 'editor'], so it returns False. This pattern is common for role-based assertions.",
+    explainVi: "Toán tử 'in' kiểm tra thành viên. 'admin' không có trong ['viewer', 'editor'], nên trả về False. Mẫu này phổ biến cho các assertion kiểm tra quyền."
+  },
+  {
+    q: "What does `not True` return?",
+    qVi: "`not True` trả về gì?",
+    choices: ["True", "False", "None", "TypeError"],
+    choicesVi: ["True", "False", "None", "TypeError"],
+    answer: 1,
+    explain: "'not' is the logical negation operator. 'not True' returns False and 'not False' returns True. It is commonly used to flip boolean conditions in assertions.",
+    explainVi: "'not' là toán tử phủ định logic. 'not True' trả về False và 'not False' trả về True. Nó thường dùng để đảo điều kiện boolean trong assertion."
+  },
+  {
+    q: "What does `True and False` evaluate to?",
+    qVi: "`True and False` trả về gì?",
+    choices: ["True", "False", "None", "TypeError"],
+    choicesVi: ["True", "False", "None", "TypeError"],
+    answer: 1,
+    explain: "'and' returns the first falsy value, or the last value if all are truthy. 'True and False' returns False because False is the first falsy operand encountered.",
+    explainVi: "'and' trả về giá trị falsy đầu tiên, hoặc giá trị cuối nếu tất cả đều truthy. 'True and False' trả về False vì False là toán hạng falsy đầu tiên gặp phải."
+  },
+  {
+    q: "What does `0 or \"fallback\"` return?",
+    qVi: "`0 or \"fallback\"` trả về gì?",
+    choices: ["0", "False", "\"fallback\"", "TypeError"],
+    choicesVi: ["0", "False", "\"fallback\"", "TypeError"],
+    answer: 2,
+    explain: "'or' returns the first truthy value. 0 is falsy, so Python continues and returns the next value, the non-empty string 'fallback'. This pattern is used for default value assignment.",
+    explainVi: "'or' trả về giá trị truthy đầu tiên. 0 là falsy, nên Python tiếp tục và trả về giá trị tiếp theo là chuỗi không rỗng 'fallback'. Mẫu này dùng cho gán giá trị mặc định."
+  },
+  {
+    q: "What is the result of `5 != 5`?",
+    qVi: "Kết quả của `5 != 5` là gì?",
+    choices: ["True", "False", "TypeError", "SyntaxError"],
+    choicesVi: ["True", "False", "TypeError", "SyntaxError"],
+    answer: 1,
+    explain: "'!=' is the 'not equal' operator. Since 5 equals 5, '5 != 5' is False. In testing, != is used to assert that an actual value has changed or differs from a forbidden value.",
+    explainVi: "'!=' là toán tử 'không bằng'. Vì 5 bằng 5, '5 != 5' là False. Trong kiểm thử, != dùng để xác nhận giá trị thực đã thay đổi hoặc khác với giá trị cấm."
+  },
+  {
+    q: "Does `True == 1` evaluate to True in Python?",
+    qVi: "`True == 1` có trả về True trong Python không?",
     choices: [
-      "True",
-      "False",
-      "TypeError",
-      "None"
+      "No — bool and int are different types",
+      "Yes — bool is a subclass of int in Python",
+      "TypeError — cannot compare bool and int",
+      "It depends on the Python version"
+    ],
+    choicesVi: [
+      "Không — bool và int là kiểu khác nhau",
+      "Có — bool là lớp con của int trong Python",
+      "TypeError — không thể so sánh bool và int",
+      "Phụ thuộc phiên bản Python"
     ],
     answer: 1,
-    explain: "404 is not between 200 (inclusive) and 300 (exclusive), so the chained comparison returns False. This is a clean way to check for 2xx status codes."
+    explain: "In Python, bool is a subclass of int. True == 1 and False == 0 are both True. For strict boolean checks use 'is True', not '== True', to avoid matching the integer 1.",
+    explainVi: "Trong Python, bool là lớp con của int. True == 1 và False == 0 đều là True. Để kiểm tra boolean nghiêm ngặt, dùng 'is True', không phải '== True', để tránh khớp với số nguyên 1."
+  },
+  {
+    q: "Which expression correctly combines two conditions using a logical operator?",
+    qVi: "Biểu thức nào kết hợp đúng hai điều kiện bằng toán tử logic?",
+    choices: [
+      "assert status == 200 && body is not None",
+      "assert status == 200 and body is not None",
+      "assert status == 200 & body is not None",
+      "assert status == 200, body is not None"
+    ],
+    choicesVi: [
+      "assert status == 200 && body is not None",
+      "assert status == 200 and body is not None",
+      "assert status == 200 & body is not None",
+      "assert status == 200, body is not None"
+    ],
+    answer: 1,
+    explain: "Python uses 'and', 'or', and 'not' as logical operators. '&&' is JavaScript syntax. '&' is a bitwise operator. The comma form is a tuple assertion with completely different semantics.",
+    explainVi: "Python dùng 'and', 'or', 'not' làm toán tử logic. '&&' là cú pháp JavaScript. '&' là toán tử bitwise. Dạng dấu phẩy là assertion tuple với ngữ nghĩa hoàn toàn khác."
+  },
+  {
+    q: "What does `\"error\" not in message.lower()` return if message is \"All Systems OK\"?",
+    qVi: "`\"error\" not in message.lower()` trả về gì nếu message là \"All Systems OK\"?",
+    choices: ["False", "True", "None", "TypeError"],
+    choicesVi: ["False", "True", "None", "TypeError"],
+    answer: 1,
+    explain: "'all systems ok' (lowercased) does not contain 'error', so 'error' not in 'all systems ok' returns True. The 'not in' operator is the idiomatic negation of 'in'.",
+    explainVi: "'all systems ok' (viết thường) không chứa 'error', nên 'error' not in 'all systems ok' trả về True. Toán tử 'not in' là phủ định thành ngữ của 'in'."
   }
 ]} />
 

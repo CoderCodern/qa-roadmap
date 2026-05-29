@@ -7,6 +7,7 @@ import { ResourceList } from '@/components/lesson/ResourceList'
 import { CodeBlock } from '@/components/lesson/CodeBlock'
 import { CodePlayground } from '@/components/lesson/CodePlayground'
 import { CodeExerciseGroup } from '@/components/lesson/CodeExerciseGroup'
+import { InstallGuide } from '@/components/lesson/InstallGuide'
 
 export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
@@ -19,6 +20,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     ResourceList,
     CodePlayground,
     CodeExerciseGroup,
+    InstallGuide,
     ...components,
   }
 }

@@ -13,11 +13,19 @@ interface ShopModalProps {
   onClose: () => void
 }
 
+const SHOP_NAMES = ['All', 'Đảo Matcha', 'Universal Tea'] as const
+type ShopFilter = (typeof SHOP_NAMES)[number]
+
 export function ShopModal({ open, onClose }: ShopModalProps) {
   const { totalPoints, spendPoints, language } = useProgressStore()
   const [justPurchased, setJustPurchased] = useState<number | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [selectedShop, setSelectedShop] = useState<ShopFilter>('All')
   const overlayRef = useRef<HTMLDivElement>(null)
+
+  const filteredProducts = selectedShop === 'All'
+    ? SHOP_PRODUCTS
+    : SHOP_PRODUCTS.filter((p) => p.shop === selectedShop)
 
   useEffect(() => {
     if (!open) return
@@ -78,7 +86,9 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
                 {language === 'vi' ? 'Cửa hàng phần thưởng' : 'Rewards Shop'}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {language === 'vi' ? 'Từ Đảo Matcha – Vũ Trọng Phụng' : 'From Đảo Matcha – Vũ Trọng Phụng'}
+                {selectedShop === 'All'
+                  ? (language === 'vi' ? 'Đảo Matcha & Universal Tea' : 'Đảo Matcha & Universal Tea')
+                  : selectedShop}
               </p>
             </div>
           </div>
@@ -115,10 +125,28 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
           </div>
         )}
 
+        {/* Shop filter */}
+        <div className="flex gap-2 border-b border-gray-100 px-6 py-3 dark:border-gray-800">
+          {SHOP_NAMES.map((shop) => (
+            <button
+              key={shop}
+              onClick={() => { setSelectedShop(shop); setConfirmingId(null) }}
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                selectedShop === shop
+                  ? 'bg-emerald-600 text-white dark:bg-emerald-500'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+              )}
+            >
+              {shop === 'All' ? (language === 'vi' ? 'Tất cả' : 'All') : shop}
+            </button>
+          ))}
+        </div>
+
         {/* Product grid */}
         <div className="overflow-y-auto p-6" onClick={() => setConfirmingId(null)}>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            {SHOP_PRODUCTS.map((product) => {
+            {filteredProducts.map((product) => {
               const canAfford = totalPoints >= product.points
               const isJust = justPurchased === product.id
               const isConfirming = confirmingId === product.id

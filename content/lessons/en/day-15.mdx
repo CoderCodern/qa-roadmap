@@ -70,14 +70,12 @@ from json import loads as parse # bí danh — dùng parse()
 
 ## Code / Demo
 
-```python
-# Standard library modules in a QA context
+<CodePlayground code={`# Standard library modules in a QA context
 import json
 import os
 import time
 import uuid
 from datetime import datetime
-from pathlib import Path
 
 # json — parsing API responses
 raw_response = '{"status": "ok", "user": {"id": 42, "email": "alice@example.com"}}'
@@ -103,53 +101,280 @@ print(f"Test email: {test_email}")
 now = datetime.now().isoformat()
 print(f"Test run started at: {now}")
 
-# pathlib — reading fixture files
-fixtures_dir = Path(__file__).parent / "fixtures"
-# example: test_data = json.loads((fixtures_dir / "users.json").read_text())
-
 # time — simple polling wait
 print("Simulating a polling wait...")
 start = time.time()
-time.sleep(0.1)
+time.sleep(0.05)
 elapsed = time.time() - start
 print(f"Waited {elapsed:.2f}s")
 
-if __name__ == "__main__":
-    print("Running module directly — all checks passed!")
-```
+# __name__ guard concept
+# When run directly: __name__ == "__main__"
+# When imported:     __name__ == the module name
+print(f"__name__ = '{__name__}'")
+print("All module demos passed!")`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Create a file `test_helpers.py` with a function `generate_test_user()` that returns a dict with a unique email (using `uuid`), a fixed password, and a timestamp. Import and call it from a separate `run_tests.py` file
-- [ ] Use `os.environ.get` to read an `API_URL` environment variable with a localhost default, then print a formatted string showing the target URL
-- [ ] Parse the JSON string `'{"items": [1, 2, 3], "total": 3}'` and assert that the `total` equals the length of `items`
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Parse and validate JSON",
+    code: `# Phân tích và kiểm tra JSON / Parse and validate JSON
+import json
+
+raw = '{"status": "ok", "items": [1, 2, 3], "total": 3}'
+
+# TODO (VI): Dùng json.loads() để chuyển chuỗi thành dict
+# TODO (EN): Use json.loads() to convert the string into a dict
+data = json.???(raw)
+
+print(f"Status: {data['status']}")
+assert data["status"] == "ok"
+
+# TODO (VI): Kiểm tra total bằng với len(items) — điền hàm đúng
+# TODO (EN): Assert total equals len(items) — fill in the correct function
+assert data["total"] == ???(data["items"])
+print("JSON parsed and validated!")`
+  },
+  {
+    title: "Exercise 2 — Read environment variables",
+    code: `# Đọc biến môi trường / Read environment variables
+import os
+
+# TODO (VI): Điền tên biến "API_URL" vào os.environ.get
+# TODO (EN): Fill in "API_URL" as the env variable name
+api_url = os.environ.get(???, "http://localhost:8080")
+print(f"Target API: {api_url}")
+
+# TODO (VI): Điền "http" để kiểm tra URL bắt đầu đúng
+# TODO (EN): Fill in "http" to check the URL starts correctly
+assert api_url.startswith(???), "URL must start with http"
+print("Environment config loaded!")`
+  },
+  {
+    title: "Exercise 3 — Generate unique test data with uuid",
+    code: `# Tạo test data duy nhất / Generate unique test data
+import uuid
+import json
+
+def generate_test_user() -> dict:
+    # TODO (VI): Dùng uuid.uuid4() để tạo ID ngẫu nhiên
+    # TODO (EN): Use uuid.uuid4() to create a random unique ID
+    unique_id = uuid.???().hex[:8]
+    return {
+        "email": f"test+{unique_id}@example.com",
+        "password": "TestPass123",
+    }
+
+user = generate_test_user()
+print(json.dumps(user, indent=2))
+
+# TODO (VI): Kiểm tra email kết thúc bằng "@example.com"
+# TODO (EN): Assert the email ends with "@example.com"
+assert user["email"].endswith(???)
+print("Unique test user generated!")`
+  }
+]}>
+<En>
+Complete the three exercises below. Replace each `???` with the correct code, then click **Run** to verify. When done, submit all for AI review.
+</En>
+<Vi>
+Hoàn thành ba bài tập bên dưới. Thay mỗi `???` bằng code đúng, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What is the difference between `import json` and `from json import loads`?",
+    qVi: "Sự khác biệt giữa `import json` và `from json import loads` là gì?",
     choices: [
       "No difference — they are identical",
       "`import json` requires `json.loads()` syntax; `from json import loads` lets you call `loads()` directly",
       "`from json import loads` only works in Python 3.10+",
       "`import json` is slower"
     ],
+    choicesVi: [
+      "Không có gì khác — chúng giống nhau",
+      "`import json` yêu cầu cú pháp `json.loads()`; `from json import loads` cho phép gọi `loads()` trực tiếp",
+      "`from json import loads` chỉ hoạt động trong Python 3.10+",
+      "`import json` chậm hơn"
+    ],
     answer: 1,
-    explain: "With 'import json' you access names via the module namespace (json.loads). With 'from json import loads' the name is injected directly into your namespace. Both work; choose based on clarity."
+    explain: "With 'import json' you access names via the module namespace (json.loads). With 'from json import loads' the name is injected directly into your namespace. Both work; choose based on clarity.",
+    explainVi: "Với 'import json' bạn truy cập tên qua namespace module (json.loads). Với 'from json import loads' tên được đưa trực tiếp vào namespace. Cả hai đều hoạt động; chọn dựa trên sự rõ ràng."
   },
   {
-    q: "When does `if __name__ == '__main__':` block run?",
+    q: "When does the `if __name__ == '__main__':` block run?",
+    qVi: "Khối `if __name__ == '__main__':` chạy khi nào?",
     choices: [
       "Every time the file is imported",
       "Only when the file is run directly with python file.py",
       "Only in production environments",
       "Only when running pytest"
     ],
+    choicesVi: [
+      "Mỗi khi file được import",
+      "Chỉ khi file được chạy trực tiếp bằng python file.py",
+      "Chỉ trong môi trường production",
+      "Chỉ khi chạy pytest"
+    ],
     answer: 1,
-    explain: "When a file is imported, __name__ is set to the module name. When run directly, __name__ is '__main__'. This lets a file be both a reusable module and a runnable script."
+    explain: "When a file is imported, __name__ is set to the module name. When run directly, __name__ is '__main__'. This guard lets a file act as both a reusable module and a runnable script.",
+    explainVi: "Khi file được import, __name__ được đặt là tên module. Khi chạy trực tiếp, __name__ là '__main__'. Guard này cho phép file hoạt động vừa là module có thể tái sử dụng vừa là script có thể chạy."
+  },
+  {
+    q: "What is pip?",
+    qVi: "pip là gì?",
+    choices: [
+      "A Python built-in function for printing",
+      "Python's package installer for downloading and managing third-party libraries",
+      "A virtual environment manager",
+      "A Python linter and code formatter"
+    ],
+    choicesVi: [
+      "Hàm tích hợp Python để in",
+      "Trình cài đặt gói của Python để tải và quản lý thư viện bên thứ ba",
+      "Trình quản lý môi trường ảo",
+      "Linter và trình định dạng code Python"
+    ],
+    answer: 1,
+    explain: "pip (Package Installer for Python) is the standard tool for installing packages from PyPI. It comes bundled with Python 3.4+. Always activate your virtual environment before running pip install.",
+    explainVi: "pip (Package Installer for Python) là công cụ tiêu chuẩn để cài đặt gói từ PyPI. Nó đi kèm với Python 3.4+. Luôn kích hoạt môi trường ảo trước khi chạy pip install."
+  },
+  {
+    q: "Which command installs the `requests` library using pip?",
+    qVi: "Lệnh nào cài thư viện `requests` bằng pip?",
+    choices: [
+      "python install requests",
+      "pip install requests",
+      "pip add requests",
+      "python -m get requests"
+    ],
+    choicesVi: [
+      "python install requests",
+      "pip install requests",
+      "pip add requests",
+      "python -m get requests"
+    ],
+    answer: 1,
+    explain: "'pip install requests' is the standard command. 'pip add' does not exist. Always run this inside an activated virtual environment so the package is scoped to your project.",
+    explainVi: "'pip install requests' là lệnh tiêu chuẩn. 'pip add' không tồn tại. Luôn chạy lệnh này trong môi trường ảo đã kích hoạt để gói được giới hạn trong dự án của bạn."
+  },
+  {
+    q: "What is the purpose of a Python virtual environment?",
+    qVi: "Mục đích của môi trường ảo Python là gì?",
+    choices: [
+      "To make Python run faster by caching imports",
+      "To isolate project dependencies so different projects don't conflict",
+      "To provide a graphical IDE for Python development",
+      "To automatically update Python to the latest version"
+    ],
+    choicesVi: [
+      "Làm Python chạy nhanh hơn bằng cách cache import",
+      "Cô lập các phụ thuộc dự án để các dự án khác nhau không xung đột",
+      "Cung cấp IDE đồ họa cho lập trình Python",
+      "Tự động cập nhật Python lên phiên bản mới nhất"
+    ],
+    answer: 1,
+    explain: "A virtual environment creates an isolated directory for a project's packages. Project A can use requests 2.28 while Project B uses requests 2.31 with no conflict.",
+    explainVi: "Môi trường ảo tạo thư mục riêng cho các gói của dự án. Dự án A có thể dùng requests 2.28 trong khi Dự án B dùng requests 2.31 mà không xung đột."
+  },
+  {
+    q: "What does `import os` give you access to?",
+    qVi: "`import os` cho bạn truy cập vào gì?",
+    choices: [
+      "Only file path utilities",
+      "Operating system interfaces: file system, environment variables, process info, and more",
+      "Only environment variable reading",
+      "Network socket operations"
+    ],
+    choicesVi: [
+      "Chỉ tiện ích đường dẫn file",
+      "Giao diện hệ điều hành: hệ thống file, biến môi trường, thông tin tiến trình và nhiều hơn",
+      "Chỉ đọc biến môi trường",
+      "Thao tác socket mạng"
+    ],
+    answer: 1,
+    explain: "The os module provides a portable interface to operating system features. Common uses in testing: os.environ for environment variables, os.path for file paths, os.getcwd() for the current directory.",
+    explainVi: "Module os cung cấp giao diện portable cho các tính năng hệ điều hành. Dùng phổ biến trong kiểm thử: os.environ cho biến môi trường, os.path cho đường dẫn file, os.getcwd() cho thư mục hiện tại."
+  },
+  {
+    q: "What is `__init__.py` used for in a Python package?",
+    qVi: "`__init__.py` dùng để làm gì trong Python package?",
+    choices: [
+      "It runs automatically when Python starts up",
+      "It marks a directory as a Python package and can set up package-level imports",
+      "It is the entry point for pip installations",
+      "It stores package version and author metadata"
+    ],
+    choicesVi: [
+      "Nó chạy tự động khi Python khởi động",
+      "Nó đánh dấu thư mục là Python package và có thể thiết lập import cấp package",
+      "Nó là điểm vào cho cài đặt pip",
+      "Nó lưu metadata phiên bản và tác giả gói"
+    ],
+    answer: 1,
+    explain: "A directory with __init__.py is treated as a Python package, enabling 'from mypackage import mymodule'. The file can be empty or contain package-level initialization code.",
+    explainVi: "Thư mục có __init__.py được coi là Python package, cho phép 'from mypackage import mymodule'. File có thể rỗng hoặc chứa code khởi tạo cấp package."
+  },
+  {
+    q: "What does `from typing import List` provide?",
+    qVi: "`from typing import List` cung cấp gì?",
+    choices: [
+      "A built-in list class replacement",
+      "A type annotation for lists, enabling List[str] or List[int] in type hints",
+      "A function to validate list contents",
+      "A faster list implementation"
+    ],
+    choicesVi: [
+      "Lớp list tích hợp thay thế",
+      "Annotation kiểu cho list, cho phép List[str] hoặc List[int] trong type hints",
+      "Hàm để kiểm tra nội dung list",
+      "Triển khai list nhanh hơn"
+    ],
+    answer: 1,
+    explain: "The typing module provides generic type annotations. 'List[str]' annotates a list of strings. In Python 3.9+ you can use the built-in 'list[str]' directly without importing from typing.",
+    explainVi: "Module typing cung cấp annotation kiểu generic. 'List[str]' annotate list chuỗi. Trong Python 3.9+ bạn có thể dùng 'list[str]' tích hợp trực tiếp mà không cần import từ typing."
+  },
+  {
+    q: "What is `requirements.txt` used for?",
+    qVi: "`requirements.txt` dùng để làm gì?",
+    choices: [
+      "It stores the project's test cases",
+      "It lists the project's dependencies so anyone can install them with one command",
+      "It configures the Python interpreter version",
+      "It defines environment variables for the project"
+    ],
+    choicesVi: [
+      "Lưu trữ test case của dự án",
+      "Liệt kê các phụ thuộc của dự án để bất kỳ ai cũng có thể cài bằng một lệnh",
+      "Cấu hình phiên bản Python interpreter",
+      "Định nghĩa biến môi trường cho dự án"
+    ],
+    answer: 1,
+    explain: "requirements.txt lists exact package versions (e.g. requests==2.31.0). Anyone can reproduce the same environment with 'pip install -r requirements.txt'. This is critical for CI/CD pipelines.",
+    explainVi: "requirements.txt liệt kê các phiên bản gói chính xác (ví dụ requests==2.31.0). Bất kỳ ai cũng có thể tái tạo cùng môi trường với 'pip install -r requirements.txt'. Điều này quan trọng với CI/CD."
+  },
+  {
+    q: "Which command generates `requirements.txt` from your active virtual environment?",
+    qVi: "Lệnh nào tạo `requirements.txt` từ môi trường ảo đang hoạt động?",
+    choices: [
+      "pip list > requirements.txt",
+      "pip freeze > requirements.txt",
+      "pip export requirements.txt",
+      "python -m pip save requirements.txt"
+    ],
+    choicesVi: [
+      "pip list > requirements.txt",
+      "pip freeze > requirements.txt",
+      "pip export requirements.txt",
+      "python -m pip save requirements.txt"
+    ],
+    answer: 1,
+    explain: "'pip freeze' outputs installed packages with pinned versions in requirements.txt format. Redirect it with '> requirements.txt'. 'pip list' outputs a human-readable table, not the requirements format.",
+    explainVi: "'pip freeze' xuất các gói đã cài với phiên bản được ghim ở định dạng requirements.txt. Chuyển hướng với '> requirements.txt'. 'pip list' xuất bảng dễ đọc, không phải định dạng requirements."
   }
 ]} />
 

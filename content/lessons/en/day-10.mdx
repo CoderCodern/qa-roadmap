@@ -109,60 +109,69 @@ print(f"Generated test email: {unique_email}")
 
 ## Exercise
 
-<CodeExerciseGroup exercises={[
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
   {
     title: "Exercise 1 — Parse an error string",
-    code: `# String operations on a real-world error message
+    code: `# Xử lý thông báo lỗi thực tế / Process a real-world error string
 error_msg = "  ERROR: Connection timed out  "
 
-# TODO: Strip leading/trailing whitespace
+# TODO (VI): Dùng .strip() để xoá khoảng trắng đầu/cuối của error_msg
+# TODO (EN): Call .strip() on error_msg to remove leading/trailing whitespace
 cleaned = ???
+
 print(f"Cleaned: '{cleaned}'")
 
-# TODO: Assert that "connection timed out" appears (case-insensitive)
-assert ??? in cleaned.lower(), "Keyword not found"
+# Kiểm tra từ khoá không phân biệt hoa/thường (đã điền sẵn)
+# Case-insensitive keyword check (already filled in for you)
+assert "connection timed out" in cleaned.lower(), "Keyword not found"
 print("Keyword check passed!")
 
-# TODO: Extract the error type before the colon
-# Hint: split on ":" then strip the first part
-error_type = ???
-print(f"Error type: {error_type}")`
+# Lấy phần trước dấu ":" (đã điền sẵn)
+# Extract the part before ":" (already filled in for you)
+error_type = cleaned.split(":")[0].strip()
+print(f"Error type: '{error_type}'")`
   },
   {
     title: "Exercise 2 — Validate an API URL",
-    code: `# Assert properties of an API endpoint URL
+    code: `# Kiểm tra thuộc tính của URL API / Validate an API endpoint URL
 api_url = "https://api.example.com/api/v1/users"
 
-# TODO: Assert the URL uses HTTPS
-assert ???, "URL must use HTTPS"
+# TODO (VI): Điền chuỗi "https://" vào chỗ trống — kiểm tra URL bắt đầu đúng giao thức
+# TODO (EN): Fill in "https://" — check the URL uses the correct protocol
+assert api_url.startswith(???), "URL must use HTTPS"
 
-# TODO: Assert the URL contains the versioned path prefix
-assert ???, "URL must contain /api/v1/"
+# TODO (VI): Điền "/api/v1/" vào chỗ trống — kiểm tra đường dẫn có version
+# TODO (EN): Fill in "/api/v1/" — check the URL contains the versioned path
+assert ??? in api_url, "URL must contain /api/v1/"
 
 print("URL assertions passed!")`
   },
   {
     title: "Exercise 3 — Build a failure message with f-strings",
-    code: `# Use an f-string to build a descriptive test failure message
+    code: `# Xây dựng thông báo lỗi bằng f-string / Build a failure message with an f-string
 field_name = "email"
 expected_value = "alice@example.com"
-actual_value = "alice@example"   # intentionally wrong
+actual_value = "alice@example"   # sai có chủ ý / intentionally wrong
 
-# TODO: Build a failure_msg using an f-string that includes:
-#   - the field name
-#   - the expected value
-#   - the actual value
-# Example output: "Field 'email': expected 'alice@example.com', got 'alice@example'"
+# TODO (VI): Dùng f-string tạo failure_msg chứa field_name, expected_value, actual_value
+# TODO (EN): Use an f-string to build failure_msg that includes all three variables
+# Kết quả mong đợi / Expected output:
+#   "Field 'email': expected 'alice@example.com', got 'alice@example'"
 failure_msg = ???
 
-print(failure_msg)`
+print(failure_msg)
+
+# Kiểm tra nhanh (đã điền sẵn) / Quick checks (already filled in)
+assert "email" in failure_msg
+assert "alice@example.com" in failure_msg
+print("Message format check passed!")`
   }
 ]}>
 <En>
-Complete the three exercises below. Each editor has comments guiding you — fill in the blanks, then click **Run** to verify. When done, submit all for AI review.
+Complete the three exercises below. Each editor has bilingual comments guiding you — replace each `???` with the correct code, then click **Run** to verify. When done, submit all for AI review.
 </En>
 <Vi>
-Hoàn thành ba bài tập bên dưới. Mỗi editor có comment hướng dẫn — điền vào chỗ trống, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+Hoàn thành ba bài tập bên dưới. Mỗi editor có comment song ngữ hướng dẫn — thay mỗi `???` bằng code đúng, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
 </Vi>
 </CodeExerciseGroup>
 
@@ -282,6 +291,82 @@ Hoàn thành ba bài tập bên dưới. Mỗi editor có comment hướng dẫn
     answer: 1,
     explain: "f-strings evaluate the expression inside {} at runtime and embed the result into the string. f'Status: {200}' embeds the integer 200, producing the string 'Status: 200'.",
     explainVi: "f-string đánh giá biểu thức trong {} lúc chạy và nhúng kết quả vào chuỗi. f'Status: {200}' nhúng số nguyên 200, tạo ra chuỗi 'Status: 200'."
+  },
+  {
+    q: "What does `'hello'.upper()` return?",
+    qVi: "`'hello'.upper()` trả về gì?",
+    choices: [
+      "'hello'",
+      "'HELLO'",
+      "'Hello'",
+      "TypeError"
+    ],
+    choicesVi: [
+      "'hello'",
+      "'HELLO'",
+      "'Hello'",
+      "TypeError"
+    ],
+    answer: 1,
+    explain: "upper() returns a new string with all characters converted to uppercase. The original string is unchanged because strings are immutable in Python. lower() does the reverse.",
+    explainVi: "upper() trả về chuỗi mới với tất cả ký tự chuyển sang chữ hoa. Chuỗi gốc không thay đổi vì chuỗi bất biến trong Python. lower() thực hiện ngược lại."
+  },
+  {
+    q: "What does `'abc'.replace('b', 'x')` return?",
+    qVi: "`'abc'.replace('b', 'x')` trả về gì?",
+    choices: [
+      "'abc'",
+      "'axc'",
+      "'xbc'",
+      "'abx'"
+    ],
+    choicesVi: [
+      "'abc'",
+      "'axc'",
+      "'xbc'",
+      "'abx'"
+    ],
+    answer: 1,
+    explain: "replace(old, new) returns a new string with all occurrences of 'old' substituted by 'new'. The character 'b' at index 1 is replaced with 'x', producing 'axc'.",
+    explainVi: "replace(old, new) trả về chuỗi mới với tất cả lần xuất hiện của 'old' được thay bằng 'new'. Ký tự 'b' ở vị trí 1 được thay bằng 'x', tạo ra 'axc'."
+  },
+  {
+    q: "What does `'hello world'.startswith('world')` return?",
+    qVi: "`'hello world'.startswith('world')` trả về gì?",
+    choices: [
+      "True",
+      "False",
+      "None",
+      "TypeError"
+    ],
+    choicesVi: [
+      "True",
+      "False",
+      "None",
+      "TypeError"
+    ],
+    answer: 1,
+    explain: "startswith() checks if the string begins with the given prefix. 'hello world' starts with 'hello', not 'world', so it returns False. Use endswith() to check the tail instead.",
+    explainVi: "startswith() kiểm tra xem chuỗi có bắt đầu bằng tiền tố đã cho không. 'hello world' bắt đầu bằng 'hello', không phải 'world', nên trả về False. Dùng endswith() để kiểm tra cuối chuỗi."
+  },
+  {
+    q: "What is a raw string in Python and when is it useful?",
+    qVi: "Chuỗi thô (raw string) trong Python là gì và khi nào nó hữu ích?",
+    choices: [
+      "A string stripped of all whitespace",
+      "A string prefixed with r'' where backslashes are treated as literals, not escape sequences",
+      "A string stored in binary format for performance",
+      "A string that disables f-string interpolation"
+    ],
+    choicesVi: [
+      "Chuỗi đã loại bỏ tất cả khoảng trắng",
+      "Chuỗi có tiền tố r'' trong đó dấu gạch chéo ngược là ký tự thực, không phải ký tự thoát",
+      "Chuỗi lưu dạng nhị phân để tăng hiệu suất",
+      "Chuỗi tắt tính năng nội suy f-string"
+    ],
+    answer: 1,
+    explain: "Raw strings (r'...') treat backslashes as literal characters. They're essential for Windows file paths (r'C:\\Users\\alice') and regex patterns (r'\\d+\\s') where unintended escape sequences would break the logic.",
+    explainVi: "Chuỗi thô (r'...') xử lý dấu gạch chéo ngược như ký tự thực. Chúng thiết yếu cho đường dẫn Windows (r'C:\\Users\\alice') và mẫu regex (r'\\d+\\s') khi các ký tự thoát không mong muốn làm hỏng logic."
   }
 ]} />
 

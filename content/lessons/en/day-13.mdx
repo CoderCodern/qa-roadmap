@@ -80,8 +80,7 @@ while condition:
 
 ## Code / Demo
 
-```python
-# Pattern 1: Run assertions against multiple test inputs
+<CodePlayground code={`# Pattern 1: Run assertions against multiple test inputs
 test_passwords = [
     ("ValidPass1", True),
     ("hi", False),      # too short
@@ -96,7 +95,7 @@ failures = []
 for password, expected in test_passwords:
     actual = is_valid_password(password)
     if actual != expected:
-        failures.append(f"FAIL: '{password}' → expected {expected}, got {actual}")
+        failures.append(f"FAIL: '{password}' expected {expected}, got {actual}")
 
 if failures:
     for f in failures:
@@ -108,7 +107,7 @@ else:
 status_codes = [200, 201, 204, 400, 404, 500]
 for i, code in enumerate(status_codes, start=1):
     is_success = 200 <= code < 300
-    print(f"TC-{i:03d}: status {code} → {'success' if is_success else 'not success'}")
+    print(f"TC-{i:03d}: status {code} -> {'success' if is_success else 'not success'}")
 
 # Pattern 3: while loop for retry logic
 import time
@@ -124,7 +123,7 @@ while attempt < max_retries and not ready:
     ready = check_service_ready(attempt)
     print(f"Attempt {attempt}: {'ready' if ready else 'not ready yet'}")
     if not ready:
-        time.sleep(0.1)
+        time.sleep(0.05)
 
 assert ready, f"Service not ready after {max_retries} attempts"
 print("Service is ready!")
@@ -132,41 +131,265 @@ print("Service is ready!")
 # Pattern 4: list comprehension for filtering
 all_codes = [200, 201, 301, 400, 404, 500, 503]
 error_codes = [c for c in all_codes if c >= 400]
-print(f"Error codes found: {error_codes}")
-```
+print(f"Error codes found: {error_codes}")`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a loop that runs a "login" simulation for 5 different username/password pairs (stored as tuples) and reports which ones passed and which failed
-- [ ] Implement a `retry(func, max_attempts)` function using a `while` loop that calls `func()` until it returns `True` or max attempts are exhausted
-- [ ] Use a list comprehension to extract all items from a list of dicts where `status == "failed"`
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Validate multiple status codes",
+    code: `# Thu thập lỗi qua nhiều đầu vào / Collect failures across multiple inputs
+status_codes = [200, 201, 204]
+failures = []
+
+for code in status_codes:
+    # TODO (VI): Điền 200 — kiểm tra code nằm trong dải success [200, 300)
+    # TODO (EN): Fill in 200 — check that code is in the success range [200, 300)
+    if not (??? <= code < 300):
+        failures.append(f"FAIL: {code} is not a success code")
+
+assert len(failures) == 0, str(failures)
+print(f"All {len(status_codes)} codes are valid success codes!")`
+  },
+  {
+    title: "Exercise 2 — Filter with list comprehension",
+    code: `# List comprehension để lọc kết quả / Filter results with list comprehension
+test_results = [
+    {"name": "login_test", "status": "passed"},
+    {"name": "logout_test", "status": "failed"},
+    {"name": "signup_test", "status": "passed"},
+    {"name": "reset_test", "status": "failed"},
+]
+
+# TODO (VI): Dùng list comprehension lọc các test có status là "failed"
+# TODO (EN): Use a list comprehension to get tests where status is "failed"
+failed_tests = [t for t in test_results if t["status"] == ???]
+
+print(f"Failed: {[t['name'] for t in failed_tests]}")
+assert len(failed_tests) == 2
+print("Filter comprehension works!")`
+  },
+  {
+    title: "Exercise 3 — While retry loop",
+    code: `# Retry logic với while loop / Retry logic with while loop
+max_retries = 3
+attempt = 0
+success = False
+
+def try_connect(n: int) -> bool:
+    return n >= 2  # thành công sau 2 lần / succeeds after 2 attempts
+
+# TODO (VI): Điền điều kiện while: tiếp tục khi chưa thành công
+# TODO (EN): Fill in the while condition: keep going while not yet successful
+while ??? and attempt < max_retries:
+    attempt += 1
+    success = try_connect(attempt)
+    print(f"Attempt {attempt}: {'connected!' if success else 'retrying...'}")
+
+assert success, f"Failed after {max_retries} attempts"
+print(f"Success after {attempt} attempt(s)!")`
+  }
+]}>
+<En>
+Complete the three exercises below. Replace each `???` with the correct code, then click **Run** to verify. When done, submit all for AI review.
+</En>
+<Vi>
+Hoàn thành ba bài tập bên dưới. Thay mỗi `???` bằng code đúng, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What does `enumerate(['a', 'b', 'c'], start=1)` produce?",
+    qVi: "`enumerate(['a', 'b', 'c'], start=1)` tạo ra gì?",
     choices: [
       "[(0,'a'), (1,'b'), (2,'c')]",
       "[(1,'a'), (2,'b'), (3,'c')]",
       "[1, 2, 3]",
       "['a', 'b', 'c']"
     ],
+    choicesVi: [
+      "[(0,'a'), (1,'b'), (2,'c')]",
+      "[(1,'a'), (2,'b'), (3,'c')]",
+      "[1, 2, 3]",
+      "['a', 'b', 'c']"
+    ],
     answer: 1,
-    explain: "enumerate with start=1 yields (1,'a'), (2,'b'), (3,'c'). Without start=1 it would default to 0-based indexing."
+    explain: "enumerate with start=1 yields (1,'a'), (2,'b'), (3,'c'). The default is 0-based. Using start=1 is useful for human-readable step counters in test reports.",
+    explainVi: "enumerate với start=1 tạo ra (1,'a'), (2,'b'), (3,'c'). Mặc định là 0-based. Dùng start=1 hữu ích cho bộ đếm bước dễ đọc trong báo cáo test."
   },
   {
     q: "In test automation, what is the key advantage of collecting failures in a list instead of asserting inside the loop?",
+    qVi: "Trong tự động hoá kiểm thử, ưu điểm chính của việc thu thập lỗi vào list thay vì assert bên trong vòng lặp là gì?",
     choices: [
       "It makes the code run faster",
       "You see ALL failures at once instead of stopping at the first one",
       "It is required by pytest",
       "It avoids using the assert keyword"
     ],
+    choicesVi: [
+      "Làm code chạy nhanh hơn",
+      "Bạn thấy TẤT CẢ lỗi cùng lúc thay vì dừng ở lỗi đầu tiên",
+      "pytest yêu cầu điều này",
+      "Tránh dùng từ khóa assert"
+    ],
     answer: 1,
-    explain: "Collecting failures lets you run every test input and report all problems at once. Asserting inside the loop stops on the first failure, hiding subsequent issues."
+    explain: "Collecting failures lets you run every test input and report all problems at once. Asserting inside the loop stops on the first failure, hiding subsequent issues until the earlier ones are fixed.",
+    explainVi: "Thu thập lỗi giúp bạn chạy mọi dữ liệu test và báo cáo tất cả vấn đề cùng lúc. Assert bên trong vòng lặp dừng ở lỗi đầu tiên, che giấu các vấn đề tiếp theo cho đến khi lỗi trước được sửa."
+  },
+  {
+    q: "What does `break` do inside a loop?",
+    qVi: "`break` làm gì bên trong vòng lặp?",
+    choices: [
+      "Skips the current iteration and continues to the next",
+      "Exits the loop immediately",
+      "Restarts the loop from the beginning",
+      "Raises a LoopBreakError"
+    ],
+    choicesVi: [
+      "Bỏ qua vòng lặp hiện tại và tiếp tục vòng tiếp theo",
+      "Thoát khỏi vòng lặp ngay lập tức",
+      "Khởi động lại vòng lặp từ đầu",
+      "Ném LoopBreakError"
+    ],
+    answer: 1,
+    explain: "break exits the nearest enclosing loop entirely. It's commonly used in retry loops (exit when success) and search loops (exit when the target is found).",
+    explainVi: "break thoát hoàn toàn khỏi vòng lặp lồng gần nhất. Nó thường dùng trong retry loop (thoát khi thành công) và search loop (thoát khi tìm thấy mục tiêu)."
+  },
+  {
+    q: "What does `continue` do inside a loop?",
+    qVi: "`continue` làm gì bên trong vòng lặp?",
+    choices: [
+      "Exits the loop immediately",
+      "Skips the rest of the current iteration and moves to the next one",
+      "Restarts the loop from the beginning",
+      "Pauses the loop for one second"
+    ],
+    choicesVi: [
+      "Thoát khỏi vòng lặp ngay lập tức",
+      "Bỏ qua phần còn lại của vòng hiện tại và chuyển sang vòng tiếp theo",
+      "Khởi động lại vòng lặp từ đầu",
+      "Tạm dừng vòng lặp một giây"
+    ],
+    answer: 1,
+    explain: "continue skips the remaining statements in the current iteration and jumps to the next one. It's useful for filtering: 'if not valid: continue' avoids deep nesting.",
+    explainVi: "continue bỏ qua các câu lệnh còn lại trong vòng hiện tại và nhảy sang vòng tiếp theo. Hữu ích để lọc: 'if not valid: continue' tránh lồng sâu."
+  },
+  {
+    q: "What does `list(range(5))` produce?",
+    qVi: "`list(range(5))` tạo ra gì?",
+    choices: [
+      "[1, 2, 3, 4, 5]",
+      "[0, 1, 2, 3, 4]",
+      "[0, 1, 2, 3, 4, 5]",
+      "range(0, 5)"
+    ],
+    choicesVi: [
+      "[1, 2, 3, 4, 5]",
+      "[0, 1, 2, 3, 4]",
+      "[0, 1, 2, 3, 4, 5]",
+      "range(0, 5)"
+    ],
+    answer: 1,
+    explain: "range(5) generates integers from 0 up to (but not including) 5: [0, 1, 2, 3, 4]. It's zero-indexed, like Python lists. range(1, 6) would give [1, 2, 3, 4, 5].",
+    explainVi: "range(5) tạo ra các số nguyên từ 0 đến (không bao gồm) 5: [0, 1, 2, 3, 4]. Nó bắt đầu từ 0, như list Python. range(1, 6) sẽ cho [1, 2, 3, 4, 5]."
+  },
+  {
+    q: "What does `list(range(2, 8, 2))` produce?",
+    qVi: "`list(range(2, 8, 2))` tạo ra gì?",
+    choices: [
+      "[2, 4, 6, 8]",
+      "[2, 4, 6]",
+      "[2, 3, 4, 5, 6, 7]",
+      "[0, 2, 4, 6]"
+    ],
+    choicesVi: [
+      "[2, 4, 6, 8]",
+      "[2, 4, 6]",
+      "[2, 3, 4, 5, 6, 7]",
+      "[0, 2, 4, 6]"
+    ],
+    answer: 1,
+    explain: "range(start, stop, step) starts at 2, stops before 8, stepping by 2: 2, 4, 6. 8 is excluded because stop is exclusive. The step parameter controls the increment.",
+    explainVi: "range(start, stop, step) bắt đầu từ 2, dừng trước 8, bước nhảy 2: 2, 4, 6. 8 bị loại vì stop là exclusive. Tham số step điều khiển bước tăng."
+  },
+  {
+    q: "What is a list comprehension?",
+    qVi: "List comprehension là gì?",
+    choices: [
+      "A for loop that appends items to an empty list",
+      "A concise syntax to build a list by transforming or filtering an iterable in one expression",
+      "A built-in function that converts any iterable to a list",
+      "A way to flatten nested lists"
+    ],
+    choicesVi: [
+      "Vòng for thêm item vào danh sách rỗng",
+      "Cú pháp ngắn gọn để xây dựng danh sách bằng cách biến đổi hoặc lọc iterable trong một biểu thức",
+      "Hàm tích hợp chuyển đổi iterable thành list",
+      "Cách để làm phẳng các list lồng nhau"
+    ],
+    answer: 1,
+    explain: "[expr for item in iterable if condition] is a list comprehension. It's more readable and faster than an equivalent for loop with append. The 'if' part is optional.",
+    explainVi: "[expr for item in iterable if condition] là list comprehension. Nó dễ đọc hơn và nhanh hơn vòng for tương đương với append. Phần 'if' là tuỳ chọn."
+  },
+  {
+    q: "When should you prefer `while` over `for` in Python?",
+    qVi: "Khi nào nên dùng `while` thay cho `for` trong Python?",
+    choices: [
+      "When iterating over a known list or sequence",
+      "When the number of iterations is unknown and depends on a condition",
+      "When you need enumerate() or zip()",
+      "while is always faster than for"
+    ],
+    choicesVi: [
+      "Khi lặp qua danh sách hoặc dãy đã biết",
+      "Khi số vòng lặp không xác định và phụ thuộc vào điều kiện",
+      "Khi cần enumerate() hoặc zip()",
+      "while luôn nhanh hơn for"
+    ],
+    answer: 1,
+    explain: "Use 'while' when the loop must continue until an unknown condition changes — like a retry loop, polling, or reading input. Use 'for' to iterate over a finite sequence.",
+    explainVi: "Dùng 'while' khi vòng lặp phải tiếp tục cho đến khi điều kiện không xác định thay đổi — như retry loop, polling hay đọc input. Dùng 'for' để lặp qua dãy hữu hạn."
+  },
+  {
+    q: "What does `pass` do inside a loop body?",
+    qVi: "`pass` làm gì bên trong thân vòng lặp?",
+    choices: [
+      "Skips the current iteration (same as continue)",
+      "Exits the loop (same as break)",
+      "Does nothing — it is a no-op placeholder",
+      "Pauses execution for one iteration"
+    ],
+    choicesVi: [
+      "Bỏ qua vòng hiện tại (như continue)",
+      "Thoát khỏi vòng lặp (như break)",
+      "Không làm gì — đây là placeholder no-op",
+      "Tạm dừng thực thi một vòng"
+    ],
+    answer: 2,
+    explain: "'pass' is a no-operation statement. It's used as a placeholder where Python syntax requires a statement but you don't want to do anything yet, such as an empty loop body during development.",
+    explainVi: "'pass' là câu lệnh không làm gì. Nó dùng làm placeholder khi cú pháp Python yêu cầu một câu lệnh nhưng bạn chưa muốn làm gì, như thân vòng lặp rỗng trong quá trình phát triển."
+  },
+  {
+    q: "What is the output of `[x * 2 for x in range(3)]`?",
+    qVi: "Kết quả của `[x * 2 for x in range(3)]` là gì?",
+    choices: [
+      "[1, 2, 3]",
+      "[0, 2, 4]",
+      "[2, 4, 6]",
+      "[0, 1, 2, 3, 4]"
+    ],
+    choicesVi: [
+      "[1, 2, 3]",
+      "[0, 2, 4]",
+      "[2, 4, 6]",
+      "[0, 1, 2, 3, 4]"
+    ],
+    answer: 1,
+    explain: "range(3) produces 0, 1, 2. Multiplying each by 2 gives 0, 2, 4. The list comprehension collects these into [0, 2, 4].",
+    explainVi: "range(3) tạo ra 0, 1, 2. Nhân mỗi giá trị với 2 cho 0, 2, 4. List comprehension thu thập chúng thành [0, 2, 4]."
   }
 ]} />
 

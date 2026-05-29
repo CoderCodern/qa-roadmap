@@ -75,18 +75,87 @@ print("First assertion passed!")
 
 ## Exercise
 
-<ExerciseBox>
-<En>
-- [ ] Install Python 3.11+ from python.org and verify with `python --version` in your terminal
-- [ ] Install VS Code and the Microsoft Python extension, then open the command palette and select a Python interpreter
-- [ ] Create a folder `qa-practice/`, create a virtual environment inside it, activate it, and run the demo script above
-</En>
-<Vi>
-- [ ] Cài Python 3.11+ từ python.org và xác minh bằng `python --version` trong terminal của bạn
-- [ ] Cài VS Code và Python extension của Microsoft, sau đó mở command palette và chọn Python interpreter
-- [ ] Tạo thư mục `qa-practice/`, tạo môi trường ảo bên trong, kích hoạt nó và chạy script demo ở trên
-</Vi>
-</ExerciseBox>
+<InstallGuide steps={[
+  {
+    title: "Install Python 3.11+",
+    titleVi: "Cài Python 3.11+",
+    substeps: [
+      {
+        text: "Visit python.org/downloads and download the installer for your OS",
+        textVi: "Truy cập python.org/downloads và tải trình cài đặt cho hệ điều hành của bạn"
+      },
+      {
+        text: "Run the installer. On Windows, tick \"Add Python to PATH\" before clicking Install",
+        textVi: "Chạy trình cài đặt. Trên Windows, chọn \"Add Python to PATH\" trước khi nhấn Install"
+      },
+      {
+        text: "Open a terminal and verify the installation",
+        textVi: "Mở terminal và xác minh cài đặt",
+        cmd: "python --version"
+      },
+      {
+        text: "If the above doesn't work, try python3",
+        textVi: "Nếu lệnh trên không hoạt động, thử python3",
+        cmd: "python3 --version"
+      }
+    ]
+  },
+  {
+    title: "Install VS Code + Python extension",
+    titleVi: "Cài VS Code + Python extension",
+    substeps: [
+      {
+        text: "Download and install VS Code from code.visualstudio.com",
+        textVi: "Tải và cài VS Code từ code.visualstudio.com"
+      },
+      {
+        text: "Open VS Code, then open the Extensions panel",
+        textVi: "Mở VS Code, sau đó mở bảng Extensions",
+        cmd: "Ctrl+Shift+X  (macOS: Cmd+Shift+X)"
+      },
+      {
+        text: "Search for \"Python\" and install the extension by Microsoft",
+        textVi: "Tìm \"Python\" và cài extension của Microsoft"
+      },
+      {
+        text: "Open Command Palette and select a Python interpreter",
+        textVi: "Mở Command Palette và chọn Python interpreter",
+        cmd: "Ctrl+Shift+P → Python: Select Interpreter"
+      }
+    ]
+  },
+  {
+    title: "Create qa-practice/ with a virtual environment",
+    titleVi: "Tạo thư mục qa-practice/ với môi trường ảo",
+    substeps: [
+      {
+        text: "Create the project folder and enter it",
+        textVi: "Tạo thư mục dự án và vào trong",
+        cmd: "mkdir qa-practice && cd qa-practice"
+      },
+      {
+        text: "Create a virtual environment named .venv",
+        textVi: "Tạo môi trường ảo tên .venv",
+        cmd: "python -m venv .venv"
+      },
+      {
+        text: "Activate it — macOS / Linux",
+        textVi: "Kích hoạt — macOS / Linux",
+        cmd: "source .venv/bin/activate"
+      },
+      {
+        text: "Activate it — Windows",
+        textVi: "Kích hoạt — Windows",
+        cmd: ".venv\\Scripts\\activate"
+      },
+      {
+        text: "Create verify.py, paste the demo script from above, then run it",
+        textVi: "Tạo verify.py, dán script demo từ phần trên vào, sau đó chạy",
+        cmd: "python verify.py"
+      }
+    ]
+  }
+]} />
 
 ## Quiz
 

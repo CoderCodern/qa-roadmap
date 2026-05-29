@@ -64,8 +64,7 @@ def function_name(param1, param2="default") -> ReturnType:
 
 ## Code / Demo
 
-```python
-# Building a small test helper library
+<CodePlayground code={`# Building a small test helper library
 
 def make_login_payload(email: str, password: str) -> dict:
     return {"email": email, "password": password}
@@ -73,7 +72,7 @@ def make_login_payload(email: str, password: str) -> dict:
 def is_success_status(code: int) -> bool:
     return 200 <= code < 300
 
-def assert_response_ok(status_code: int, body: dict | None) -> None:
+def assert_response_ok(status_code: int, body) -> None:
     assert is_success_status(status_code), \
         f"Expected 2xx status but got {status_code}"
     assert body is not None, "Response body should not be None"
@@ -103,54 +102,263 @@ assert email.startswith("user+")
 assert email.endswith("@example.com")
 print(f"Generated: {email}")
 
-# Default argument — mutable default anti-pattern (DON'T do this)
-# def bad_append(item, lst=[]):  # lst persists between calls!
-#     lst.append(item)
-#     return lst
-
 # Correct pattern — use None as default, create fresh list inside
-def safe_append(item: str, lst: list | None = None) -> list:
+def safe_append(item: str, lst=None) -> list:
     if lst is None:
         lst = []
     lst.append(item)
     return lst
 
 print(safe_append("a"))  # ['a']
-print(safe_append("b"))  # ['b'] — not ['a', 'b']
-```
+print(safe_append("b"))  # ['b'] -- fresh list each call`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a function `build_headers(token: str, content_type: str = "application/json") -> dict` that returns an HTTP headers dict with an Authorization Bearer token
-- [ ] Write a function `assert_pagination(data: dict)` that checks a response contains `items` (a list), `total` (an int), and `page` (an int > 0)
-- [ ] Refactor a block of repeated test setup code (at least 5 lines) into a helper function with parameters
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — build_headers helper",
+    code: `# Xây dựng HTTP headers / Build HTTP headers helper
+def build_headers(token: str, content_type: str = "application/json") -> dict:
+    # TODO (VI): Điền biến token vào chỗ trống trong f-string Bearer
+    # TODO (EN): Fill in the token variable in the Bearer f-string
+    return {
+        "Authorization": f"Bearer {???}",
+        "Content-Type": content_type,
+    }
+
+headers = build_headers("mytoken123")
+print(f"Headers: {headers}")
+assert headers["Authorization"] == "Bearer mytoken123"
+assert headers["Content-Type"] == "application/json"
+
+xml_headers = build_headers("tok", "application/xml")
+assert xml_headers["Content-Type"] == "application/xml"
+print("build_headers works!")`
+  },
+  {
+    title: "Exercise 2 — assert_pagination helper",
+    code: `# Kiểm tra cấu trúc phân trang / Assert pagination structure
+def assert_pagination(data: dict) -> None:
+    assert isinstance(data.get("items"), list), "items must be a list"
+
+    # TODO (VI): Điền "int" để kiểm tra total là số nguyên
+    # TODO (EN): Fill in "int" to assert total is an integer
+    assert isinstance(data.get("total"), ???), "total must be an int"
+
+    # TODO (VI): Điền 0 để kiểm tra page lớn hơn 0
+    # TODO (EN): Fill in 0 to assert page is greater than 0
+    assert data.get("page", 0) > ???, "page must be > 0"
+
+response = {"items": ["a", "b", "c"], "total": 3, "page": 1}
+assert_pagination(response)
+print("Pagination structure is valid!")`
+  },
+  {
+    title: "Exercise 3 — Test user generator",
+    code: `# Hàm helper tạo test user / Test user generator helper
+import time
+
+def make_test_user(role: str = "viewer") -> dict:
+    ts = int(time.time() * 1000) % 100000
+    # TODO (VI): Điền "email" làm key trong dict trả về
+    # TODO (EN): Fill in "email" as the key in the returned dict
+    return {
+        ???: f"test+{ts}@example.com",
+        "role": role,
+        "password": "TestPass123",
+    }
+
+user = make_test_user("admin")
+print(f"User: {user}")
+assert "email" in user
+assert user["email"].endswith("@example.com")
+
+# TODO (VI): Kiểm tra role là "admin"
+# TODO (EN): Assert the role equals "admin"
+assert user["role"] == ???
+print("make_test_user works!")`
+  }
+]}>
+<En>
+Complete the three exercises below. Replace each `???` with the correct code, then click **Run** to verify. When done, submit all for AI review.
+</En>
+<Vi>
+Hoàn thành ba bài tập bên dưới. Thay mỗi `???` bằng code đúng, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Why should you never use a mutable default argument like `def f(items=[])`?",
+    qVi: "Tại sao không nên dùng tham số mặc định có thể thay đổi như `def f(items=[])`?",
     choices: [
       "Python will raise a SyntaxError",
       "The default list is shared across all calls, so it accumulates items between invocations",
       "Lists cannot be used as default arguments",
       "It makes the function slower"
     ],
+    choicesVi: [
+      "Python sẽ ném SyntaxError",
+      "List mặc định được chia sẻ qua tất cả các lần gọi, nên nó tích lũy item giữa các lần gọi",
+      "List không thể dùng làm tham số mặc định",
+      "Làm hàm chạy chậm hơn"
+    ],
     answer: 1,
-    explain: "Default argument values are evaluated once when the function is defined, not each call. A mutable default like [] is the same object reused every time, so mutations persist across calls."
+    explain: "Default argument values are evaluated once when the function is defined. A mutable default like [] is reused every call, so mutations persist across invocations. Use None as the default and create the list inside the function body.",
+    explainVi: "Giá trị tham số mặc định được đánh giá một lần khi hàm được định nghĩa. Mặc định có thể thay đổi như [] được dùng lại mỗi lần gọi, nên các thay đổi tồn tại qua các lần gọi. Dùng None làm mặc định và tạo list bên trong thân hàm."
   },
   {
     q: "What is a type hint in Python?",
+    qVi: "Type hint trong Python là gì?",
     choices: [
       "A runtime check that raises an error if the wrong type is passed",
       "An annotation that documents expected types without enforcement",
       "A built-in Python validator",
       "Required syntax for functions in Python 3.10+"
     ],
+    choicesVi: [
+      "Kiểm tra runtime ném lỗi nếu truyền sai kiểu",
+      "Annotation ghi lại kiểu dự kiến mà không bắt buộc",
+      "Validator tích hợp Python",
+      "Cú pháp bắt buộc cho hàm trong Python 3.10+"
+    ],
     answer: 1,
-    explain: "Type hints are annotations only — Python does not enforce them at runtime. They improve readability, enable IDE autocomplete and warnings, and are checked by tools like mypy."
+    explain: "Type hints are annotations only — Python does not enforce them at runtime. They improve readability, enable IDE autocomplete, and are checked by static analysis tools like mypy.",
+    explainVi: "Type hint chỉ là annotation — Python không bắt buộc chúng lúc runtime. Chúng cải thiện khả năng đọc, kích hoạt autocomplete IDE và được kiểm tra bởi các công cụ phân tích tĩnh như mypy."
+  },
+  {
+    q: "What keyword is used to return a value from a Python function?",
+    qVi: "Từ khóa nào dùng để trả về giá trị từ hàm Python?",
+    choices: ["send", "output", "return", "yield"],
+    choicesVi: ["send", "output", "return", "yield"],
+    answer: 2,
+    explain: "'return' exits the function and sends a value back to the caller. A function with no return statement (or a bare 'return') implicitly returns None.",
+    explainVi: "'return' thoát khỏi hàm và gửi giá trị về cho người gọi. Hàm không có câu lệnh return (hoặc 'return' đơn thuần) trả về None ngầm định."
+  },
+  {
+    q: "What is a default parameter in a Python function?",
+    qVi: "Tham số mặc định trong hàm Python là gì?",
+    choices: [
+      "A parameter that is always required",
+      "A parameter with a pre-assigned value used when the caller doesn't provide one",
+      "A parameter that accepts any type",
+      "A parameter that must come first in the signature"
+    ],
+    choicesVi: [
+      "Tham số luôn bắt buộc",
+      "Tham số có giá trị được gán trước, dùng khi người gọi không cung cấp",
+      "Tham số chấp nhận bất kỳ kiểu nào",
+      "Tham số phải đứng đầu trong chữ ký"
+    ],
+    answer: 1,
+    explain: "Default parameters let callers omit arguments they don't need to customise. def greet(name, greeting='Hello') allows greet('Alice') and greet('Alice', 'Hi').",
+    explainVi: "Tham số mặc định cho phép người gọi bỏ qua các đối số họ không cần tùy chỉnh. def greet(name, greeting='Hello') cho phép greet('Alice') và greet('Alice', 'Hi')."
+  },
+  {
+    q: "What does `*args` capture in a function signature?",
+    qVi: "`*args` thu nhận gì trong chữ ký hàm?",
+    choices: [
+      "All keyword arguments as a dict",
+      "All positional arguments as a tuple",
+      "Only the first positional argument",
+      "Only string arguments"
+    ],
+    choicesVi: [
+      "Tất cả đối số keyword dưới dạng dict",
+      "Tất cả đối số positional dưới dạng tuple",
+      "Chỉ đối số positional đầu tiên",
+      "Chỉ đối số chuỗi"
+    ],
+    answer: 1,
+    explain: "*args collects any number of positional arguments into a tuple. This lets a function accept a variable number of arguments without specifying each one in the signature.",
+    explainVi: "*args thu thập bất kỳ số lượng đối số positional nào vào một tuple. Điều này cho phép hàm nhận số lượng đối số thay đổi mà không cần chỉ định từng cái trong chữ ký."
+  },
+  {
+    q: "What does `**kwargs` capture in a function signature?",
+    qVi: "`**kwargs` thu nhận gì trong chữ ký hàm?",
+    choices: [
+      "All positional arguments as a list",
+      "All keyword arguments as a dict",
+      "Only required keyword arguments",
+      "Only integer keyword arguments"
+    ],
+    choicesVi: [
+      "Tất cả đối số positional dưới dạng list",
+      "Tất cả đối số keyword dưới dạng dict",
+      "Chỉ đối số keyword bắt buộc",
+      "Chỉ đối số keyword kiểu integer"
+    ],
+    answer: 1,
+    explain: "**kwargs collects any number of keyword arguments into a dict. def func(**kwargs) called as func(a=1, b=2) gives kwargs = {'a': 1, 'b': 2}.",
+    explainVi: "**kwargs thu thập bất kỳ số lượng đối số keyword nào vào một dict. def func(**kwargs) được gọi là func(a=1, b=2) cho kwargs = {'a': 1, 'b': 2}."
+  },
+  {
+    q: "What is the scope of a variable defined inside a Python function?",
+    qVi: "Phạm vi của biến được định nghĩa bên trong hàm Python là gì?",
+    choices: [
+      "Global — accessible everywhere in the file",
+      "Local — only accessible within that function",
+      "Module — accessible across all files",
+      "Persistent — survives between function calls"
+    ],
+    choicesVi: [
+      "Global — có thể truy cập mọi nơi trong file",
+      "Local — chỉ có thể truy cập trong hàm đó",
+      "Module — có thể truy cập qua tất cả file",
+      "Persistent — tồn tại giữa các lần gọi hàm"
+    ],
+    answer: 1,
+    explain: "Variables defined inside a function have local scope. They are created when the function is called and destroyed when it returns. Accessing them from outside raises a NameError.",
+    explainVi: "Biến định nghĩa bên trong hàm có phạm vi cục bộ. Chúng được tạo khi hàm được gọi và bị hủy khi hàm trả về. Truy cập chúng từ bên ngoài ném NameError."
+  },
+  {
+    q: "What does a Python function return if it has no `return` statement?",
+    qVi: "Hàm Python trả về gì nếu không có câu lệnh `return`?",
+    choices: ["0", "False", "None", "An empty string"],
+    choicesVi: ["0", "False", "None", "Chuỗi rỗng"],
+    answer: 2,
+    explain: "A function without a return statement (or with a bare 'return') implicitly returns None. This is why functions that perform actions (like printing) return None by default.",
+    explainVi: "Hàm không có câu lệnh return (hoặc 'return' đơn thuần) trả về None ngầm định. Đây là lý do tại sao các hàm thực hiện hành động (như in) trả về None theo mặc định."
+  },
+  {
+    q: "What is a docstring in Python?",
+    qVi: "Docstring trong Python là gì?",
+    choices: [
+      "A comment starting with # that describes a function",
+      "A string literal placed as the first statement in a function to document it",
+      "A type hint attached to the return value",
+      "A log message printed when the function runs"
+    ],
+    choicesVi: [
+      "Comment bắt đầu bằng # mô tả hàm",
+      "Chuỗi ký tự đặt làm câu lệnh đầu tiên trong hàm để ghi lại",
+      "Type hint gắn với giá trị trả về",
+      "Thông báo log được in khi hàm chạy"
+    ],
+    answer: 1,
+    explain: "A docstring is a string literal (often triple-quoted) placed as the first statement in a function, class, or module. It is accessible via func.__doc__ and displayed by help().",
+    explainVi: "Docstring là chuỗi ký tự (thường dùng ba dấu nháy) đặt làm câu lệnh đầu tiên trong hàm, class hoặc module. Nó có thể truy cập qua func.__doc__ và được hiển thị bởi help()."
+  },
+  {
+    q: "What is the difference between a parameter and an argument?",
+    qVi: "Sự khác biệt giữa parameter và argument là gì?",
+    choices: [
+      "They are the same thing — the terms are interchangeable",
+      "A parameter is the variable in the function definition; an argument is the value passed at call time",
+      "Arguments are only used with *args; parameters are used for regular inputs",
+      "Parameters are types; arguments are values"
+    ],
+    choicesVi: [
+      "Chúng giống nhau — các thuật ngữ có thể hoán đổi",
+      "Parameter là biến trong định nghĩa hàm; argument là giá trị truyền khi gọi",
+      "Argument chỉ dùng với *args; parameter dùng cho đầu vào thông thường",
+      "Parameter là kiểu; argument là giá trị"
+    ],
+    answer: 1,
+    explain: "Parameter is the name in the function definition (def greet(name)), argument is the value supplied at call time (greet('Alice')). The distinction matters when reading error messages.",
+    explainVi: "Parameter là tên trong định nghĩa hàm (def greet(name)), argument là giá trị cung cấp khi gọi (greet('Alice')). Sự phân biệt này quan trọng khi đọc thông báo lỗi."
   }
 ]} />
 

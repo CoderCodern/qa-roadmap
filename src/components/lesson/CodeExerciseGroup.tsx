@@ -85,9 +85,10 @@ interface EditorState {
 interface CodeExerciseGroupProps {
   exercises: Exercise[]
   children?: ReactNode
+  pointsPerExercise?: number
 }
 
-export function CodeExerciseGroup({ exercises, children }: CodeExerciseGroupProps) {
+export function CodeExerciseGroup({ exercises, children, pointsPerExercise = 5 }: CodeExerciseGroupProps) {
   const pathname = usePathname()
   const dayId = Number(pathname?.split('/').at(-1)) || 0
 
@@ -195,7 +196,7 @@ __buf.getvalue()
       if (data.answer) {
         setAiAnswer(dayId, data.answer)
         markAiHintUsed(dayId)
-        addPoints(exercises.length * 5)
+        addPoints(exercises.length * pointsPerExercise)
         setShowAnswer(true)
       } else {
         throw new Error(data.error ?? 'Empty response')

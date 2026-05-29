@@ -195,7 +195,7 @@ export function ExerciseBox({ children }: ExerciseBoxProps) {
                 rows={5}
                 className={cn(
                   'w-full resize-y rounded-lg border px-4 py-3 text-sm leading-7 transition-colors',
-                  '[background-size:100%_1.75rem]',
+                  '[background-size:100%_1.75rem] [background-position:0_0.75rem]',
                   hintUsed
                     ? [
                         'border-gray-100 text-gray-400',

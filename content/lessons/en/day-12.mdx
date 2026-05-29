@@ -68,8 +68,7 @@ label = "pass" if score >= 60 else "fail"
 
 ## Code / Demo
 
-```python
-# Control flow patterns common in test helpers
+<CodePlayground code={`# Control flow patterns common in test helpers
 
 def classify_status_code(code: int) -> str:
     if code < 100 or code > 599:
@@ -112,41 +111,242 @@ print(validate_login_response(None))          # No response received
 # Ternary for simple flags
 score = 75
 result = "pass" if score >= 60 else "fail"
-print(f"Score {score}: {result}")
-```
+print(f"Score {score}: {result}")`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a function `describe_response(status_code, body)` that returns a human-readable string based on the status code range and whether the body is None or not
-- [ ] Refactor a deeply-nested if/else chain (at least 3 levels deep) using early returns
-- [ ] Write a ternary expression that sets a variable `priority` to "high" if a bug's severity is "critical", otherwise "normal"
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Classify a status code",
+    code: `# Phân loại status code / Classify a status code
+def classify_status(code: int) -> str:
+    if code < 200:
+        return "informational"
+    # TODO (VI): Điền điều kiện cho dải 200-299 (success)
+    # TODO (EN): Fill in the condition for the 200-299 range
+    elif ???:
+        return "success"
+    elif code < 400:
+        return "redirect"
+    else:
+        return "error"
+
+assert classify_status(200) == "success"
+assert classify_status(301) == "redirect"
+assert classify_status(404) == "error"
+assert classify_status(150) == "informational"
+print("Status classifier works!")`
+  },
+  {
+    title: "Exercise 2 — Guard clause (early return)",
+    code: `# Guard clause / Early return pattern
+def check_token(response: dict) -> str:
+    # TODO (VI): Trả về thông báo lỗi nếu "token" không có trong response
+    # TODO (EN): Return an error message if "token" is not in response
+    if "token" not in response:
+        return ???
+    if not response["token"]:
+        return "Token is empty"
+    return "OK"
+
+assert check_token({"token": "abc123"}) == "OK"
+assert check_token({"token": ""}) == "Token is empty"
+result = check_token({"user": "alice"})
+print(f"Missing token result: '{result}'")
+assert result != "OK", "Should not return OK when token is missing"
+print("Guard clause works!")`
+  },
+  {
+    title: "Exercise 3 — Ternary expressions",
+    code: `# Biểu thức ternary / Ternary expressions
+score = 75
+severity = "critical"
+
+# TODO (VI): Điền điều kiện — "pass" nếu score >= 60, ngược lại "fail"
+# TODO (EN): Fill in the condition — "pass" if score >= 60, else "fail"
+result = "pass" if ??? else "fail"
+print(f"Score {score}: {result}")
+
+# TODO (VI): Điền "high" làm giá trị true-branch trong ternary
+# TODO (EN): Fill in "high" as the true-branch value
+priority = ??? if severity == "critical" else "normal"
+print(f"Priority: {priority}")
+
+assert result == "pass"
+assert priority == "high"
+print("Ternary expressions work!")`
+  }
+]}>
+<En>
+Complete the three exercises below. Replace each `???` with the correct code, then click **Run** to verify. When done, submit all for AI review.
+</En>
+<Vi>
+Hoàn thành ba bài tập bên dưới. Thay mỗi `???` bằng code đúng, sau đó nhấn **Run** để kiểm tra. Khi xong, nộp tất cả để AI kiểm tra.
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What is the main advantage of using early returns over deep nesting?",
+    qVi: "Ưu điểm chính của early return so với lồng sâu là gì?",
     choices: [
       "Early returns are faster at runtime",
       "They reduce indentation depth, making the happy path easier to read",
       "Python requires early returns in functions",
       "They avoid using the else keyword"
     ],
+    choicesVi: [
+      "Early return chạy nhanh hơn lúc runtime",
+      "Chúng giảm độ sâu thụt lề, làm cho luồng chính dễ đọc hơn",
+      "Python yêu cầu early return trong hàm",
+      "Chúng tránh dùng từ khóa else"
+    ],
     answer: 1,
-    explain: "Early returns handle edge cases up front and exit immediately, so the main logic stays at the lowest indentation level. This makes the code easier to follow."
+    explain: "Early returns handle edge cases up front and exit immediately, keeping the main logic at the lowest indentation level. This guard-clause pattern is a standard readability improvement.",
+    explainVi: "Early return xử lý trường hợp đặc biệt trước và thoát ngay lập tức, giữ logic chính ở mức thụt lề thấp nhất. Mẫu guard-clause này là cải tiến khả năng đọc tiêu chuẩn."
   },
   {
     q: "What is printed by: x = 10; print('big' if x > 5 else 'small')?",
+    qVi: "x = 10; print('big' if x > 5 else 'small') in ra gì?",
+    choices: ["small", "big", "True", "Error"],
+    choicesVi: ["small", "big", "True", "Error"],
+    answer: 1,
+    explain: "10 > 5 is True, so the ternary evaluates to 'big'. The Python ternary syntax is: value_if_true if condition else value_if_false.",
+    explainVi: "10 > 5 là True, nên ternary cho kết quả 'big'. Cú pháp ternary Python là: giá_trị_nếu_true if điều_kiện else giá_trị_nếu_false."
+  },
+  {
+    q: "Which keyword introduces an alternative condition after an initial `if`?",
+    qVi: "Từ khóa nào đưa ra điều kiện thay thế sau `if` ban đầu?",
+    choices: ["else if", "elseif", "elif", "otherwise"],
+    choicesVi: ["else if", "elseif", "elif", "otherwise"],
+    answer: 2,
+    explain: "Python uses 'elif' (a contraction of 'else if') for additional conditions. You can chain as many elif clauses as needed. There is no 'elseif' or 'else if' in Python.",
+    explainVi: "Python dùng 'elif' (viết tắt của 'else if') cho các điều kiện bổ sung. Bạn có thể nối nhiều mệnh đề elif tùy ý. Không có 'elseif' hay 'else if' trong Python."
+  },
+  {
+    q: "What happens if no `if` or `elif` condition is True and there is no `else` block?",
+    qVi: "Điều gì xảy ra nếu không có điều kiện `if` hay `elif` nào là True và không có khối `else`?",
     choices: [
-      "small",
-      "big",
-      "True",
-      "Error"
+      "Python raises a ConditionError",
+      "The program crashes with a RuntimeError",
+      "Nothing happens — execution continues after the if block",
+      "Python executes the last elif block by default"
+    ],
+    choicesVi: [
+      "Python ném ConditionError",
+      "Chương trình crash với RuntimeError",
+      "Không có gì xảy ra — thực thi tiếp tục sau khối if",
+      "Python thực thi mệnh đề elif cuối theo mặc định"
+    ],
+    answer: 2,
+    explain: "If no condition matches and no else clause is present, Python simply skips the entire if/elif block and continues with the next statement. No error is raised.",
+    explainVi: "Nếu không có điều kiện nào khớp và không có mệnh đề else, Python đơn giản bỏ qua toàn bộ khối if/elif và tiếp tục với câu lệnh tiếp theo. Không có lỗi nào được ném."
+  },
+  {
+    q: "How many `elif` clauses can follow an `if` statement?",
+    qVi: "Có thể có bao nhiêu mệnh đề `elif` theo sau câu lệnh `if`?",
+    choices: [
+      "Maximum 3",
+      "Maximum 10",
+      "As many as needed — there is no limit",
+      "Exactly 1"
+    ],
+    choicesVi: [
+      "Tối đa 3",
+      "Tối đa 10",
+      "Bao nhiêu tùy thích — không có giới hạn",
+      "Đúng 1"
+    ],
+    answer: 2,
+    explain: "Python allows any number of elif clauses. However, long elif chains are often a sign that a dict-based dispatch or match statement would be cleaner.",
+    explainVi: "Python cho phép bất kỳ số lượng mệnh đề elif nào. Tuy nhiên, chuỗi elif dài thường là dấu hiệu cho thấy một dict dispatch hoặc match statement sẽ gọn hơn."
+  },
+  {
+    q: "What does `if x:` check in Python?",
+    qVi: "`if x:` kiểm tra điều gì trong Python?",
+    choices: [
+      "Whether x is exactly True",
+      "Whether x is not None",
+      "Whether x is truthy (non-zero, non-empty, not None, not False)",
+      "Whether x is a boolean"
+    ],
+    choicesVi: [
+      "Liệu x có chính xác là True",
+      "Liệu x có phải None không",
+      "Liệu x có truthy không (khác không, không rỗng, không phải None, không phải False)",
+      "Liệu x có phải boolean không"
+    ],
+    answer: 2,
+    explain: "'if x:' evaluates x's truthiness. Falsy values include 0, 0.0, '', [], {}, None, and False. Everything else is truthy. Use 'if x is True:' if you need a strict boolean check.",
+    explainVi: "'if x:' đánh giá truthiness của x. Các giá trị falsy bao gồm 0, 0.0, '', [], {}, None và False. Mọi thứ khác là truthy. Dùng 'if x is True:' nếu bạn cần kiểm tra boolean nghiêm ngặt."
+  },
+  {
+    q: "What is a 'guard clause' in Python?",
+    qVi: "'Guard clause' trong Python là gì?",
+    choices: [
+      "A try/except block that wraps the entire function",
+      "An early return that handles an invalid state before the main logic runs",
+      "A decorator that validates function arguments",
+      "A built-in Python keyword for input validation"
+    ],
+    choicesVi: [
+      "Khối try/except bao quanh toàn bộ hàm",
+      "Early return xử lý trạng thái không hợp lệ trước khi logic chính chạy",
+      "Decorator kiểm tra tham số hàm",
+      "Từ khóa tích hợp Python để kiểm tra đầu vào"
     ],
     answer: 1,
-    explain: "10 > 5 is True, so the ternary expression evaluates to 'big'. This is the Python equivalent of a ternary operator."
+    explain: "A guard clause is an early return that immediately exits a function when a precondition fails (e.g., if not data: return). It prevents deep nesting and makes preconditions explicit.",
+    explainVi: "Guard clause là early return thoát ngay khỏi hàm khi điều kiện tiên quyết thất bại (ví dụ: if not data: return). Nó ngăn lồng sâu và làm rõ các điều kiện tiên quyết."
+  },
+  {
+    q: "Can you use `if` inside a list comprehension?",
+    qVi: "Bạn có thể dùng `if` bên trong list comprehension không?",
+    choices: [
+      "No — if is only allowed in regular statements",
+      "Yes — as a filter at the end: [x for x in items if condition]",
+      "Yes — but only with elif",
+      "No — use filter() instead"
+    ],
+    choicesVi: [
+      "Không — if chỉ được dùng trong câu lệnh thông thường",
+      "Có — như bộ lọc ở cuối: [x for x in items if condition]",
+      "Có — nhưng chỉ với elif",
+      "Không — dùng filter() thay thế"
+    ],
+    answer: 1,
+    explain: "[x for x in items if condition] is a list comprehension with a filter. Only elements where the condition is True are included in the result. This replaces a for loop + if + append pattern.",
+    explainVi: "[x for x in items if condition] là list comprehension với bộ lọc. Chỉ các phần tử thỏa mãn điều kiện được đưa vào kết quả. Điều này thay thế mẫu for loop + if + append."
+  },
+  {
+    q: "What Python 3.10+ feature provides cleaner multi-branch matching than long elif chains?",
+    qVi: "Tính năng Python 3.10+ nào cung cấp phân nhánh nhiều trường hợp gọn hơn chuỗi elif dài?",
+    choices: [
+      "switch/case statement",
+      "match/case statement",
+      "select/when statement",
+      "cond/branch statement"
+    ],
+    choicesVi: [
+      "Câu lệnh switch/case",
+      "Câu lệnh match/case",
+      "Câu lệnh select/when",
+      "Câu lệnh cond/branch"
+    ],
+    answer: 1,
+    explain: "Python 3.10 introduced structural pattern matching with 'match/case'. It's more powerful than a switch statement — it can destructure sequences, mappings, and class instances.",
+    explainVi: "Python 3.10 giới thiệu structural pattern matching với 'match/case'. Nó mạnh hơn switch — có thể destructure dãy, ánh xạ và instance class."
+  },
+  {
+    q: "What is the output of `print('pass' if 5 > 10 else 'fail')`?",
+    qVi: "Kết quả của `print('pass' if 5 > 10 else 'fail')` là gì?",
+    choices: ["pass", "fail", "True", "None"],
+    choicesVi: ["pass", "fail", "True", "None"],
+    answer: 1,
+    explain: "5 > 10 is False, so the ternary evaluates to 'fail'. print() then outputs 'fail' to stdout. This is the Python ternary: result_if_true if condition else result_if_false.",
+    explainVi: "5 > 10 là False, nên ternary cho kết quả 'fail'. print() sau đó in 'fail' ra stdout. Đây là ternary Python: kết_quả_nếu_true if điều_kiện else kết_quả_nếu_false."
   }
 ]} />
 

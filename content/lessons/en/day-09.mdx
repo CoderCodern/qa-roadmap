@@ -93,7 +93,7 @@ print(f"Converted '{raw}' to integer {code}")
 
 ## Exercise
 
-<CodeExerciseGroup exercises={[
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
   {
     title: "Exercise 1 — Create typed variables",
     code: `# Represent a hypothetical API response with typed variables
@@ -271,6 +271,82 @@ Hoàn thành ba bài tập bên dưới. Mỗi editor có comment hướng dẫn
     answer: 2,
     explain: "type(x) is the built-in function that returns the type object, e.g. <class 'int'>. typeof is JavaScript, x.type() and gettype() don't exist in Python.",
     explainVi: "type(x) là hàm tích hợp trả về đối tượng kiểu, ví dụ <class 'int'>. typeof là JavaScript, x.type() và gettype() không tồn tại trong Python."
+  },
+  {
+    q: "What does `type(True)` return in Python?",
+    qVi: "`type(True)` trả về gì trong Python?",
+    choices: [
+      "<class 'int'>",
+      "<class 'boolean'>",
+      "<class 'bool'>",
+      "bool"
+    ],
+    choicesVi: [
+      "<class 'int'>",
+      "<class 'boolean'>",
+      "<class 'bool'>",
+      "bool"
+    ],
+    answer: 2,
+    explain: "type(True) returns <class 'bool'>. Although bool is a subclass of int in Python (True == 1), its type is 'bool' not 'int'. There is no 'boolean' type — Python uses 'bool'.",
+    explainVi: "type(True) trả về <class 'bool'>. Mặc dù bool là lớp con của int trong Python (True == 1), kiểu của nó là 'bool' không phải 'int'. Không có kiểu 'boolean' — Python dùng 'bool'."
+  },
+  {
+    q: "What is the result of `bool('')`?",
+    qVi: "Kết quả của `bool('')` là gì?",
+    choices: [
+      "True",
+      "False",
+      "TypeError",
+      "None"
+    ],
+    choicesVi: [
+      "True",
+      "False",
+      "TypeError",
+      "None"
+    ],
+    answer: 1,
+    explain: "An empty string is falsy in Python, so bool('') returns False. Non-empty strings like 'a' or even '0' are truthy. This is why 'if not some_string:' is a common empty-string guard.",
+    explainVi: "Chuỗi rỗng là falsy trong Python, nên bool('') trả về False. Các chuỗi không rỗng như 'a' hay thậm chí '0' là truthy. Đây là lý do 'if not some_string:' là cách kiểm tra chuỗi rỗng phổ biến."
+  },
+  {
+    q: "Which variable naming style is idiomatic Python (PEP 8)?",
+    qVi: "Phong cách đặt tên biến nào phù hợp với Python (PEP 8)?",
+    choices: [
+      "userName",
+      "user-name",
+      "UserName",
+      "user_name"
+    ],
+    choicesVi: [
+      "userName",
+      "user-name",
+      "UserName",
+      "user_name"
+    ],
+    answer: 3,
+    explain: "PEP 8 (Python's official style guide) requires snake_case for variable and function names. CamelCase is reserved for class names. Hyphens are invalid in Python identifiers and will cause a SyntaxError.",
+    explainVi: "PEP 8 (hướng dẫn phong cách Python chính thức) yêu cầu snake_case cho biến và hàm. CamelCase dành cho tên class. Dấu gạch ngang không hợp lệ trong định danh Python và sẽ gây SyntaxError."
+  },
+  {
+    q: "What does `str(42)` return?",
+    qVi: "`str(42)` trả về gì?",
+    choices: [
+      "42 (int unchanged)",
+      "'42' (string)",
+      "TypeError",
+      "42.0 (float)"
+    ],
+    choicesVi: [
+      "42 (int không đổi)",
+      "'42' (chuỗi)",
+      "TypeError",
+      "42.0 (số thực)"
+    ],
+    answer: 1,
+    explain: "str() converts any value to its string representation. str(42) returns the string '42'. This is the explicit way to convert numbers to strings — Python will not do it automatically.",
+    explainVi: "str() chuyển đổi bất kỳ giá trị nào sang biểu diễn chuỗi. str(42) trả về chuỗi '42'. Đây là cách tường minh để chuyển số thành chuỗi — Python không tự động làm điều này."
   }
 ]} />
 

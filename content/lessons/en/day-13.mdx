@@ -80,58 +80,109 @@ while condition:
 
 ## Code / Demo
 
-<CodePlayground code={`# Pattern 1: Run assertions against multiple test inputs
+**Pattern 1 — `for` loop: run a check across multiple test inputs**
+
+<En>Collect all failures into a list before asserting. This way you see every broken case at once, not just the first one — a key habit in test automation.</En>
+<Vi>Thu thập tất cả lỗi vào một list trước khi assert. Như vậy bạn thấy mọi trường hợp bị hỏng cùng lúc, không chỉ lỗi đầu tiên — thói quen quan trọng trong tự động hoá test.</Vi>
+
+<CodePlayground code={`
 test_passwords = [
     ("ValidPass1", True),
-    ("hi", False),      # too short
-    ("a" * 21, False),  # too long
-    ("", False),        # empty
+    ("hi",         False),     # too short
+    ("a" * 21,     False),     # too long
+    ("",           False),     # empty
 ]
 
-def is_valid_password(p: str) -> bool:
+def is_valid_password(p):
     return 6 <= len(p) <= 20
 
 failures = []
 for password, expected in test_passwords:
     actual = is_valid_password(password)
     if actual != expected:
-        failures.append(f"FAIL: '{password}' expected {expected}, got {actual}")
+        failures.append(f"FAIL: {password!r} expected={expected} got={actual}")
 
 if failures:
-    for f in failures:
-        print(f)
+    for msg in failures:
+        print(msg)
 else:
     print(f"All {len(test_passwords)} password tests passed!")
+print("Pattern 1 ok — for loop across test inputs")
+`} />
 
-# Pattern 2: enumerate for test case numbering
+**Pattern 2 — `enumerate` and `zip`: index-aware iteration**
+
+<En>`enumerate` gives you the index alongside each value — useful for numbered test case IDs. `zip` pairs two sequences together so you can iterate both at once.</En>
+<Vi>`enumerate` cho bạn chỉ số kèm theo mỗi giá trị — hữu ích cho ID test case có đánh số. `zip` ghép hai chuỗi lại để bạn có thể lặp cả hai cùng lúc.</Vi>
+
+<CodePlayground code={`
+# enumerate — numbered test case IDs
 status_codes = [200, 201, 204, 400, 404, 500]
 for i, code in enumerate(status_codes, start=1):
     is_success = 200 <= code < 300
-    print(f"TC-{i:03d}: status {code} -> {'success' if is_success else 'not success'}")
+    label = "success" if is_success else "not success"
+    print(f"TC-{i:03d}: status {code} → {label}")
 
-# Pattern 3: while loop for retry logic
-import time
+print()
 
-def check_service_ready(attempt: int) -> bool:
-    return attempt >= 3  # simulating: ready after 3 attempts
+# zip — pair expected vs actual results
+expected = [200, 201, 204]
+actual   = [200, 201, 204]
+for exp, act in zip(expected, actual):
+    assert exp == act, f"Expected {exp}, got {act}"
+print("All expected == actual (zip check passed)")
+print("Pattern 2 ok — enumerate and zip")
+`} />
+
+**Pattern 3 — `while` loop: retry / polling logic**
+
+<En>Use `while` when the number of iterations is unknown and depends on an external condition. Always include a `max_retries` guard so the loop cannot run forever.</En>
+<Vi>Dùng `while` khi số vòng lặp không xác định và phụ thuộc vào điều kiện bên ngoài. Luôn thêm giới hạn `max_retries` để vòng lặp không chạy mãi mãi.</Vi>
+
+<CodePlayground code={`
+def check_service_ready(attempt):
+    return attempt >= 3   # simulates: service becomes ready on attempt 3
 
 max_retries = 5
-attempt = 0
-ready = False
+attempt     = 0
+ready       = False
+
 while attempt < max_retries and not ready:
     attempt += 1
     ready = check_service_ready(attempt)
-    print(f"Attempt {attempt}: {'ready' if ready else 'not ready yet'}")
-    if not ready:
-        time.sleep(0.05)
+    print(f"Attempt {attempt}: {'ready!' if ready else 'not ready yet'}")
 
 assert ready, f"Service not ready after {max_retries} attempts"
-print("Service is ready!")
+print(f"Service ready after {attempt} attempt(s)")
+print("Pattern 3 ok — while retry loop")
+`} />
 
-# Pattern 4: list comprehension for filtering
+**Pattern 4 — List comprehension: filter and transform in one line**
+
+<En>A list comprehension replaces a for-loop + append pattern with a single readable expression. Add an `if` clause to filter, and an expression before `for` to transform.</En>
+<Vi>List comprehension thay thế mẫu for-loop + append bằng một biểu thức có thể đọc được. Thêm mệnh đề `if` để lọc và biểu thức trước `for` để biến đổi.</Vi>
+
+<CodePlayground code={`
 all_codes = [200, 201, 301, 400, 404, 500, 503]
+
+# Filter only
 error_codes = [c for c in all_codes if c >= 400]
-print(f"Error codes found: {error_codes}")`} />
+
+# Filter + transform
+error_labels = [f"ERR-{c}" for c in all_codes if c >= 400]
+
+# Transform only
+doubled = [c * 2 for c in [1, 2, 3]]
+
+assert error_codes  == [400, 404, 500, 503]
+assert error_labels == ["ERR-400", "ERR-404", "ERR-500", "ERR-503"]
+assert doubled      == [2, 4, 6]
+
+print(f"Error codes:  {error_codes}")
+print(f"Error labels: {error_labels}")
+print(f"Doubled:      {doubled}")
+print("Pattern 4 ok — list comprehension")
+`} />
 
 ## Exercise
 

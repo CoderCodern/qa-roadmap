@@ -90,70 +90,191 @@ set_a - set_b       # hiệu
 
 ## Code / Demo
 
-```python
-# Dicts and sets in API testing context
+**Pattern 1 — Dict basics: access, update, delete, iterate**
 
-# Simulated parsed JSON API response
+<En>Dicts map keys to values. Access a key with `d[key]` (raises `KeyError` if missing) or iterate all pairs with `.items()`. Add or overwrite a key with `d[key] = value`; delete it with `del d[key]`.</En>
+<Vi>Dict ánh xạ key sang value. Truy cập key bằng `d[key]` (ném `KeyError` nếu không có) hoặc lặp qua tất cả cặp bằng `.items()`. Thêm hoặc ghi đè key bằng `d[key] = value`; xoá bằng `del d[key]`.</Vi>
+
+<CodePlayground code={`
+user = {"id": 1, "email": "alice@example.com", "role": "admin"}
+
+# Access
+print(user["email"])
+print(user["role"])
+
+# Add / update
+user["phone"] = "555-1234"
+user["role"]  = "editor"     # overwrite
+assert user["role"]  == "editor"
+assert user["phone"] == "555-1234"
+
+# Delete
+del user["phone"]
+assert "phone" not in user
+
+# Iterate keys, values, pairs
+print("Keys:  ", list(user.keys()))
+print("Values:", list(user.values()))
+for key, value in user.items():
+    print(f"  {key}: {value}")
+
+print("Pattern 1 ok — dict basics")
+`} />
+
+**Pattern 2 — Nested dicts and safe access with `.get()`**
+
+<En>API responses are usually nested dicts. Chain `[]` to reach deep fields. Use `.get(key, default)` when a field may be absent — it returns the default instead of raising `KeyError`.</En>
+<Vi>API response thường là các dict lồng nhau. Nối `[]` để truy cập các trường sâu. Dùng `.get(key, default)` khi trường có thể vắng mặt — nó trả về mặc định thay vì ném `KeyError`.</Vi>
+
+<CodePlayground code={`
 response = {
     "status": "success",
     "data": {
-        "users": [
-            {"id": 1, "email": "alice@example.com", "roles": ["admin", "editor"]},
-            {"id": 2, "email": "bob@example.com", "roles": ["viewer"]},
-            {"id": 3, "email": "charlie@example.com", "roles": ["editor"]},
-        ],
-        "total": 3,
+        "user": {"id": 42, "email": "alice@example.com"},
         "page": 1,
+        "total": 100,
     }
 }
 
-# Assert top-level structure
-assert response["status"] == "success"
-assert "data" in response
+# Chained access for nested data
+user_id = response["data"]["user"]["id"]
+assert user_id == 42
+print(f"User ID: {user_id}")
 
-# Navigate nested structure
-data = response["data"]
-users = data["users"]
-assert data["total"] == len(users)
+# Safe access — key may or may not exist
+phone   = response["data"]["user"].get("phone", "not provided")
+token   = response.get("token", None)
+page    = response["data"].get("page", 1)
 
-# Iterate over dict items
-meta = {"page": data["page"], "total": data["total"]}
-for key, value in meta.items():
-    print(f"  {key}: {value}")
-
-# Safe access with .get()
-first_user = users[0]
-phone = first_user.get("phone", "not provided")
 assert phone == "not provided"
+assert token is None
+assert page  == 1
 
-# Build a lookup dict from list of users (id → user)
-user_by_id = {user["id"]: user for user in users}
+print(f"Phone: {phone}")
+print(f"Token: {token}")
+print("Pattern 2 ok — nested dicts and .get()")
+`} />
+
+**Pattern 3 — Dict comprehension: build lookup tables**
+
+<En>A dict comprehension `{k: v for item in items}` builds a dict in one line. The most common QA use case is turning a list of objects into an `id → object` lookup so you can fetch any record instantly by ID.</En>
+<Vi>Dict comprehension `{k: v for item in items}` xây dựng dict trong một dòng. Trường hợp dùng phổ biến nhất trong QA là chuyển danh sách đối tượng thành bảng tra cứu `id → đối tượng` để lấy bất kỳ bản ghi nào ngay lập tức theo ID.</Vi>
+
+<CodePlayground code={`
+users = [
+    {"id": 1, "email": "alice@example.com", "role": "admin"},
+    {"id": 2, "email": "bob@example.com",   "role": "viewer"},
+    {"id": 3, "email": "charlie@example.com","role": "editor"},
+]
+
+# id → full user object
+user_by_id = {u["id"]: u for u in users}
 assert user_by_id[1]["email"] == "alice@example.com"
-assert user_by_id[2]["email"] == "bob@example.com"
+assert user_by_id[3]["role"]  == "editor"
 
-# Sets for role validation
+# id → email only
+email_by_id = {u["id"]: u["email"] for u in users}
+assert email_by_id[2] == "bob@example.com"
+
+# role → count (how many users per role)
+from collections import Counter
+role_counts = Counter(u["role"] for u in users)
+print(f"user_by_id:  {list(user_by_id.keys())}")
+print(f"email_by_id: {email_by_id}")
+print(f"role_counts: {dict(role_counts)}")
+print("Pattern 3 ok — dict comprehension")
+`} />
+
+**Pattern 4 — Sets: membership, deduplication, set operations**
+
+<En>Sets hold unique elements with O(1) membership testing. Use them to validate allowed values, remove duplicates from a list, and find the difference or intersection between two collections.</En>
+<Vi>Set chứa các phần tử duy nhất với kiểm tra thành viên O(1). Dùng chúng để kiểm tra giá trị được phép, loại bỏ trùng lặp khỏi list và tìm hiệu hoặc giao giữa hai tập hợp.</Vi>
+
+<CodePlayground code={`
+users = [
+    {"email": "alice@example.com", "roles": ["admin", "editor"]},
+    {"email": "bob@example.com",   "roles": ["viewer"]},
+    {"email": "charlie@example.com","roles": ["editor"]},
+]
+
 allowed_roles = {"admin", "editor", "viewer", "owner"}
-alice_roles = set(users[0]["roles"])
+
+# Membership check — O(1)
+assert "admin"   in allowed_roles
+assert "hacker" not in allowed_roles
+
+# Validate user roles against allowed set
+alice_roles   = set(users[0]["roles"])
 unknown_roles = alice_roles - allowed_roles
 assert not unknown_roles, f"Unknown roles: {unknown_roles}"
 
-# Deduplication with sets
-all_role_assignments = []
+# Deduplication — collect all roles, remove duplicates
+all_roles = []
 for user in users:
-    all_role_assignments.extend(user["roles"])
-unique_roles = set(all_role_assignments)
-print(f"Unique roles in system: {unique_roles}")
-assert "admin" in unique_roles
-assert "viewer" in unique_roles
-```
+    all_roles.extend(user["roles"])
+unique_roles = set(all_roles)
+print(f"All roles (with dups): {all_roles}")
+print(f"Unique roles:          {unique_roles}")
+
+# Set operations
+admin_perms  = {"read", "write", "delete", "admin"}
+viewer_perms = {"read"}
+shared       = admin_perms & viewer_perms   # intersection
+admin_only   = admin_perms - viewer_perms   # difference
+all_perms    = admin_perms | viewer_perms   # union
+
+assert shared     == {"read"}
+assert "write"    in admin_only
+assert "read" not in admin_only
+print(f"Shared:     {shared}")
+print(f"Admin-only: {admin_only}")
+print("Pattern 4 ok — sets")
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Given a parsed JSON response containing a list of orders with `order_id`, `status`, and `amount`, write code to: build a dict mapping `order_id` to `amount`, compute the total amount, and find all unique statuses
-- [ ] Use `.get()` with a default to safely access a nested field three levels deep without risking a `KeyError`
-- [ ] Write an assertion that verifies two sets of user permissions have no overlap (no role appears in both sets)
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={15} exercises={[
+  {
+    title: "Fill in ??? with the dict key string to map each user's id to their email.",
+    code: `users = [
+    {"id": 1, "email": "a@test.com"},
+    {"id": 2, "email": "b@test.com"},
+    {"id": 3, "email": "c@test.com"},
+]
+
+# TODO (EN): build a dict mapping id → email using dict comprehension
+# TODO (VI): tạo dict ánh xạ id → email bằng dict comprehension
+lookup = {user[???]: user["email"] for user in users}
+
+assert lookup[1] == "a@test.com"
+assert lookup[3] == "c@test.com"
+print(f"Lookup: {lookup}")`,
+  },
+  {
+    title: "Fill in ??? with the key name to safely access using .get() with a default.",
+    code: `response = {"status": "ok", "data": {"count": 42}}
+
+# TODO (EN): safely access "token" key — return "none" if missing
+# TODO (VI): truy cập key "token" an toàn — trả về "none" nếu không có
+token = response.get(???, "none")
+
+assert token == "none"
+print(f"Token: {token}")`,
+  },
+  {
+    title: "Fill in ??? with the set operator for roles admin has but viewer does not.",
+    code: `admin_roles = {"create", "read", "update", "delete"}
+viewer_roles = {"read"}
+
+# TODO (EN): find roles that admin has but viewer does not (set difference)
+# TODO (VI): tìm các role chỉ admin mới có (hiệu của hai set)
+admin_only = admin_roles ??? viewer_roles
+
+assert "create" in admin_only
+assert "read" not in admin_only
+print(f"Admin-only roles: {admin_only}")`,
+  },
+]} />
 
 ## Quiz
 
@@ -179,6 +300,94 @@ assert "viewer" in unique_roles
     ],
     answer: 2,
     explain: "Sets use a hash table internally, so membership testing is O(1) on average — it doesn't slow down as the set grows. Lists use O(n) linear search."
+  },
+  {
+    q: "What happens when you access a missing key with `d['missing']`?",
+    choices: [
+      "It returns None",
+      "It returns an empty string",
+      "It raises a KeyError",
+      "It returns False"
+    ],
+    answer: 2,
+    explain: "Direct key access d['key'] raises KeyError if the key is absent. Use d.get('key', default) for safe access, or check 'key' in d before accessing."
+  },
+  {
+    q: "Which dict method returns (key, value) pairs for iteration?",
+    choices: [
+      ".keys()",
+      ".values()",
+      ".items()",
+      ".pairs()"
+    ],
+    answer: 2,
+    explain: "d.items() returns a view of (key, value) tuples. It's used in 'for key, value in d.items()' loops, which is the idiomatic way to iterate over both keys and values simultaneously."
+  },
+  {
+    q: "What does `set_a & set_b` compute?",
+    choices: [
+      "The union — all elements from both sets",
+      "The difference — elements in a but not b",
+      "The intersection — elements present in both sets",
+      "The symmetric difference — elements in either but not both"
+    ],
+    answer: 2,
+    explain: "& is the intersection operator. It returns only elements that appear in both sets. Use | for union, - for difference, and ^ for symmetric difference."
+  },
+  {
+    q: "What does `set_a - set_b` compute?",
+    choices: [
+      "The union of both sets",
+      "Elements that are in set_a but NOT in set_b",
+      "Elements that are in set_b but NOT in set_a",
+      "The count difference between the two sets"
+    ],
+    answer: 1,
+    explain: "The - operator computes the set difference: elements present in set_a that are absent from set_b. To get the reverse, use set_b - set_a. This is commonly used to find unknown or disallowed values."
+  },
+  {
+    q: "How do you remove duplicates from a list `items` using a set?",
+    choices: [
+      "items.deduplicate()",
+      "set.remove_duplicates(items)",
+      "list(set(items))",
+      "items.unique()"
+    ],
+    answer: 2,
+    explain: "Converting to a set drops duplicates because sets only store unique elements. Wrapping back in list() gives you a plain list. Note: the original order is not guaranteed in Python sets."
+  },
+  {
+    q: "What is a dict comprehension?",
+    choices: [
+      "A built-in function that converts a list to a dict",
+      "A concise syntax `{k: v for item in iterable}` to build a dict in one expression",
+      "A way to merge two dicts",
+      "A method that returns all key-value pairs as a list"
+    ],
+    answer: 1,
+    explain: "A dict comprehension {key_expr: val_expr for item in iterable} builds a new dict in one readable line. A common QA use case: {u['id']: u for u in users} creates an instant id → user lookup."
+  },
+  {
+    q: "What does `set_a | set_b` compute?",
+    choices: [
+      "The intersection — only shared elements",
+      "The difference — elements only in set_a",
+      "The union — all elements from both sets combined",
+      "The product — every pair of elements"
+    ],
+    answer: 2,
+    explain: "| is the union operator. The result contains every element that appears in either set_a or set_b (or both). Duplicates are automatically removed because the result is still a set."
+  },
+  {
+    q: "Which of these correctly checks whether a key exists in a dict before accessing it?",
+    choices: [
+      "if d.has_key('email'):",
+      "if d.contains('email'):",
+      "if 'email' in d:",
+      "if d.exists('email'):"
+    ],
+    answer: 2,
+    explain: "'key in d' is the idiomatic Python way to test key existence. dict.has_key() was removed in Python 3. The 'in' operator checks the dict's keys, not its values."
   }
 ]} />
 

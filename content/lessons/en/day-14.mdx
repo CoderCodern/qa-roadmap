@@ -64,53 +64,137 @@ def function_name(param1, param2="default") -> ReturnType:
 
 ## Code / Demo
 
-<CodePlayground code={`# Building a small test helper library
+**Pattern 1 — Basic function anatomy: parameters, defaults, return values**
 
-def make_login_payload(email: str, password: str) -> dict:
-    return {"email": email, "password": password}
+<En>Every function has a name, parameters (optional), a body, and a return value. Default parameters let callers skip arguments they don't need to customise — but never use a mutable object as a default.</En>
+<Vi>Mỗi hàm có tên, tham số (tuỳ chọn), thân hàm và giá trị trả về. Tham số mặc định cho phép người gọi bỏ qua các đối số không cần tuỳ chỉnh — nhưng đừng bao giờ dùng đối tượng có thể thay đổi làm mặc định.</Vi>
 
-def is_success_status(code: int) -> bool:
+<CodePlayground code={`
+def greet(name, greeting="Hello"):
+    return f"{greeting}, {name}!"
+
+def add(a, b):
+    return a + b
+
+def is_success_status(code):
     return 200 <= code < 300
 
-def assert_response_ok(status_code: int, body) -> None:
-    assert is_success_status(status_code), \
-        f"Expected 2xx status but got {status_code}"
-    assert body is not None, "Response body should not be None"
+print(greet("Alice"))             # uses default greeting
+print(greet("Bob", "Hi"))        # overrides default
+print(add(3, 4))
 
-def make_unique_email(prefix: str = "test") -> str:
-    import time
-    ts = int(time.time() * 1000) % 100000
-    return f"{prefix}+{ts}@example.com"
-
-# Using the helpers — test reads clearly
-payload = make_login_payload("alice@example.com", "SecurePass123")
-assert "email" in payload
-assert "password" in payload
-
+assert greet("Alice") == "Hello, Alice!"
+assert greet("Bob", "Hi") == "Hi, Bob!"
+assert add(3, 4) == 7
 assert is_success_status(200)
 assert is_success_status(201)
 assert not is_success_status(404)
-assert not is_success_status(500)
+print("Pattern 1 ok — basic functions")
+`} />
 
-# Simulated response
-simulated_status = 200
-simulated_body = {"token": "abc123xyz"}
-assert_response_ok(simulated_status, simulated_body)
+**Pattern 2 — Keyword arguments and type hints**
 
-email = make_unique_email("user")
-assert email.startswith("user+")
+<En>Calling with keyword arguments (`make_payload(email=..., password=...)`) makes the call self-documenting. Type hints document expected types without enforcing them at runtime.</En>
+<Vi>Gọi với đối số từ khoá (`make_payload(email=..., password=...)`) giúp lời gọi tự giải thích. Type hint ghi lại kiểu dự kiến mà không bắt buộc chúng lúc runtime.</Vi>
+
+<CodePlayground code={`
+def make_login_payload(email: str, password: str, remember: bool = False) -> dict:
+    return {"email": email, "password": password, "remember": remember}
+
+def build_headers(token: str, content_type: str = "application/json") -> dict:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Content-Type":  content_type,
+    }
+
+# positional call
+p1 = make_login_payload("alice@example.com", "Pass123")
+# keyword call — order doesn't matter, reads like prose
+p2 = make_login_payload(password="Pass123", email="alice@example.com", remember=True)
+
+assert p1["email"] == "alice@example.com"
+assert p2["remember"] is True
+
+headers = build_headers("my-secret-token")
+assert headers["Authorization"] == "Bearer my-secret-token"
+assert headers["Content-Type"]  == "application/json"
+
+print(f"Payload: {p1}")
+print(f"Headers: {headers}")
+print("Pattern 2 ok — keyword args and type hints")
+`} />
+
+**Pattern 3 — Assertion helpers and data generators**
+
+<En>Small helpers like `assert_response_ok` wrap repeated assertion logic into one reusable call, keeping individual tests short. Data generators like `make_unique_email` produce fresh test inputs every time they are called.</En>
+<Vi>Các helper nhỏ như `assert_response_ok` gói gọn logic assertion lặp lại thành một lời gọi tái sử dụng, giữ cho mỗi test ngắn gọn. Các trình tạo dữ liệu như `make_unique_email` tạo ra dữ liệu test mới mỗi lần được gọi.</Vi>
+
+<CodePlayground code={`
+import time
+
+def is_success_status(code):
+    return 200 <= code < 300
+
+def assert_response_ok(status_code, body):
+    assert is_success_status(status_code), \
+        f"Expected 2xx status but got {status_code}"
+    assert body is not None, "Response body must not be None"
+
+def make_unique_email(prefix="test"):
+    ts = int(time.time() * 1000) % 100000
+    return f"{prefix}+{ts}@example.com"
+
+# assertion helper
+assert_response_ok(200, {"token": "abc123"})
+assert_response_ok(201, {"id": 42})
+
+# data generator
+email = make_unique_email("qa")
+assert email.startswith("qa+")
 assert email.endswith("@example.com")
 print(f"Generated: {email}")
 
-# Correct pattern — use None as default, create fresh list inside
-def safe_append(item: str, lst=None) -> list:
+# assert_response_ok rejects bad cases correctly
+try:
+    assert_response_ok(404, {"error": "not found"})
+    print("ERROR: should have raised")
+except AssertionError as e:
+    print(f"Caught expected failure: {e}")
+
+print("Pattern 3 ok — assertion helpers and data generators")
+`} />
+
+**Pattern 4 — Mutable default argument trap**
+
+<En>A default value is evaluated once when the function is defined — not on each call. If you use a mutable default like `[]`, all callers share the same list. Fix it by using `None` and creating a fresh object inside the body.</En>
+<Vi>Giá trị mặc định được tính một lần khi hàm được định nghĩa — không phải mỗi lần gọi. Nếu bạn dùng mặc định có thể thay đổi như `[]`, tất cả người gọi chia sẻ cùng một list. Sửa bằng cách dùng `None` và tạo đối tượng mới bên trong thân hàm.</Vi>
+
+<CodePlayground code={`
+# WRONG — shared mutable default
+def broken_append(item, lst=[]):
+    lst.append(item)
+    return lst
+
+r1 = broken_append("a")
+r2 = broken_append("b")
+print(f"broken r1={r1}, r2={r2}")  # both show ['a', 'b'] — surprising!
+assert r1 is r2  # same list object!
+
+# CORRECT — use None, create fresh list inside
+def safe_append(item, lst=None):
     if lst is None:
         lst = []
     lst.append(item)
     return lst
 
-print(safe_append("a"))  # ['a']
-print(safe_append("b"))  # ['b'] -- fresh list each call`} />
+s1 = safe_append("a")
+s2 = safe_append("b")
+print(f"safe   s1={s1}, s2={s2}")  # ['a'] and ['b'] — independent
+assert s1 == ["a"]
+assert s2 == ["b"]
+assert s1 is not s2
+print("Pattern 4 ok — mutable default trap fixed")
+`} />
 
 ## Exercise
 

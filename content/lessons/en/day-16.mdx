@@ -85,30 +85,40 @@ finally:
 
 ## Code / Demo
 
-```python
-# Exception handling patterns for QA code
+**Pattern 1 — `try / except`: catch a specific error**
 
-# Pattern 1: Safe dict access with fallback
-def get_field(data: dict, key: str, default=None):
+<En>Use `except ExceptionType` to handle only the error you expect. Other errors still propagate normally.</En>
+<Vi>Dùng `except ExceptionType` để chỉ xử lý lỗi bạn mong đợi. Các lỗi khác vẫn lan truyền bình thường.</Vi>
+
+<CodePlayground code={`
+def get_field(data, key, default=None):
     try:
         return data[key]
-    except KeyError:
+    except KeyError:        # only catches missing-key errors
         return default
 
 response = {"status": "ok", "token": "abc123"}
-token = get_field(response, "token")
+token   = get_field(response, "token")
 missing = get_field(response, "user_id", default=0)
+
 assert token == "abc123"
 assert missing == 0
+print("Pattern 1 ok — safe dict access with fallback")
+`} />
 
-# Pattern 2: Validate before using
-def parse_status_code(raw: str) -> int:
+**Pattern 2 — catch then re-raise: validate input**
+
+<En>Catch a low-level error, then raise a more descriptive one so callers get a useful message.</En>
+<Vi>Bắt lỗi cấp thấp, sau đó raise lỗi mô tả hơn để caller nhận được thông báo hữu ích.</Vi>
+
+<CodePlayground code={`
+def parse_status_code(raw):
     try:
         code = int(raw)
     except ValueError:
         raise ValueError(f"'{raw}' is not a valid status code")
     if not 100 <= code <= 599:
-        raise ValueError(f"Status code {code} is out of valid range (100-599)")
+        raise ValueError(f"Status code {code} is out of range")
     return code
 
 assert parse_status_code("200") == 200
@@ -116,34 +126,50 @@ assert parse_status_code("200") == 200
 try:
     parse_status_code("abc")
 except ValueError as e:
-    print(f"Caught expected error: {e}")
+    print(f"Caught: {e}")
 
-# Pattern 3: finally for cleanup
-def read_test_fixture(path: str) -> str:
-    f = None
+print("Pattern 2 ok — validate and re-raise")
+`} />
+
+**Pattern 3 — `finally`: code that always runs**
+
+<En>`finally` executes whether or not an exception occurred — perfect for cleanup (closing files, releasing connections).</En>
+<Vi>`finally` luôn thực thi dù có ngoại lệ hay không — hoàn hảo cho việc dọn dẹp (đóng file, giải phóng kết nối).</Vi>
+
+<CodePlayground code={`
+opened = False
+closed = False
+
+def use_resource():
+    global opened, closed
+    opened = True
     try:
-        f = open(path, "r")
-        return f.read()
-    except FileNotFoundError:
-        return ""
+        raise RuntimeError("something went wrong")
     finally:
-        if f:
-            f.close()
+        closed = True   # runs even though an exception was raised
 
-content = read_test_fixture("nonexistent.json")
-assert content == ""
-print("File not found handled gracefully")
+try:
+    use_resource()
+except RuntimeError:
+    pass
 
-# Pattern 4: Custom exception class
+assert opened and closed
+print("Pattern 3 ok — finally always ran")
+`} />
+
+**Pattern 4 — custom exception class**
+
+<En>Subclass `Exception` to create your own error type. This lets callers catch your specific error without catching everything.</En>
+<Vi>Kế thừa `Exception` để tạo kiểu lỗi riêng. Caller có thể bắt đúng lỗi của bạn mà không cần bắt tất cả.</Vi>
+
+<CodePlayground code={`
 class InvalidTestDataError(Exception):
     pass
 
-def create_user(email: str, role: str) -> dict:
+def create_user(email, role):
     valid_roles = {"admin", "editor", "viewer"}
     if role not in valid_roles:
-        raise InvalidTestDataError(
-            f"Invalid role '{role}'. Must be one of {valid_roles}"
-        )
+        raise InvalidTestDataError(f"Invalid role '{role}'")
     return {"email": email, "role": role}
 
 try:
@@ -153,16 +179,72 @@ except InvalidTestDataError as e:
 
 user = create_user("bob@example.com", "admin")
 assert user["role"] == "admin"
-print("All exception handling tests passed!")
-```
+print("Pattern 4 ok — custom exception works")
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a function `safe_get_price(data: dict) -> float` that returns the price from a response dict, returns 0.0 if the key is missing, and raises `ValueError` if the price is negative
-- [ ] Create a custom exception `ApiResponseError` and raise it with a descriptive message when a simulated API response has a status outside 200–299
-- [ ] Demonstrate the `finally` block by writing a function that "opens" and "closes" a resource (just print statements), ensuring the close always happens even if an error occurs
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={15} exercises={[
+  {
+    title: "Fill in ??? with the exception raised when a dict key is missing.",
+    code: `def get_status(data):
+    try:
+        return data["status"]
+    except ???:  # TODO (EN): which exception for a missing dict key?
+                  # TODO (VI): ngoại lệ nào khi thiếu key trong dict?
+        return "unknown"
+
+r1 = {"status": "ok"}
+r2 = {"code": 200}
+assert get_status(r1) == "ok"
+assert get_status(r2) == "unknown"
+print("Safe access works!")`,
+  },
+  {
+    title: "Fill in ??? with the correct built-in exception to raise for an invalid value.",
+    code: `def validate_age(age):
+    if age < 0:
+        # TODO (EN): raise the right built-in exception for an invalid value
+        # TODO (VI): raise ngoại lệ tích hợp phù hợp cho giá trị không hợp lệ
+        raise ???("Age cannot be negative")
+    return age
+
+try:
+    validate_age(-1)
+    print("ERROR: should have raised")
+except ValueError as e:
+    print(f"Caught: {e}")
+
+assert validate_age(25) == 25
+print("Validation works!")`,
+  },
+  {
+    title: "Fill in ??? with the class that every custom exception must inherit from.",
+    code: `# TODO (EN): custom exceptions must inherit from this class
+# TODO (VI): custom exception phải kế thừa từ class này
+class ApiError(???):
+    pass
+
+closed = False
+
+def call_api(status):
+    global closed
+    try:
+        if status != 200:
+            raise ApiError(f"Bad status: {status}")
+        return "ok"
+    finally:
+        closed = True  # always runs
+
+try:
+    call_api(404)
+except ApiError as e:
+    print(f"Caught: {e}")
+
+assert closed, "finally must have run"
+print("Custom exception and finally work!")`,
+  },
+]} />
 
 ## Quiz
 
@@ -188,6 +270,94 @@ print("All exception handling tests passed!")
     ],
     answer: 1,
     explain: "Silently swallowing exceptions is one of the worst coding habits. Tests that never fail even when things go wrong give false confidence. Always either handle the exception meaningfully or let it propagate."
+  },
+  {
+    q: "Which exception is raised when you access a dict key that does not exist?",
+    choices: [
+      "IndexError",
+      "ValueError",
+      "KeyError",
+      "AttributeError"
+    ],
+    answer: 2,
+    explain: "KeyError is raised when a dict key is not found. IndexError is for lists/tuples when an index is out of range. Use dict.get(key, default) or a try/except KeyError to handle missing keys safely."
+  },
+  {
+    q: "What is the correct way to create a custom exception class in Python?",
+    choices: [
+      "class MyError: pass",
+      "class MyError(Exception): pass",
+      "class MyError(Error): pass",
+      "def MyError(Exception): pass"
+    ],
+    answer: 1,
+    explain: "Custom exceptions must subclass Exception (or one of its subclasses). This makes them catchable by standard except clauses and gives them the full exception interface (__str__, args, etc.)."
+  },
+  {
+    q: "What does the `else` clause in a try/except block do?",
+    choices: [
+      "It runs only when an exception was raised",
+      "It runs only when NO exception was raised in the try block",
+      "It is equivalent to finally",
+      "It catches all remaining exception types"
+    ],
+    answer: 1,
+    explain: "The else clause runs when the try block completes without raising any exception. It lets you put success-path code where it's clear it only runs on success, keeping it separate from error-handling code."
+  },
+  {
+    q: "What happens if an exception is raised inside a `finally` block?",
+    choices: [
+      "Python ignores it and continues normally",
+      "It is silently swallowed",
+      "It replaces the original exception and propagates",
+      "Python runs the except block again"
+    ],
+    answer: 2,
+    explain: "If finally raises a new exception, the original exception is discarded and the new one propagates instead. This is a common bug — keep finally blocks simple and exception-free."
+  },
+  {
+    q: "Which of these is the safest way to access a potentially missing key in a dict?",
+    choices: [
+      "data[key]",
+      "data.get(key, default)",
+      "try: data[key] except Exception: pass",
+      "data.find(key)"
+    ],
+    answer: 1,
+    explain: "dict.get(key, default) returns the default if the key is absent, with no exception. It's concise, readable, and idiomatic Python. Bare except: pass is dangerous because it hides all errors."
+  },
+  {
+    q: "In a try/except/else/finally block, what is the execution order when NO exception is raised?",
+    choices: [
+      "try → except → finally",
+      "try → finally → else",
+      "try → else → finally",
+      "try → else → except → finally"
+    ],
+    answer: 2,
+    explain: "When no exception occurs: try runs, then else runs (success path), then finally runs (always). except is skipped entirely. This order lets each clause have a single clear responsibility."
+  },
+  {
+    q: "Which exception should you raise when a function receives an argument of the right type but an invalid value?",
+    choices: [
+      "TypeError",
+      "RuntimeError",
+      "ValueError",
+      "AssertionError"
+    ],
+    answer: 2,
+    explain: "ValueError signals that an argument has the correct type but an unacceptable value (e.g., int('-1') for an age field). TypeError is for wrong types. AssertionError is for internal invariant checks, not public API validation."
+  },
+  {
+    q: "What is the main advantage of raising a specific custom exception (e.g., `ApiError`) over a generic `Exception`?",
+    choices: [
+      "Custom exceptions run faster",
+      "Callers can catch only your specific error without accidentally catching unrelated exceptions",
+      "Python requires custom exceptions for all raise statements",
+      "Custom exceptions automatically log themselves"
+    ],
+    answer: 1,
+    explain: "With a custom exception, callers write `except ApiError` and only handle your error. If you raise bare Exception, callers who write `except Exception` will accidentally swallow all other bugs too, making debugging very hard."
   }
 ]} />
 

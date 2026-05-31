@@ -88,71 +88,160 @@ last_two = items[-2:]
 
 ## Code / Demo
 
-```python
-# Lists and tuples in QA automation
+**Pattern 1 — List basics: create, mutate, inspect**
 
-# Parametrised test data as list of tuples
+<En>Lists are mutable — you can add, insert, remove, and pop items. These are the operations you'll use when collecting test results, building request payloads, or managing test fixtures.</En>
+<Vi>List có thể thay đổi — bạn có thể thêm, chèn, xoá và lấy item. Đây là các thao tác bạn dùng khi thu thập kết quả test, xây dựng payload request hoặc quản lý test fixture.</Vi>
+
+<CodePlayground code={`
+items = ["apple", "banana", "cherry"]
+
+items.append("date")          # add to end
+items.insert(1, "avocado")    # insert at index 1
+popped = items.pop()          # remove and return last item
+removed = items.pop(0)        # remove and return item at index 0
+
+assert popped == "date"
+assert removed == "apple"
+assert items == ["avocado", "banana", "cherry"]
+
+print(f"List: {items}")
+print(f"Length: {len(items)}")
+print("Pattern 1 ok — list mutation")
+`} />
+
+**Pattern 2 — Tuples: immutable records + unpacking**
+
+<En>Tuples hold fixed-size records. Tuple unpacking lets you destructure them cleanly in a `for` loop — perfect for parametrised test cases where each row is `(input, expected)`.</En>
+<Vi>Tuple chứa bản ghi kích thước cố định. Giải nén tuple cho phép bạn destructure chúng gọn gàng trong vòng lặp `for` — hoàn hảo cho các test case tham số hoá khi mỗi hàng là `(input, expected)`.</Vi>
+
+<CodePlayground code={`
+# Tuple basics — immutable, unpackable
+point = (10, 20)
+x, y = point
+assert x == 10 and y == 20
+
+# List of tuples — parametrised test data
 test_cases = [
     ("user@example.com", "ValidPass1", True),
-    ("user@example.com", "wrongpass", False),
-    ("notanemail", "ValidPass1", False),
-    ("", "", False),
+    ("bad-email",        "ValidPass1", False),
+    ("",                 "",           False),
 ]
 
-def simulate_login(email: str, password: str) -> bool:
+def simulate_login(email, password):
     return email == "user@example.com" and password == "ValidPass1"
 
-failures = []
 for email, password, expected in test_cases:
-    result = simulate_login(email, password)
-    if result != expected:
-        failures.append(f"FAIL: login({email!r}) → expected={expected}, actual={result}")
+    assert simulate_login(email, password) == expected, f"FAIL: {email!r}"
 
-assert not failures, "\n".join(failures)
-print(f"All {len(test_cases)} login test cases passed!")
+print(f"All {len(test_cases)} test cases passed!")
+print("Pattern 2 ok — tuples and unpacking")
+`} />
 
-# Working with API response items list
+**Pattern 3 — List comprehension + filtering API responses**
+
+<En>List comprehensions replace `filter()` + `lambda` with a single readable expression. In QA you'll use them constantly to extract specific items from API response arrays.</En>
+<Vi>List comprehension thay thế `filter()` + `lambda` bằng một biểu thức có thể đọc được duy nhất. Trong QA bạn sẽ dùng chúng liên tục để trích xuất các item cụ thể từ mảng API response.</Vi>
+
+<CodePlayground code={`
 response_items = [
     {"id": 1, "status": "active"},
     {"id": 2, "status": "inactive"},
     {"id": 3, "status": "active"},
 ]
 
-# Length check
-assert len(response_items) == 3
-
-# First / last item
-first = response_items[0]
-assert first["id"] == 1
-
 # Filter with list comprehension
-active_items = [item for item in response_items if item["status"] == "active"]
-assert len(active_items) == 2
+active = [item for item in response_items if item["status"] == "active"]
+assert len(active) == 2
 
-# Check membership
+# Extract a field into a flat list
 statuses = [item["status"] for item in response_items]
+
+# Membership check
 assert "active" in statuses
 assert "deleted" not in statuses
 
-# Sorting
-scores = [85, 42, 91, 67]
-top = sorted(scores, reverse=True)[:2]
-assert top == [91, 85]
-print(f"Top 2 scores: {top}")
+print(f"Active: {len(active)}/{len(response_items)}")
+print(f"Statuses: {statuses}")
+print("Pattern 3 ok — list comprehension and filtering")
+`} />
 
-# Tuple unpacking in loops
-headers = [("Content-Type", "application/json"), ("Authorization", "Bearer abc123")]
-for name, value in headers:
-    print(f"  {name}: {value}")
-```
+**Pattern 4 — Slicing and sorting**
+
+<En>Slicing extracts sub-sequences without mutating the original. `sorted()` returns a new sorted list; `.sort()` sorts in place. Prefer `sorted()` when you need the original unchanged.</En>
+<Vi>Slicing trích xuất dãy con mà không thay đổi bản gốc. `sorted()` trả về list mới đã sắp xếp; `.sort()` sắp xếp tại chỗ. Ưu tiên `sorted()` khi bạn cần giữ nguyên bản gốc.</Vi>
+
+<CodePlayground code={`
+scores = [85, 42, 91, 67, 73, 55]
+
+# Slicing
+first_three  = scores[:3]
+last_two     = scores[-2:]
+every_other  = scores[::2]
+reversed_all = scores[::-1]
+
+assert first_three == [85, 42, 91]
+assert last_two    == [73, 55]
+print(f"First 3:    {first_three}")
+print(f"Last 2:     {last_two}")
+print(f"Every 2nd:  {every_other}")
+print(f"Reversed:   {reversed_all}")
+
+# sorted() → new list, .sort() → mutates in place
+top3 = sorted(scores, reverse=True)[:3]
+assert scores[0] == 85    # original is unchanged
+assert top3 == [91, 85, 73]
+print(f"Top 3: {top3}")
+print("Pattern 4 ok — slicing and sorting")
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Given a list of API response dicts with `id`, `name`, and `active` fields, write code to: count active items, get the names of inactive ones, and assert no item has a negative id
-- [ ] Create a list of tuples representing BVA test cases for a field that accepts 1–99. Each tuple should be `(input_value, expected_valid)`. Loop through and test all of them
-- [ ] Use slicing to get the first, last, and middle elements of a list of 7 items
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={15} exercises={[
+  {
+    title: "Fill in ??? with the value to compare against when filtering active statuses.",
+    code: `statuses = ["active", "inactive", "active", "pending", "active"]
+
+# TODO (EN): filter all "active" statuses using list comprehension
+# TODO (VI): lọc tất cả trạng thái "active" bằng list comprehension
+active = [s for s in statuses if s == ???]
+
+assert len(active) == 3
+print(f"Active count: {len(active)}")`,
+  },
+  {
+    title: "Fill in ??? with the variable name to assert that no test failures exist.",
+    code: `test_cases = [
+    ("user@test.com", "Pass123", True),
+    ("bad-email", "Pass123", False),
+    ("", "", False),
+]
+
+failures = []
+for email, password, expected in test_cases:
+    valid = "@" in email and len(password) >= 6
+    if valid != expected:
+        failures.append(f"FAIL: {email!r}")
+
+# TODO (EN): assert there are no failures (an empty list is falsy)
+# TODO (VI): assert không có lỗi nào (list rỗng là falsy)
+assert not ???, "\\n".join(failures)
+print(f"All {len(test_cases)} test cases passed!")`,
+  },
+  {
+    title: "Fill in ??? with a slice expression that returns the first 3 items.",
+    code: `items = [10, 20, 30, 40, 50, 60, 70]
+
+# TODO (EN): get the first 3 items using a slice
+# TODO (VI): lấy 3 phần tử đầu bằng slice
+first_three = items[???]
+
+assert first_three == [10, 20, 30]
+last = items[-1]
+assert last == 70
+print(f"First three: {first_three}, Last: {last}")`,
+  },
+]} />
 
 ## Quiz
 
@@ -178,6 +267,94 @@ for name, value in headers:
     ],
     answer: 2,
     explain: "Negative indexing counts from the end. -1 is the last item, -2 is second-to-last, and so on. This is idiomatic Python for accessing the end of a sequence."
+  },
+  {
+    q: "What does `items.append(x)` do?",
+    choices: [
+      "Inserts x at the beginning of the list",
+      "Returns a new list with x added at the end",
+      "Adds x to the end of the list in place",
+      "Replaces the last item with x"
+    ],
+    answer: 2,
+    explain: "append() mutates the list by adding the item to the end. It returns None — not a new list. To add at a specific position, use insert(index, x) instead."
+  },
+  {
+    q: "Given `scores = [85, 42, 91, 67]`, what does `scores[:3]` return?",
+    choices: [
+      "[42, 91, 67]",
+      "[85, 42, 91]",
+      "[85, 42, 91, 67]",
+      "[91, 67]"
+    ],
+    answer: 1,
+    explain: "Slice [start:stop] extracts items from index start up to (not including) stop. scores[:3] means indices 0, 1, 2 — the first three items: [85, 42, 91]."
+  },
+  {
+    q: "What does `items[::-1]` return?",
+    choices: [
+      "Every other item starting from the end",
+      "The last item only",
+      "A reversed copy of the list",
+      "An empty list"
+    ],
+    answer: 2,
+    explain: "The slice [::step] with step=-1 traverses the list from end to start, producing a reversed copy. The original list is unchanged — slicing never mutates."
+  },
+  {
+    q: "What is tuple unpacking in Python?",
+    choices: [
+      "Converting a tuple into a set",
+      "Compressing multiple values into a single variable",
+      "Assigning each element of a tuple to separate variables in one statement",
+      "Removing items from a tuple one by one"
+    ],
+    answer: 2,
+    explain: "Tuple unpacking: x, y = (10, 20) assigns 10 to x and 20 to y in a single statement. It's widely used in for loops over lists of tuples, making each row's fields accessible by name."
+  },
+  {
+    q: "Which list method removes and returns the last item?",
+    choices: [
+      "remove()",
+      "delete()",
+      "pop()",
+      "discard()"
+    ],
+    answer: 2,
+    explain: "pop() with no argument removes and returns the last item. pop(i) removes the item at index i. remove(value) removes the first occurrence of a value but returns None."
+  },
+  {
+    q: "What is the output of `[x * 2 for x in [1, 2, 3] if x > 1]`?",
+    choices: [
+      "[2, 4, 6]",
+      "[4, 6]",
+      "[2, 4]",
+      "[1, 4, 6]"
+    ],
+    answer: 1,
+    explain: "The comprehension filters items where x > 1 (giving 2 and 3), then multiplies each by 2. Result: [4, 6]. The item x=1 is excluded because 1 > 1 is False."
+  },
+  {
+    q: "What is the difference between `sorted(items)` and `items.sort()`?",
+    choices: [
+      "sorted() is only for tuples; .sort() is for lists",
+      "sorted() returns a new sorted list; .sort() sorts in place and returns None",
+      "They are identical — both return a new sorted list",
+      ".sort() returns a new list; sorted() modifies in place"
+    ],
+    answer: 1,
+    explain: "sorted(items) creates a new list and leaves the original unchanged. items.sort() mutates the list in place and returns None. Prefer sorted() when you need to preserve the original order."
+  },
+  {
+    q: "When should you prefer a tuple over a list?",
+    choices: [
+      "When the collection needs to grow or shrink at runtime",
+      "When you want faster iteration over large datasets",
+      "When the data is a fixed-size record that should not be modified (e.g., a test case row or a dict key)",
+      "When you need to sort the items"
+    ],
+    answer: 2,
+    explain: "Tuples are the right choice for fixed-size records (coordinates, test case rows, return values) and as dict keys, because their immutability guarantees no accidental mutation. Use lists when the collection must change."
   }
 ]} />
 

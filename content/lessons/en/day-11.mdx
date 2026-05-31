@@ -76,44 +76,105 @@ Toán tử là nền tảng của mọi assertion. Khi bạn viết `assert resp
 
 ## Code / Demo
 
-<CodePlayground code={`# Comparison operators in a QA context
+**Pattern 1 — Comparison operators: `==`, `!=`, `<`, `<=`, `>=`**
 
+<En>These six operators form the foundation of every assertion. They compare values and always return `True` or `False`.</En>
+<Vi>Sáu toán tử này là nền tảng của mọi assertion. Chúng so sánh giá trị và luôn trả về `True` hoặc `False`.</Vi>
+
+<CodePlayground code={`
 status_code = 200
 response_time_ms = 342
+
+assert status_code == 200,       "status must be 200"
+assert status_code != 404,       "should not be 404"
+assert response_time_ms <= 500,  "response too slow"
+assert response_time_ms >= 100,  "response unrealistically fast"
+assert response_time_ms > 0
+assert status_code < 300
+
+print(f"status_code={status_code}, response_time={response_time_ms}ms")
+print("Pattern 1 ok — comparison operators")
+`} />
+
+**Pattern 2 — Membership and None checks: `in`, `not in`, `is`, `is not`**
+
+<En>Use `in`/`not in` to test membership in lists, strings, or dicts. Use `is None` / `is not None` — never `== None` — because `is` checks object identity, which is correct and PEP 8-compliant.</En>
+<Vi>Dùng `in`/`not in` để kiểm tra thành viên trong list, string hoặc dict. Dùng `is None` / `is not None` — không bao giờ dùng `== None` — vì `is` kiểm tra identity đối tượng, đúng và tuân thủ PEP 8.</Vi>
+
+<CodePlayground code={`
 roles = ["viewer", "editor"]
 error = None
-
-# Basic comparisons
-assert status_code == 200
-assert status_code != 404
-assert response_time_ms <= 500  # performance assertion
+data = {"user": "alice"}
+message = "User created successfully"
 
 # Membership
 assert "editor" in roles
 assert "admin" not in roles
+assert "created" in message.lower()
 
-# None checks — always use 'is' not '=='
+# None checks — always 'is', never '=='
 assert error is None
-data = {"user": "alice"}
 assert data is not None
+token = data.get("token")   # key doesn't exist → returns None
+assert token is None
 
-# Chained comparison — clean and Pythonic
+print(f"Roles: {roles}")
+print(f"error is None: {error is None}")
+print("Pattern 2 ok — membership and None checks")
+`} />
+
+**Pattern 3 — Chained comparisons**
+
+<En>Python lets you chain comparisons like `0 < count < 100`. This is cleaner than writing `count > 0 and count < 100` and reads like mathematical notation.</En>
+<Vi>Python cho phép bạn viết so sánh chuỗi như `0 < count < 100`. Cách này gọn hơn `count > 0 and count < 100` và đọc như ký hiệu toán học.</Vi>
+
+<CodePlayground code={`
 count = 5
-assert 0 < count < 100, "Count should be between 1 and 99"
+status_code = 201
+response_time_ms = 342
 
-# Logical operators
+# Chained comparisons — Pythonic and readable
+assert 0 < count < 100,              "count out of range"
+assert 200 <= status_code < 300,     f"Expected 2xx, got {status_code}"
+assert 100 <= response_time_ms <= 500, "response time out of acceptable range"
+
+# Equivalent but less readable — avoid this style
+assert count > 0 and count < 100    # same result, harder to read
+
+print(f"count={count} ✓")
+print(f"status={status_code} ✓")
+print(f"response_time={response_time_ms}ms ✓")
+print("Pattern 3 ok — chained comparisons")
+`} />
+
+**Pattern 4 — Logical operators: `and`, `or`, `not`**
+
+<En>`and` requires both sides to be truthy. `or` passes if either side is truthy. `not` inverts a boolean. These combine multiple conditions into a single assertion.</En>
+<Vi>`and` yêu cầu cả hai vế đều truthy. `or` thành công nếu một trong hai vế truthy. `not` đảo ngược boolean. Chúng kết hợp nhiều điều kiện thành một assertion duy nhất.</Vi>
+
+<CodePlayground code={`
 is_authenticated = True
-has_permission = True
-assert is_authenticated and has_permission, "User must be authenticated AND have permission"
+has_permission   = True
+is_admin         = False
+is_superuser     = True
 
-is_admin = False
-is_superuser = True
+# and — both must be true
+assert is_authenticated and has_permission, "Must be authenticated AND have permission"
+
+# or — at least one must be true
 assert is_admin or is_superuser, "Must be admin or superuser"
 
-# Combining comparisons with logic
-assert status_code >= 200 and status_code < 300, f"Expected 2xx but got {status_code}"
+# not — invert a condition
+assert not is_admin, "Regular user should not be admin"
 
-print("All operator assertions passed!")`} />
+# Combining: real-world assertion
+status_code = 200
+body = {"id": 42}
+assert status_code == 200 and body is not None, "Expected 200 with a body"
+
+print(f"authenticated={is_authenticated}, superuser={is_superuser}")
+print("Pattern 4 ok — logical operators")
+`} />
 
 ## Exercise
 

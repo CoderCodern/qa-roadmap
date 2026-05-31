@@ -70,49 +70,123 @@ from json import loads as parse # bí danh — dùng parse()
 
 ## Code / Demo
 
-<CodePlayground code={`# Standard library modules in a QA context
-import json
-import os
-import time
-import uuid
-from datetime import datetime
+**Pattern 1 — `json`: parse and serialize**
 
-# json — parsing API responses
+<En>`json.loads()` converts a JSON string to a Python dict — exactly what you get from an API response body. `json.dumps()` converts a dict back to a JSON string — what you send as a request body.</En>
+<Vi>`json.loads()` chuyển chuỗi JSON thành dict Python — chính xác là những gì bạn nhận từ phần thân API response. `json.dumps()` chuyển dict trở lại chuỗi JSON — những gì bạn gửi làm phần thân request.</Vi>
+
+<CodePlayground code={`
+import json
+
+# Simulate receiving an API response body (string → dict)
 raw_response = '{"status": "ok", "user": {"id": 42, "email": "alice@example.com"}}'
 data = json.loads(raw_response)
+
 assert data["status"] == "ok"
 assert data["user"]["id"] == 42
 print(f"Parsed user: {data['user']['email']}")
 
-# json.dumps — building request bodies
+# Simulate building a request body (dict → string)
 payload = {"email": "bob@example.com", "role": "viewer"}
 serialized = json.dumps(payload)
-print(f"Request body: {serialized}")
+pretty    = json.dumps(payload, indent=2)
 
-# os.environ — reading config without hardcoding
+assert '"email"' in serialized
+print(f"Compact: {serialized}")
+print(f"Pretty:\\n{pretty}")
+print("Pattern 1 ok — json loads / dumps")
+`} />
+
+**Pattern 2 — `os`: environment variables and paths**
+
+<En>`os.environ.get(key, default)` reads a config value from the environment without hardcoding it. This is how test suites switch between staging and production URLs. `os.path` handles file paths in a cross-platform way.</En>
+<Vi>`os.environ.get(key, default)` đọc giá trị cấu hình từ môi trường mà không cần hardcode. Đây là cách các bộ test chuyển đổi giữa staging và production URL. `os.path` xử lý đường dẫn file theo cách cross-platform.</Vi>
+
+<CodePlayground code={`
+import os
+
+# Read config — falls back to default when env var is not set
 api_url = os.environ.get("API_URL", "http://localhost:8080")
-print(f"Target: {api_url}")
+timeout  = int(os.environ.get("REQUEST_TIMEOUT", "30"))
 
-# uuid — unique test data
+print(f"Target:  {api_url}")
+print(f"Timeout: {timeout}s")
+
+assert api_url.startswith("http")
+assert timeout > 0
+
+# os.path utilities
+current_dir = os.path.abspath(".")
+fixtures    = os.path.join(current_dir, "tests", "fixtures")
+print(f"CWD:      {current_dir}")
+print(f"Fixtures: {fixtures}")
+print("Pattern 2 ok — os environment and paths")
+`} />
+
+**Pattern 3 — `uuid`, `time`, `datetime`: test data and timestamps**
+
+<En>`uuid.uuid4()` generates a random unique ID — use it to create email addresses or record IDs that won't collide between test runs. `time` and `datetime` let you measure elapsed time and stamp test logs.</En>
+<Vi>`uuid.uuid4()` tạo ID duy nhất ngẫu nhiên — dùng để tạo địa chỉ email hoặc ID bản ghi không va chạm giữa các lần chạy test. `time` và `datetime` cho phép bạn đo thời gian trôi qua và đánh dấu thời gian log test.</Vi>
+
+<CodePlayground code={`
+import uuid
+import time
+from datetime import datetime
+
+# uuid — unique test data that never collides
 test_email = f"test+{uuid.uuid4().hex[:8]}@example.com"
+record_id  = str(uuid.uuid4())
+
 print(f"Test email: {test_email}")
+print(f"Record ID:  {record_id}")
+assert test_email.endswith("@example.com")
+assert len(record_id) == 36     # standard UUID format: 8-4-4-4-12
 
-# datetime — timestamped logs
+# datetime — timestamped test log entry
 now = datetime.now().isoformat()
-print(f"Test run started at: {now}")
+print(f"Test run started: {now}")
 
-# time — simple polling wait
-print("Simulating a polling wait...")
-start = time.time()
-time.sleep(0.05)
+# time — measure how long an operation takes
+start   = time.time()
+time.sleep(0.05)                # simulates a short wait / network call
 elapsed = time.time() - start
-print(f"Waited {elapsed:.2f}s")
 
-# __name__ guard concept
-# When run directly: __name__ == "__main__"
-# When imported:     __name__ == the module name
-print(f"__name__ = '{__name__}'")
-print("All module demos passed!")`} />
+print(f"Elapsed: {elapsed:.2f}s")
+assert elapsed >= 0.05
+print("Pattern 3 ok — uuid / time / datetime")
+`} />
+
+**Pattern 4 — `__name__` guard: module vs script**
+
+<En>When Python imports a file, `__name__` is set to the module name. When you run it directly, `__name__` is `"__main__"`. Wrapping your script entry point in this guard lets the same file act as both a reusable module and a standalone script.</En>
+<Vi>Khi Python import một file, `__name__` được đặt là tên module. Khi bạn chạy trực tiếp, `__name__` là `"__main__"`. Bọc điểm vào script trong guard này cho phép cùng một file hoạt động vừa là module tái sử dụng vừa là script độc lập.</Vi>
+
+<CodePlayground code={`
+# helpers.py — reusable functions (would normally live in a separate file)
+
+def greet(name):
+    return f"Hello, {name}!"
+
+def add(a, b):
+    return a + b
+
+# This block only runs when the file is executed directly.
+# When imported by another module, __name__ is the module name,
+# so this block is skipped — the helpers are still available.
+if __name__ == "__main__":
+    print("Running as a script:")
+    print(greet("Alice"))
+    print(add(2, 3))
+
+# In a Pyodide sandbox __name__ is already '__main__',
+# so both the import-style usage and the guard fire here.
+print(f"Current __name__ = {__name__!r}")
+
+# Using the functions (as if imported)
+assert greet("Bob") == "Hello, Bob!"
+assert add(10, 5) == 15
+print("Pattern 4 ok — __name__ guard")
+`} />
 
 ## Exercise
 

@@ -73,92 +73,261 @@ pip install pytest
 
 ## Code / Demo
 
-```python
-# calculator.py — the core module
+**Pattern 1 — Core arithmetic functions**
 
+> 📄 File: `calculator/calculator.py`
+
+<En>Start with the simplest pieces first. Each function does exactly one thing and is independently testable. The AAA pattern (Arrange, Act, Assert) keeps each verification clear — even without pytest.</En>
+<Vi>Bắt đầu với các phần đơn giản nhất trước. Mỗi hàm làm đúng một việc và có thể kiểm tra độc lập. Mẫu AAA (Arrange, Act, Assert) giữ cho mỗi xác minh rõ ràng — ngay cả khi không có pytest.</Vi>
+
+<CodePlayground code={`
+def add(a, b):
+    return a + b
+
+def subtract(a, b):
+    return a - b
+
+def multiply(a, b):
+    return a * b
+
+# Arrange → Act → Assert (AAA pattern)
+assert add(2, 3)        == 5
+assert add(-1, -4)      == -5
+assert add(0, 0)        == 0
+
+assert subtract(10, 4)  == 6
+assert subtract(3, 10)  == -7
+assert subtract(0, 5)   == -5
+
+assert multiply(6, 7)   == 42
+assert multiply(100, 0) == 0
+assert multiply(-3, 4)  == -12
+
+# Float precision — never use == directly for floats
+assert abs(add(0.1, 0.2) - 0.3) < 1e-9
+
+print("add, subtract, multiply — all assertions passed!")
+`} />
+
+**Pattern 2 — `divide` with exception handling**
+
+> 📄 File: `calculator/calculator.py` — add below Pattern 1 in the same file
+
+<En>Division by zero is a domain-specific error. A custom `CalculatorError` lets callers catch it precisely without accidentally swallowing unrelated exceptions. Test both the happy path and the error path.</En>
+<Vi>Chia cho zero là lỗi đặc thù của miền. `CalculatorError` tuỳ chỉnh cho phép người gọi bắt đúng lỗi đó mà không vô tình bắt các ngoại lệ không liên quan. Kiểm tra cả đường thành công lẫn đường lỗi.</Vi>
+
+<CodePlayground code={`
 class CalculatorError(Exception):
     pass
 
-def add(a: float, b: float) -> float:
-    return a + b
-
-def subtract(a: float, b: float) -> float:
-    return a - b
-
-def multiply(a: float, b: float) -> float:
-    return a * b
-
-def divide(a: float, b: float) -> float:
+def divide(a, b):
     if b == 0:
         raise CalculatorError("Division by zero is not allowed")
     return a / b
 
-def calculate(operation: str, a: float, b: float) -> float:
-    ops = {
-        "+": add,
-        "-": subtract,
-        "*": multiply,
-        "/": divide,
-    }
+# Happy path
+assert divide(10, 2)  == 5.0
+assert divide(9, 3)   == 3.0
+assert divide(-6, 2)  == -3.0
+
+# Error path — must raise CalculatorError when b is zero
+try:
+    divide(10, 0)
+    print("ERROR: should have raised!")
+except CalculatorError as e:
+    print(f"Caught expected error: {e}")
+
+# CalculatorError is specific — it does NOT catch other exceptions
+try:
+    divide("ten", 2)   # raises TypeError, not CalculatorError
+except CalculatorError:
+    print("ERROR: wrong exception type caught")
+except TypeError as e:
+    print(f"Correctly NOT caught by CalculatorError: {e}")
+
+print("divide — all assertions passed!")
+`} />
+
+**Pattern 3 — `calculate()` dispatcher with dict-based dispatch**
+
+> 📄 File: `calculator/calculator.py` — this completes the module; Patterns 1–3 together form the full file
+
+<En>Instead of a long `if/elif` chain, map operator strings to functions in a dict. This makes adding new operations trivial — just add one entry. The unknown-operation check becomes a single `in` test.</En>
+<Vi>Thay vì chuỗi `if/elif` dài, ánh xạ chuỗi toán tử sang hàm trong một dict. Điều này làm việc thêm phép tính mới trở nên đơn giản — chỉ cần thêm một entry. Kiểm tra phép tính không xác định trở thành một lần kiểm tra `in`.</Vi>
+
+<CodePlayground code={`
+class CalculatorError(Exception):
+    pass
+
+def add(a, b):      return a + b
+def subtract(a, b): return a - b
+def multiply(a, b): return a * b
+def divide(a, b):
+    if b == 0:
+        raise CalculatorError("Division by zero is not allowed")
+    return a / b
+
+def calculate(operation, a, b):
+    ops = {"+": add, "-": subtract, "*": multiply, "/": divide}
     if operation not in ops:
         raise CalculatorError(f"Unknown operation: '{operation}'")
     return ops[operation](a, b)
-```
 
-```python
-# tests/test_calculator.py — the pytest test file
+# Happy path — all four operations
+assert calculate("+", 3, 4)  == 7
+assert calculate("-", 10, 3) == 7
+assert calculate("*", 6, 7)  == 42
+assert calculate("/", 9, 3)  == 3.0
 
-import pytest
-from calculator import add, subtract, multiply, divide, calculate, CalculatorError
+# Error paths
+try:
+    calculate("^", 2, 3)
+    print("ERROR: should have raised!")
+except CalculatorError as e:
+    print(f"Unknown op caught: {e}")
 
-# --- add ---
-def test_add_positive_numbers():
-    assert add(2, 3) == 5
+try:
+    calculate("/", 5, 0)
+    print("ERROR: should have raised!")
+except CalculatorError as e:
+    print(f"Divide-by-zero caught: {e}")
 
-def test_add_negative_numbers():
-    assert add(-1, -4) == -5
+print("calculate — all assertions passed!")
+`} />
 
-def test_add_floats():
-    assert add(0.1, 0.2) == pytest.approx(0.3)  # float precision!
+**Pattern 4 — Writing tests the pytest way (AAA + parametrised cases)**
 
-# --- subtract ---
-def test_subtract():
-    assert subtract(10, 4) == 6
+> 📄 File: `calculator/tests/test_calculator.py` — this is a separate file from the logic; run it with `pytest tests/`
 
-def test_subtract_gives_negative():
-    assert subtract(3, 10) == -7
+<En>In real pytest files each test is a separate `test_` function. Running the same logic against multiple inputs is done by looping over a list of `(inputs, expected)` tuples — the precursor to pytest's `@pytest.mark.parametrize`. Failures are collected and reported all at once.</En>
+<Vi>Trong file pytest thực tế mỗi test là một hàm `test_` riêng biệt. Chạy cùng logic với nhiều đầu vào được thực hiện bằng cách lặp qua danh sách các tuple `(đầu vào, mong đợi)` — tiền thân của `@pytest.mark.parametrize` của pytest. Lỗi được thu thập và báo cáo cùng lúc.</Vi>
 
-# --- multiply ---
-def test_multiply():
-    assert multiply(6, 7) == 42
+<CodePlayground code={`
+class CalculatorError(Exception):
+    pass
 
-def test_multiply_by_zero():
-    assert multiply(100, 0) == 0
+def add(a, b):      return a + b
+def subtract(a, b): return a - b
+def multiply(a, b): return a * b
+def divide(a, b):
+    if b == 0: raise CalculatorError("Division by zero is not allowed")
+    return a / b
 
-# --- divide ---
-def test_divide():
-    assert divide(10, 2) == 5.0
+def calculate(op, a, b):
+    ops = {"+": add, "-": subtract, "*": multiply, "/": divide}
+    if op not in ops: raise CalculatorError(f"Unknown operation: '{op}'")
+    return ops[op](a, b)
 
-def test_divide_raises_on_zero():
-    with pytest.raises(CalculatorError, match="Division by zero"):
-        divide(10, 0)
+# Parametrised test cases — (operation, a, b, expected)
+test_cases = [
+    ("+",  2,   3,   5),
+    ("+",  -1,  -4,  -5),
+    ("-",  10,  4,   6),
+    ("-",  3,   10,  -7),
+    ("*",  6,   7,   42),
+    ("*",  100, 0,   0),
+    ("/",  10,  2,   5.0),
+    ("/",  9,   3,   3.0),
+]
 
-# --- calculate dispatcher ---
-def test_calculate_addition():
-    assert calculate("+", 3, 4) == 7
+failures = []
+for op, a, b, expected in test_cases:
+    result = calculate(op, a, b)
+    if result != expected:
+        failures.append(f"calculate({op!r}, {a}, {b}) → {result}, expected {expected}")
 
-def test_calculate_unknown_operation_raises():
-    with pytest.raises(CalculatorError, match="Unknown operation"):
-        calculate("^", 2, 3)
-```
+assert not failures, "\\n".join(failures)
+print(f"All {len(test_cases)} parametrised cases passed!")
+
+# Test that errors are raised correctly
+error_cases = [("/", 5, 0), ("^", 2, 3)]
+for op, a, b in error_cases:
+    try:
+        calculate(op, a, b)
+        failures.append(f"calculate({op!r}, {a}, {b}) should have raised")
+    except CalculatorError:
+        pass   # expected
+
+assert not failures
+print("All error-path cases raised CalculatorError correctly!")
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Set up the `calculator/` project structure, copy both files, install pytest, and run `pytest -v` — all tests should pass
-- [ ] Add a `power(base, exponent)` function to `calculator.py` with at least 4 test cases (including negative exponent and zero base)
-- [ ] Add a `history` feature: a class `Calculator` that keeps a list of previous calculations as strings, with a `clear_history()` method and a test that verifies history is recorded correctly
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={15} exercises={[
+  {
+    title: "Extend the calculator — add a power() function and wire it into calculate().",
+    code: `class CalculatorError(Exception):
+    pass
+
+def add(a, b):      return a + b
+def subtract(a, b): return a - b
+def multiply(a, b): return a * b
+def divide(a, b):
+    if b == 0: raise CalculatorError("Division by zero is not allowed")
+    return a / b
+
+# TODO (EN): implement power — return a raised to the power of b
+# TODO (VI): triển khai hàm power — trả về a mũ b
+def power(a, b):
+    return ???
+
+def calculate(op, a, b):
+    ops = {"+": add, "-": subtract, "*": multiply, "/": divide, "**": power}
+    if op not in ops:
+        raise CalculatorError(f"Unknown operation: '{op}'")
+    return ops[op](a, b)
+
+assert power(2, 10) == 1024
+assert power(3, 3)  == 27
+assert power(5, 0)  == 1    # anything to the power 0 is 1
+assert calculate("**", 2, 8) == 256
+print("power() and calculate('**') work!")`,
+  },
+  {
+    title: "Add is_valid_operation() — return True if the operator is supported.",
+    code: `VALID_OPS = {"+", "-", "*", "/", "**"}
+
+# TODO (EN): return True if op is one of the valid operations, False otherwise
+# TODO (VI): trả về True nếu op là phép tính hợp lệ, False nếu không
+def is_valid_operation(op):
+    return op ??? VALID_OPS
+
+assert is_valid_operation("+")  == True
+assert is_valid_operation("**") == True
+assert is_valid_operation("^")  == False
+assert is_valid_operation("")   == False
+assert is_valid_operation("%")  == False
+print("is_valid_operation() works!")`,
+  },
+  {
+    title: "Add summarise_results() — count passed and failed tests from a results list.",
+    code: `# Each result is a dict: {"name": str, "passed": bool}
+test_results = [
+    {"name": "test_add",      "passed": True},
+    {"name": "test_subtract", "passed": True},
+    {"name": "test_divide",   "passed": False},
+    {"name": "test_multiply", "passed": True},
+]
+
+def summarise_results(results):
+    passed = [r for r in results if r["passed"] == ???]
+    failed = [r for r in results if not r["passed"]]
+    return {
+        "total":  len(results),
+        "passed": len(passed),
+        "failed": len(failed),
+    }
+
+summary = summarise_results(test_results)
+print(f"Results: {summary['passed']}/{summary['total']} passed")
+
+assert summary["total"]  == 4
+assert summary["passed"] == 3
+assert summary["failed"] == 1
+print("summarise_results() works!")`,
+  },
+]} />
 
 ## Quiz
 
@@ -184,6 +353,94 @@ def test_calculate_unknown_operation_raises():
     ],
     answer: 1,
     explain: "Floating-point numbers are stored in binary, so 0.1 + 0.2 == 0.30000000000000004 — not 0.3. pytest.approx() checks that values are equal within a small tolerance."
+  },
+  {
+    q: "What does the AAA pattern stand for in test writing?",
+    choices: [
+      "Authenticate, Authorise, Assert",
+      "Arrange, Act, Assert",
+      "Assert, Apply, Audit",
+      "Allocate, Assign, Affirm"
+    ],
+    answer: 1,
+    explain: "Arrange sets up the test data and preconditions. Act calls the code under test. Assert verifies the result. Separating these three stages makes tests easier to read and debug."
+  },
+  {
+    q: "What does `pytest.raises(CalculatorError)` do in a test?",
+    choices: [
+      "It suppresses the exception so the test does not fail",
+      "It asserts that the code inside the block raises CalculatorError — the test fails if no exception is raised",
+      "It logs the exception to a file",
+      "It reruns the test until the exception disappears"
+    ],
+    answer: 1,
+    explain: "pytest.raises() is a context manager that expects the wrapped code to raise the specified exception. If the exception is NOT raised, the test fails. This is the correct way to test error-path behaviour in pytest."
+  },
+  {
+    q: "Why is a dict-based dispatcher `{'+': add, '-': subtract}` preferred over a long `if/elif` chain?",
+    choices: [
+      "Dicts execute faster than if/elif at runtime",
+      "It is more concise, easier to extend (add one entry), and avoids duplicating the unknown-operation check",
+      "Python requires dict dispatch for functions with more than 2 branches",
+      "if/elif chains cannot call functions directly"
+    ],
+    answer: 1,
+    explain: "A dict maps operator strings to functions in one readable structure. Adding a new operation is one line. The unknown-operation guard is a single 'if op not in ops' check. Long elif chains grow linearly and scatter the logic."
+  },
+  {
+    q: "Why define a custom `CalculatorError(Exception)` instead of raising a plain `Exception`?",
+    choices: [
+      "Python does not allow raising plain Exception",
+      "Callers can catch CalculatorError specifically without accidentally catching unrelated exceptions",
+      "Custom exceptions are faster to raise",
+      "pytest cannot detect plain Exception raises"
+    ],
+    answer: 1,
+    explain: "A custom exception lets callers write 'except CalculatorError' and handle only your domain error. If you raised bare Exception, a caller's 'except Exception' would also swallow programming bugs like TypeError or NameError."
+  },
+  {
+    q: "What is the correct command to run all tests in the `tests/` directory with verbose output?",
+    choices: [
+      "python tests/",
+      "pytest tests/ -v",
+      "pytest --run-all tests/",
+      "python -m test tests/ --verbose"
+    ],
+    answer: 1,
+    explain: "pytest tests/ -v runs every discovered test file in the tests/ directory and prints each test function name alongside PASSED or FAILED. The -v flag stands for verbose."
+  },
+  {
+    q: "Why is collecting failures into a list better than asserting inside a loop in parametrised tests?",
+    choices: [
+      "It makes the tests run in parallel",
+      "You see all failing cases at once instead of stopping at the first failure",
+      "It is required by pytest for parametrised tests",
+      "Assertions inside loops are a SyntaxError"
+    ],
+    answer: 1,
+    explain: "An assert inside a loop stops on the first failure and hides the rest. Collecting failures lets you process all inputs, then assert at the end — giving you a full picture of what's broken in a single run."
+  },
+  {
+    q: "What does `__init__.py` do inside the `tests/` directory?",
+    choices: [
+      "It runs all tests automatically when Python starts",
+      "It marks the directory as a Python package, enabling imports between test files",
+      "It stores pytest configuration settings",
+      "It must contain the test suite entry point function"
+    ],
+    answer: 1,
+    explain: "An empty __init__.py makes the tests/ directory a package. This allows test files to import shared fixtures or helpers from sibling modules using regular package imports."
+  },
+  {
+    q: "Which of these is a well-named pytest test function?",
+    choices: [
+      "def check():",
+      "def test():",
+      "def test_divide_raises_calculator_error_on_zero():",
+      "def verify_divide():"
+    ],
+    answer: 2,
+    explain: "A good test name starts with test_ (required for discovery), names the function under test, and describes the behaviour or scenario being verified. test_divide_raises_calculator_error_on_zero reads like a specification."
   }
 ]} />
 

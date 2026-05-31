@@ -109,91 +109,238 @@ class TestUser:
 
 ## Code / Demo
 
-```python
-from dataclasses import dataclass, field
-from typing import ClassVar
+**Pattern 1 — Basic class anatomy: `__init__`, `self`, instance methods**
 
-# --- Dataclass for test data ---
+<En>`__init__` runs when you create an instance and sets up its state via `self.variable = value`. Every instance method takes `self` as its first parameter — Python passes the instance automatically when you call `obj.method()`.</En>
+<Vi>`__init__` chạy khi bạn tạo một instance và thiết lập trạng thái của nó qua `self.variable = value`. Mỗi instance method nhận `self` làm tham số đầu tiên — Python truyền instance đó tự động khi bạn gọi `obj.method()`.</Vi>
+
+<CodePlayground code={`
+class ApiClient:
+    def __init__(self, base_url, timeout=30):
+        self.base_url = base_url
+        self.timeout  = timeout
+        self._calls   = 0          # private by convention
+
+    def get(self, path):
+        self._calls += 1
+        return f"GET {self.base_url}{path} (timeout={self.timeout}s)"
+
+    def call_count(self):
+        return self._calls
+
+client = ApiClient("https://api.staging.example.com")
+print(client.get("/users"))
+print(client.get("/orders"))
+
+assert client.call_count() == 2
+assert client.base_url == "https://api.staging.example.com"
+assert client.timeout  == 30
+print(f"Calls made: {client.call_count()}")
+print("Pattern 1 ok — __init__ and instance methods")
+`} />
+
+**Pattern 2 — Class variables, `@property`, and `__repr__`**
+
+<En>Class variables are shared across all instances (like a URL constant). `@property` turns a method into a read-only computed attribute — callers access it without `()`. `__repr__` controls what the object looks like when printed.</En>
+<Vi>Biến class được chia sẻ giữa tất cả các instance (như hằng số URL). `@property` biến một method thành thuộc tính tính toán chỉ đọc — người gọi truy cập nó mà không cần `()`. `__repr__` kiểm soát đối tượng trông như thế nào khi được in.</Vi>
+
+<CodePlayground code={`
+class LoginPage:
+    URL = "/login"              # class variable — shared by all instances
+
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self._last_action = None
+
+    @property
+    def full_url(self):         # accessed as login.full_url, not login.full_url()
+        return f"{self.base_url}{self.URL}"
+
+    def navigate(self):
+        self._last_action = f"navigated to {self.full_url}"
+
+    def fill_credentials(self, email, password):
+        self._last_action = f"filled {email}"
+
+    def submit(self):
+        if self._last_action is None:
+            raise RuntimeError("Must navigate before submitting")
+        return {"status": "ok", "token": "fake-token-123"}
+
+    def __repr__(self):
+        return f"LoginPage(base_url={self.base_url!r})"
+
+login = LoginPage("https://staging.example.com")
+
+assert login.full_url == "https://staging.example.com/login"
+assert LoginPage.URL  == "/login"   # access class variable via class name
+
+login.navigate()
+login.fill_credentials("alice@example.com", "Pass1")
+result = login.submit()
+assert result["status"] == "ok"
+
+print(login)          # uses __repr__
+print(f"URL:    {login.full_url}")
+print(f"Result: {result}")
+print("Pattern 2 ok — class variable, @property, __repr__")
+`} />
+
+**Pattern 3 — Dataclasses: test data objects with no boilerplate**
+
+<En>`@dataclass` auto-generates `__init__`, `__repr__`, and `__eq__` from the annotated fields. This makes it the cleanest way to define test user objects, API payloads, or any structured test data record.</En>
+<Vi>`@dataclass` tự tạo `__init__`, `__repr__` và `__eq__` từ các trường được chú thích. Điều này làm cho nó trở thành cách sạch nhất để định nghĩa đối tượng test user, payload API hoặc bất kỳ bản ghi dữ liệu test có cấu trúc nào.</Vi>
+
+<CodePlayground code={`
+from dataclasses import dataclass
+
 @dataclass
 class TestUser:
-    email: str
-    password: str
-    role: str = "viewer"
+    email:     str
+    password:  str
+    role:      str  = "viewer"
     is_active: bool = True
 
 alice = TestUser("alice@example.com", "SecurePass1", role="admin")
-bob = TestUser("bob@example.com", "AnotherPass2")
+bob   = TestUser("bob@example.com",   "AnotherPass2")
 
-assert alice.role == "admin"
-assert bob.role == "viewer"  # default
-assert alice != bob          # dataclass generates __eq__ based on fields
-print(alice)  # TestUser(email='alice@...', password='SecurePass1', role='admin', is_active=True)
+# __init__ generated — fields become constructor parameters
+assert alice.role      == "admin"
+assert bob.role        == "viewer"    # default value applied
+assert alice.is_active == True
 
-# --- Simple Page Object (without a real browser) ---
-class LoginPage:
-    URL = "/login"  # class variable
+# __eq__ generated — compares field values
+assert alice != bob
 
-    def __init__(self, base_url: str):
-        self.base_url = base_url
-        self._last_action: str | None = None
+# __repr__ generated — readable output
+print(alice)
+print(bob)
 
-    @property
-    def full_url(self) -> str:
-        return f"{self.base_url}{self.URL}"
+# Can add custom methods on top of generated ones
+@dataclass
+class ApiPayload:
+    email: str
+    role:  str = "viewer"
 
-    def navigate(self) -> None:
-        self._last_action = f"navigated to {self.full_url}"
+    def to_dict(self):
+        return {"email": self.email, "role": self.role}
 
-    def fill_credentials(self, email: str, password: str) -> None:
-        self._last_action = f"filled {email} / [password]"
+payload = ApiPayload("charlie@example.com", "editor")
+assert payload.to_dict() == {"email": "charlie@example.com", "role": "editor"}
+print(f"Payload: {payload.to_dict()}")
+print("Pattern 3 ok — dataclasses")
+`} />
 
-    def submit(self) -> dict:
-        if self._last_action is None:
-            raise RuntimeError("Must navigate first")
-        return {"status": "ok", "token": "fake-token-123"}
+**Pattern 4 — Inheritance: BasePage → specific page objects**
 
-    def __repr__(self) -> str:
-        return f"LoginPage(base_url={self.base_url!r})"
+<En>Inheritance lets a child class reuse all methods from the parent. In the Page Object Model, a `BasePage` holds common browser actions; each specific page inherits them and adds its own methods. The child class doesn't need to repeat the `__init__` if it doesn't add new fields.</En>
+<Vi>Kế thừa cho phép class con tái sử dụng tất cả các method từ class cha. Trong Page Object Model, `BasePage` chứa các hành động trình duyệt chung; mỗi trang cụ thể kế thừa chúng và thêm các method riêng. Class con không cần lặp lại `__init__` nếu không thêm trường mới.</Vi>
 
-# Use the page object
-login = LoginPage("https://staging.example.com")
-assert login.full_url == "https://staging.example.com/login"
-
-login.navigate()
-login.fill_credentials("alice@example.com", "SecurePass1")
-result = login.submit()
-
-assert result["status"] == "ok"
-assert "token" in result
-print(f"Login page: {login}")
-print(f"Login result: {result}")
-
-# --- Inheritance ---
+<CodePlayground code={`
 class BasePage:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url):
         self.base_url = base_url
 
-    def navigate_to(self, path: str) -> str:
-        return f"Navigating to {self.base_url}{path}"
+    def navigate_to(self, path):
+        return f"GET {self.base_url}{path}"
+
+    def get_title(self):
+        return f"Page at {self.base_url}"
+
+class LoginPage(BasePage):
+    URL = "/login"
+
+    def login(self, email, password):
+        self.navigate_to(self.URL)
+        return {"status": "ok", "token": "fake-token"}
 
 class DashboardPage(BasePage):
     URL = "/dashboard"
 
-    def get_welcome_text(self, username: str) -> str:
+    def get_welcome_text(self, username):
         return f"Welcome, {username}!"
 
-dashboard = DashboardPage("https://staging.example.com")
+base = "https://staging.example.com"
+login     = LoginPage(base)
+dashboard = DashboardPage(base)
+
+# Both inherit navigate_to and get_title from BasePage
+print(login.navigate_to(LoginPage.URL))
 print(dashboard.navigate_to(DashboardPage.URL))
-print(dashboard.get_welcome_text("Alice"))
-```
+print(dashboard.get_title())
+
+# Each has its own methods
+result = login.login("alice@example.com", "Pass1")
+assert result["status"] == "ok"
+assert dashboard.get_welcome_text("Alice") == "Welcome, Alice!"
+
+print("Pattern 4 ok — inheritance")
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Create a `TestUser` dataclass with `email`, `password`, `role`, and a class method `make_admin(email, password)` that returns a TestUser with `role="admin"`
-- [ ] Write a `BasePage` class with a `base_url` constructor argument and a `navigate_to(path)` method, then subclass it as `RegistrationPage` with a `fill_form(name, email, password)` method
-- [ ] Explain what `self` does in a class method and why it's always the first parameter
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={15} exercises={[
+  {
+    title: "Fill in ??? with the string value that makes is_admin() return True.",
+    code: `from dataclasses import dataclass
+
+@dataclass
+class TestUser:
+    email: str
+    role: str = "viewer"
+
+    def is_admin(self):
+        # TODO (EN): return True if the role equals "admin"
+        # TODO (VI): trả về True nếu role bằng "admin"
+        return self.role == ???
+
+alice = TestUser("alice@test.com", role="admin")
+bob = TestUser("bob@test.com")
+
+assert alice.is_admin() == True
+assert bob.is_admin() == False
+print(f"Alice is admin: {alice.is_admin()}")`,
+  },
+  {
+    title: "Fill in ??? in the base_url property to combine BASE and version.",
+    code: `class ApiClient:
+    BASE = "https://api.example.com"
+
+    def __init__(self, version):
+        self.version = version
+
+    @property
+    def base_url(self):
+        # TODO (EN): return the full URL combining BASE and version
+        # TODO (VI): trả về URL đầy đủ kết hợp BASE và version
+        return f"{self.BASE}/???"
+
+client = ApiClient("v2")
+assert client.base_url == "https://api.example.com/v2"
+print(f"Base URL: {client.base_url}")`,
+  },
+  {
+    title: "Fill in ??? with the parent class that LoginPage should inherit from.",
+    code: `class BasePage:
+    def __init__(self, base_url):
+        self.base_url = base_url
+
+    def navigate_to(self, path):
+        return f"GET {self.base_url}{path}"
+
+# TODO (EN): inherit from BasePage to reuse navigate_to
+# TODO (VI): kế thừa từ BasePage để dùng lại navigate_to
+class LoginPage(???):
+    URL = "/login"
+
+    def get_url(self):
+        return self.navigate_to(self.URL)
+
+page = LoginPage("https://staging.example.com")
+assert page.get_url() == "GET https://staging.example.com/login"
+print(f"URL: {page.get_url()}")`,
+  },
+]} />
 
 ## Quiz
 
@@ -219,6 +366,94 @@ print(dashboard.get_welcome_text("Alice"))
     ],
     answer: 1,
     explain: "The @dataclass decorator auto-generates boilerplate: __init__ to accept and store all fields, __repr__ for readable printing, and __eq__ for value-based equality comparisons."
+  },
+  {
+    q: "What does `self` refer to inside a Python instance method?",
+    choices: [
+      "The class itself",
+      "The current instance of the class",
+      "The parent class",
+      "The module where the class is defined"
+    ],
+    answer: 1,
+    explain: "self is a reference to the specific object the method was called on. When you call obj.method(), Python automatically passes obj as self. It lets each instance access and modify its own state."
+  },
+  {
+    q: "What is the difference between a class variable and an instance variable?",
+    choices: [
+      "Class variables are faster to access than instance variables",
+      "A class variable is shared by all instances; an instance variable belongs to one specific instance",
+      "Instance variables must be strings; class variables can be any type",
+      "There is no difference — they work identically"
+    ],
+    answer: 1,
+    explain: "Class variables (defined directly in the class body) are shared across every instance. Instance variables (assigned via self.x = ...) are unique to each object. URL = '/login' is a class variable; self.base_url = url is an instance variable."
+  },
+  {
+    q: "What does the `@property` decorator do?",
+    choices: [
+      "It makes a method private so it cannot be called from outside the class",
+      "It turns a method into a computed read-only attribute accessed without parentheses",
+      "It marks a method as a class method instead of an instance method",
+      "It caches the method's return value permanently"
+    ],
+    answer: 1,
+    explain: "@property lets you define a method that is accessed like an attribute: obj.full_url instead of obj.full_url(). It's useful for derived values (e.g. combining base_url + path) that should look like simple fields to callers."
+  },
+  {
+    q: "What does `__repr__` control in a Python class?",
+    choices: [
+      "How the object is serialised to JSON",
+      "The string representation shown when the object is printed or inspected",
+      "Whether the object can be compared with ==",
+      "The order in which attributes are initialised"
+    ],
+    answer: 1,
+    explain: "__repr__ returns a developer-facing string for the object. When you print(obj) or see an object in the REPL, Python calls __repr__. A good __repr__ makes debugging much easier."
+  },
+  {
+    q: "In the Page Object Model, why do page classes inherit from a `BasePage`?",
+    choices: [
+      "Python requires all classes to have a parent class",
+      "To share common browser actions (navigate, wait, screenshot) without repeating code in every page class",
+      "To enforce that all pages have the same URL",
+      "Because @dataclass only works with inherited classes"
+    ],
+    answer: 1,
+    explain: "BasePage centralises shared browser behaviour. Specific pages (LoginPage, DashboardPage) inherit those capabilities and only add their own page-specific actions. This avoids copy-pasting the same navigate_to or screenshot logic everywhere."
+  },
+  {
+    q: "What happens when a subclass does NOT define its own `__init__`?",
+    choices: [
+      "Python raises an error — every class must define __init__",
+      "The subclass inherits and uses the parent's __init__",
+      "The subclass gets an empty __init__ with no parameters",
+      "Instances of the subclass cannot store any state"
+    ],
+    answer: 1,
+    explain: "If a subclass doesn't define __init__, Python looks up the MRO (Method Resolution Order) and uses the first __init__ it finds — typically the parent's. This means you can create instances with the parent's parameters without any extra code."
+  },
+  {
+    q: "What is the key difference between `@staticmethod` and a regular instance method?",
+    choices: [
+      "Static methods are faster at runtime",
+      "A static method does not receive self or cls — it has no access to instance or class state",
+      "Static methods can only return strings",
+      "Static methods are inherited but instance methods are not"
+    ],
+    answer: 1,
+    explain: "A static method is just a plain function namespaced inside a class. It receives neither self nor cls, so it cannot read or modify instance or class state. Use it for utility logic that logically belongs to the class but doesn't need object state."
+  },
+  {
+    q: "Which statement correctly creates an instance of a class called `LoginPage` with argument `'https://example.com'`?",
+    choices: [
+      "LoginPage.new('https://example.com')",
+      "instance LoginPage('https://example.com')",
+      "page = LoginPage('https://example.com')",
+      "page = new LoginPage('https://example.com')"
+    ],
+    answer: 2,
+    explain: "You create a Python instance by calling the class like a function: ClassName(args). Python calls __init__ automatically and returns the new object. There is no 'new' keyword in Python."
   }
 ]} />
 

@@ -93,70 +93,208 @@ data = json.loads((fixtures / "users.json").read_text())
 
 ## Code / Demo
 
-```python
-import json
-import os
+**Pattern 1 — Read and write text files with `with open()`**
+
+<En>Always open files with the `with` statement. It automatically closes the file when the block exits — even if an exception is raised. Never use `f = open(...)` without a `with`.</En>
+<Vi>Luôn mở file bằng câu lệnh `with`. Nó tự động đóng file khi khối kết thúc — ngay cả khi có ngoại lệ. Đừng bao giờ dùng `f = open(...)` mà không có `with`.</Vi>
+
+<CodePlayground code={`
 from pathlib import Path
 
-# --- Write a test fixture ---
-test_users = [
-    {"id": 1, "email": "alice@example.com", "role": "admin"},
-    {"id": 2, "email": "bob@example.com", "role": "viewer"},
-]
+log_path = Path("test_run.log")
 
-fixture_path = Path("tmp_users.json")
-with open(fixture_path, "w", encoding="utf-8") as f:
-    json.dump(test_users, f, indent=2)
-print(f"Wrote fixture to {fixture_path}")
+# Write — mode "w" creates or overwrites
+with open(log_path, "w", encoding="utf-8") as f:
+    f.write("TC-001 PASS\\n")
+    f.write("TC-002 PASS\\n")
+    f.write("TC-003 FAIL\\n")
+print(f"Wrote log to {log_path}")
 
-# --- Read it back ---
-with open(fixture_path, "r", encoding="utf-8") as f:
-    loaded_users = json.load(f)
+# Read entire file as one string
+with open(log_path, "r", encoding="utf-8") as f:
+    content = f.read()
+assert "TC-001 PASS" in content
+print("Content:\\n" + content)
 
-assert len(loaded_users) == 2
-assert loaded_users[0]["email"] == "alice@example.com"
-print("Fixture round-trip verified!")
+# Read as a list of lines
+with open(log_path, "r", encoding="utf-8") as f:
+    lines = f.readlines()
+assert len(lines) == 3
+print(f"Line count: {len(lines)}")
 
-# --- Parse a JSON string (simulating an API response body) ---
+# Append — mode "a" adds to the end without overwriting
+with open(log_path, "a", encoding="utf-8") as f:
+    f.write("TC-004 PASS\\n")
+
+with open(log_path, "r", encoding="utf-8") as f:
+    assert f.read().count("TC-") == 4
+print("Pattern 1 ok — text file read / write / append")
+
+log_path.unlink(missing_ok=True)
+`} />
+
+**Pattern 2 — `json.loads` and `json.dumps`: string-based JSON**
+
+<En>`json.loads()` converts a JSON string into a Python dict — this is what you use on an API response body. `json.dumps()` converts a dict back to a JSON string — what you send as a request body. The `s` suffix stands for *string*.</En>
+<Vi>`json.loads()` chuyển chuỗi JSON thành dict Python — đây là thứ bạn dùng trên phần thân API response. `json.dumps()` chuyển dict trở lại chuỗi JSON — những gì bạn gửi làm phần thân request. Hậu tố `s` là viết tắt của *string*.</Vi>
+
+<CodePlayground code={`
+import json
+
+# loads — simulate receiving an API response
 response_body = '{"status": "created", "id": 42, "email": "charlie@example.com"}'
 parsed = json.loads(response_body)
+
 assert parsed["status"] == "created"
 assert isinstance(parsed["id"], int)
+print(f"Parsed: {parsed}")
 
-# --- Write test results ---
-results = {
-    "total": 3,
-    "passed": 2,
-    "failed": 1,
-    "failures": [
-        {"test": "TC-003", "error": "Expected 200, got 404"}
-    ]
-}
+# dumps — build a request body to send
+payload = {"email": "bob@example.com", "role": "viewer", "active": True}
 
-results_path = Path("tmp_results.json")
-with open(results_path, "w", encoding="utf-8") as f:
-    json.dump(results, f, indent=2)
+compact = json.dumps(payload)              # single line
+pretty  = json.dumps(payload, indent=2)   # human-readable
 
-# --- Verify written results ---
-with open(results_path, "r", encoding="utf-8") as f:
+print(f"Compact: {compact}")
+print(f"Pretty:\\n{pretty}")
+
+assert '"email"' in compact
+assert "bob@example.com" in pretty
+print("Pattern 2 ok — json.loads / json.dumps")
+`} />
+
+**Pattern 3 — `json.load` and `json.dump`: file-based JSON**
+
+<En>`json.load(f)` reads directly from an open file object. `json.dump(data, f)` writes directly to one. These are the functions you use when loading fixture files or saving test reports — no manual string conversion needed.</En>
+<Vi>`json.load(f)` đọc trực tiếp từ đối tượng file đã mở. `json.dump(data, f)` ghi trực tiếp vào đó. Đây là các hàm bạn dùng khi tải file fixture hoặc lưu báo cáo test — không cần chuyển đổi chuỗi thủ công.</Vi>
+
+<CodePlayground code={`
+import json
+from pathlib import Path
+
+# Write a fixture file
+fixture_path = Path("tmp_users.json")
+test_users = [
+    {"id": 1, "email": "alice@example.com", "role": "admin"},
+    {"id": 2, "email": "bob@example.com",   "role": "viewer"},
+]
+with open(fixture_path, "w", encoding="utf-8") as f:
+    json.dump(test_users, f, indent=2)
+print(f"Wrote: {fixture_path}")
+
+# Read it back
+with open(fixture_path, "r", encoding="utf-8") as f:
     loaded = json.load(f)
-assert loaded["total"] == 3
-assert loaded["passed"] == 2
-print(f"Results: {loaded['passed']}/{loaded['total']} passed")
+assert len(loaded) == 2
+assert loaded[0]["email"] == "alice@example.com"
+print(f"Loaded {len(loaded)} users")
 
-# --- Cleanup temp files ---
+# Write a test-results report
+results_path = Path("tmp_results.json")
+report = {"total": 3, "passed": 2, "failed": 1,
+          "failures": [{"test": "TC-003", "error": "Expected 200, got 404"}]}
+with open(results_path, "w", encoding="utf-8") as f:
+    json.dump(report, f, indent=2)
+with open(results_path, "r", encoding="utf-8") as f:
+    saved = json.load(f)
+assert saved["passed"] == 2
+print(f"Report: {saved['passed']}/{saved['total']} passed")
+print("Pattern 3 ok — json.load / json.dump")
+
 fixture_path.unlink(missing_ok=True)
 results_path.unlink(missing_ok=True)
-print("Cleanup complete. All file I/O tests passed!")
-```
+`} />
+
+**Pattern 4 — `pathlib.Path`: modern path handling**
+
+<En>`pathlib.Path` replaces `os.path` string manipulation with an object-oriented API. Use `/` to join segments, `.read_text()` to read in one call, and `.unlink()` to delete. It is the preferred style in modern Python test codebases.</En>
+<Vi>`pathlib.Path` thay thế thao tác chuỗi `os.path` bằng API hướng đối tượng. Dùng `/` để nối đoạn, `.read_text()` để đọc trong một lần gọi và `.unlink()` để xoá. Đây là phong cách được ưa thích trong các codebase test Python hiện đại.</Vi>
+
+<CodePlayground code={`
+import json
+from pathlib import Path
+
+# Build paths with / operator — cross-platform
+base     = Path("tests")
+fixtures = base / "fixtures"
+report   = base / "reports" / "run_001.json"
+
+print(f"Fixtures dir: {fixtures}")
+print(f"Report path:  {report}")
+print(f"Suffix:       {report.suffix}")   # .json
+print(f"Stem:         {report.stem}")     # run_001
+print(f"Parent:       {report.parent}")   # tests/reports
+
+# write_text / read_text — no explicit open() needed for simple cases
+tmp = Path("tmp_config.json")
+config = {"env": "staging", "timeout": 30}
+tmp.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+loaded = json.loads(tmp.read_text(encoding="utf-8"))
+assert loaded["env"] == "staging"
+assert loaded["timeout"] == 30
+print(f"Config loaded: {loaded}")
+
+# exists() and unlink()
+assert tmp.exists()
+tmp.unlink()
+assert not tmp.exists()
+print("Pattern 4 ok — pathlib.Path")
+`} />
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Create a `fixtures/` directory, write a JSON file containing 3 test user records, read it back, and assert all users have a non-empty email
-- [ ] Write a function `save_test_report(results: list, output_path: str)` that serialises a list of test result dicts to a formatted JSON file
-- [ ] Use `pathlib.Path` to construct a file path relative to the current script's location (use `Path(__file__).parent`)
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={15} exercises={[
+  {
+    title: "Fill in ??? with the json function that parses a string into a dict.",
+    code: `import json
+
+raw = '{"status": "ok", "user_id": 42}'
+
+# TODO (EN): parse the JSON string into a dict (hint: ends with 's' for string)
+# TODO (VI): phân tích chuỗi JSON thành dict (gợi ý: kết thúc bằng 's')
+data = json.???(raw)
+
+assert data["status"] == "ok"
+assert data["user_id"] == 42
+print(f"Parsed: {data}")`,
+  },
+  {
+    title: "Fill in ??? with the json function that serializes a dict to a string.",
+    code: `import json
+
+record = {"test": "login", "passed": True, "duration_ms": 123}
+
+# TODO (EN): serialize dict to a formatted JSON string (hint: ends with 's' for string)
+# TODO (VI): chuyển dict thành chuỗi JSON có định dạng
+serialized = json.???(record, indent=2)
+
+assert '"test"' in serialized
+assert '"login"' in serialized
+print(serialized)`,
+  },
+  {
+    title: "Fill in ??? with the correct file mode for opening a file to write.",
+    code: `import json
+
+results = [
+    {"test": "TC-001", "passed": True},
+    {"test": "TC-002", "passed": False},
+]
+
+# TODO (EN): use the correct file mode to open for writing ("r", "w", or "a"?)
+# TODO (VI): dùng chế độ file đúng để mở ghi ("r", "w", hay "a"?)
+with open("test_results.json", ???) as f:
+    json.dump(results, f, indent=2)
+
+with open("test_results.json", "r") as f:
+    loaded = json.load(f)
+
+assert len(loaded) == 2
+assert loaded[0]["test"] == "TC-001"
+print("File round-trip verified!")`,
+  },
+]} />
 
 ## Quiz
 
@@ -182,6 +320,94 @@ print("Cleanup complete. All file I/O tests passed!")
     ],
     answer: 1,
     explain: "json.loads() (s = string) parses a JSON string. json.load() reads from an already-opened file object. The same distinction applies to json.dumps() vs json.dump()."
+  },
+  {
+    q: "What file mode should you use to add content to the end of an existing file without overwriting it?",
+    choices: [
+      "\"r\" — read mode",
+      "\"w\" — write mode",
+      "\"a\" — append mode",
+      "\"r+\" — read-write mode"
+    ],
+    answer: 2,
+    explain: "\"a\" (append) opens the file and positions the write pointer at the end, so new content is added after existing content. \"w\" would truncate and overwrite the file from scratch."
+  },
+  {
+    q: "What happens when you open an existing file with mode `\"w\"`?",
+    choices: [
+      "It raises a FileExistsError",
+      "It appends new content after existing content",
+      "It truncates the file to zero bytes and starts fresh",
+      "It opens the file as read-only"
+    ],
+    answer: 2,
+    explain: "Mode \"w\" always creates a new empty file for writing. If the file already exists, its contents are wiped (truncated to zero) before any writing happens. Use \"a\" if you want to preserve existing content."
+  },
+  {
+    q: "What does `f.readlines()` return?",
+    choices: [
+      "The entire file as a single string",
+      "A list of strings, one per line (including the newline character)",
+      "The first line only",
+      "A generator that yields one line at a time"
+    ],
+    answer: 1,
+    explain: "readlines() reads the whole file and returns a list where each element is one line, including the trailing '\\n'. Use f.read() for the whole file as one string, or iterate 'for line in f' for memory-efficient line-by-line reading."
+  },
+  {
+    q: "What does `json.dumps(data, indent=2)` do differently from `json.dumps(data)`?",
+    choices: [
+      "It validates the JSON structure before serializing",
+      "It formats the output with 2-space indentation for human readability",
+      "It compresses the output to save space",
+      "It sorts the keys alphabetically"
+    ],
+    answer: 1,
+    explain: "The indent parameter controls pretty-printing. indent=2 produces multi-line output with 2-space indentation per level — ideal for writing human-readable fixture files. Without it, the output is a compact single-line string."
+  },
+  {
+    q: "What does the `/` operator do when used with `pathlib.Path` objects?",
+    choices: [
+      "It divides two path lengths",
+      "It raises a TypeError — division is not supported on paths",
+      "It joins path segments, equivalent to os.path.join()",
+      "It returns the parent directory"
+    ],
+    answer: 2,
+    explain: "Path('tests') / 'fixtures' / 'users.json' produces Path('tests/fixtures/users.json'). The / operator is overloaded on Path objects to provide a clean, cross-platform alternative to os.path.join()."
+  },
+  {
+    q: "Which pathlib method reads an entire file and returns its content as a string in one call?",
+    choices: [
+      "Path.open()",
+      "Path.read_text()",
+      "Path.load()",
+      "Path.contents()"
+    ],
+    answer: 1,
+    explain: "path.read_text(encoding='utf-8') opens the file, reads all content, closes it, and returns the string — all in one call. Its counterpart, path.write_text(content), does the same for writing."
+  },
+  {
+    q: "What does `Path('file.json').unlink(missing_ok=True)` do?",
+    choices: [
+      "Renames the file to 'file.json.bak'",
+      "Deletes the file, and does nothing if it does not exist",
+      "Empties the file without deleting it",
+      "Raises an error because unlink() requires a directory"
+    ],
+    answer: 1,
+    explain: "unlink() deletes a file. The missing_ok=True argument suppresses the FileNotFoundError that would normally be raised if the file doesn't exist — useful for cleanup steps in tests that may or may not have created the file."
+  },
+  {
+    q: "In QA automation, what is the typical use of `json.load()` at the start of a test?",
+    choices: [
+      "To serialize test results into a file for CI reporting",
+      "To load a fixture file containing pre-built test data",
+      "To validate that a JSON file is well-formed",
+      "To convert a dict into a JSON string for an API request"
+    ],
+    answer: 1,
+    explain: "A common pattern: open a fixture file (e.g. tests/fixtures/users.json) and call json.load(f) to get a Python list or dict of ready-made test data. This keeps test data out of the test code and easy to update."
   }
 ]} />
 

@@ -5,9 +5,12 @@ import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { Sun, Moon, Flame, FlaskConical, Star } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { useProgressStore } from '@/lib/store'
 import { MobileNav } from './MobileNav'
 import { ShopModal } from '@/components/ShopModal'
+import { SignInButton } from '@/components/auth/SignInButton'
+import { UserMenu } from '@/components/auth/UserMenu'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
@@ -21,6 +24,7 @@ export function Header() {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const { streak, totalPoints, language, hydrated, setLanguage } = useProgressStore()
+  const { status } = useSession()
   const [mounted, setMounted] = useState(false)
   const [shopOpen, setShopOpen] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -110,6 +114,11 @@ export function Header() {
               : <Moon className="h-4 w-4" />
             }
           </button>
+
+          {/* Auth — sign in or user avatar */}
+          {mounted && status !== 'loading' && (
+            status === 'authenticated' ? <UserMenu /> : <SignInButton />
+          )}
 
           <MobileNav />
         </div>

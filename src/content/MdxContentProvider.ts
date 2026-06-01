@@ -51,7 +51,8 @@ export class MdxContentProvider implements IContentProvider {
     return { meta, Body }
   }
 
-  async listLessons(_courseSlug: string): Promise<LessonMeta[]> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async listLessons(courseSlug: string): Promise<LessonMeta[]> {
     return getAllDays().map(dayToMeta)
   }
 }

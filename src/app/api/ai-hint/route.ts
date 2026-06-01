@@ -1,7 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { checkRateLimit } from '@/lib/rate-limit'
+
+/** 10 requests per minute per IP */
+const RATE_LIMIT = { limit: 10, windowMs: 60_000 }
 
 export async function POST(req: NextRequest) {
+  // Rate limiting — applied before any OpenAI call (paid endpoint)
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+
+  const rl = checkRateLimit(ip, RATE_LIMIT)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests — please wait before trying again.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)),
+          'X-RateLimit-Limit': String(RATE_LIMIT.limit),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(Math.ceil(rl.resetAt / 1000)),
+        },
+      },
+    )
+  }
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: 'AI hint not configured' }, { status: 503 })
   }

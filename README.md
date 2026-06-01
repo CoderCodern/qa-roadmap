@@ -1,6 +1,8 @@
 # QA Automation Roadmap
 
-A fully static, bilingual (English / Vietnamese) educational website for an 8-week QA automation testing roadmap. Built with Next.js 14 App Router, MDX, and Tailwind CSS. No backend — all progress tracked in localStorage.
+A bilingual (English / Vietnamese) educational website for an 8-week QA automation testing roadmap. Built with Next.js 14 App Router, MDX, and Tailwind CSS.
+
+**Architecture:** Static SSG pages (56 lessons pre-rendered at build time) + two serverless Route Handlers (AI exercise grading via OpenAI, reward emails via Resend). User progress is stored in `localStorage` client-side.
 
 ## Live content
 
@@ -21,17 +23,29 @@ A fully static, bilingual (English / Vietnamese) educational website for an 8-we
 - Per-day progress tracking with streak counter, persisted to localStorage
 - Interactive quizzes and exercise checklists on every lesson
 - Syntax-highlighted code blocks with copy button
-- Fully static export — deployable to Vercel or any CDN with zero server
+- AI-powered exercise review (via `/api/ai-hint` → OpenAI)
+- Phase-completion reward emails (via `/api/send-award-email` → Resend)
 
 ## Setup
 
 ```bash
 pnpm install
 pnpm dev        # http://localhost:3000
-pnpm build      # produces out/ for static deployment
+pnpm build      # builds and serves via Next.js (not a static export)
 ```
 
 Requires Node.js 18+ and pnpm.
+
+### Environment variables
+
+Copy `.env.local.example` to `.env.local` and fill in:
+
+```
+OPENAI_API_KEY=   # required for AI exercise review
+RESEND_API_KEY=   # required for reward emails
+```
+
+The site runs without these — AI hints and reward emails will return 503.
 
 ## Editing lessons
 
@@ -90,6 +104,6 @@ Lesson metadata (titles, blurbs, estimated time, phase assignments) lives in `sr
 1. Push to GitHub
 2. Import the `qa-roadmap/` directory in Vercel
 3. Set Framework Preset to **Next.js**
-4. No environment variables required
+4. Add `OPENAI_API_KEY` and `RESEND_API_KEY` in Vercel's Environment Variables settings
 
-Vercel will run `pnpm build` and serve the static `out/` directory automatically.
+Vercel will run `pnpm build` and deploy the Next.js app (static pages + serverless functions) automatically.

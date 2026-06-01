@@ -3,6 +3,7 @@
 import { ReactNode, useState } from 'react'
 import Link from 'next/link'
 import { CheckCircle2, Circle, Clock, ArrowLeft, ArrowRight, ChevronLeft, Lock, Construction } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { useProgressStore } from '@/lib/store'
 import { getDayById, getPhaseForDay, getPrevDay, getNextDay } from '@/data/roadmap'
 import { getCompletionMotivation } from '@/data/motivation'
@@ -16,7 +17,8 @@ interface LessonShellProps {
 }
 
 export function LessonShell({ dayId, children }: LessonShellProps) {
-  const { completed, hydrated, toggleDay, language, devPreview } = useProgressStore()
+  const { completed, hydrated, toggleDay, setServerStats, language, devPreview } = useProgressStore()
+  const { data: session } = useSession()
   const [justCompleted, setJustCompleted] = useState(false)
 
   const day = getDayById(dayId)
@@ -25,10 +27,45 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
   const nextDay = getNextDay(dayId)
   const isCompleted = completed.includes(dayId)
 
-  const handleToggle = () => {
+  const handleToggle = async () => {
+    // Optimistic local update first — instant UI feedback
     toggleDay(dayId)
     if (!isCompleted) setJustCompleted(true)
     else setJustCompleted(false)
+
+    // If signed in, also persist to the server
+    if (!session?.user?.id) return
+
+    const willBeCompleted = !isCompleted
+    try {
+      if (willBeCompleted) {
+        const res = await fetch(`/api/v1/me/progress/lessons/${dayId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed' }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setServerStats({
+            streak: data.currentStreak,
+            longestStreak: data.longestStreak,
+            pointsBalance: data.pointsBalance,
+          })
+        }
+      } else {
+        const res = await fetch(`/api/v1/me/progress/lessons/${dayId}`, { method: 'DELETE' })
+        if (res.ok) {
+          const data = await res.json()
+          setServerStats({
+            streak: data.currentStreak,
+            longestStreak: data.longestStreak,
+            pointsBalance: data.pointsBalance,
+          })
+        }
+      }
+    } catch {
+      // Fire-and-forget — local state already updated; server will reconcile on next load
+    }
   }
 
   if (!day || !phase) return <>{children}</>

@@ -6,9 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@auth/drizzle-adapter": "^1.7.4",
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.36.4",
+    "next-auth": "^5.0.0-beta.25",
     "@codemirror/lang-python": "^6.2.1",
     "@mdx-js/loader": "3.1.1",
     "@mdx-js/react": "3.1.1",
@@ -30,6 +38,8 @@
     "zustand": "5.0.13"
   },
   "devDependencies": {
+    "dotenv": "^16.4.5",
+    "drizzle-kit": "^0.29.1",
     "@types/mdx": "2.0.13",
     "@types/node": "^20",
     "@types/react": "^18",

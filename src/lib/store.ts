@@ -6,6 +6,14 @@ import { todayKey, isYesterday, isToday } from '@/lib/date'
 
 export type Language = 'en' | 'vi'
 
+export interface CloudProgressData {
+  completed: number[]
+  completedDates: Record<number, string>
+  currentStreak: number
+  longestStreak: number
+  pointsBalance: number
+}
+
 export type ProgressState = {
   completed: number[]
   completedDates: Record<number, string>
@@ -29,6 +37,10 @@ export type ProgressState = {
   hydrated: boolean
   /** Developer preview mode — bypasses the available gate so unpublished days are accessible. */
   devPreview: boolean
+  /** True once server-side cloud data has been loaded (user is signed in + data fetched). */
+  cloudSynced: boolean
+  /** True when user has local progress but no cloud data — prompt to sync. */
+  pendingSync: boolean
   toggleDay: (id: number) => void
   setLanguage: (lang: Language) => void
   setHydrated: () => void
@@ -45,6 +57,12 @@ export type ProgressState = {
   claimPhaseReward: (phaseId: number, productId: number) => void
   /** Marks phase reward as declined (user explicitly skipped). */
   declinePhaseReward: (phaseId: number) => void
+  /** Replaces progress with authoritative server data. */
+  setCloudProgress: (data: CloudProgressData) => void
+  /** Updates only the server-authoritative streak/points after a server write. */
+  setServerStats: (stats: { streak: number; longestStreak: number; pointsBalance: number }) => void
+  /** Toggles the pending-sync banner. */
+  markPendingSync: (val: boolean) => void
   reset: () => void
 }
 
@@ -66,6 +84,8 @@ export const useProgressStore = create<ProgressState>()(
       phaseRewards: {},
       hydrated: false,
       devPreview: false,
+      cloudSynced: false,
+      pendingSync: false,
 
       toggleDay: (id) => {
         const state = get()
@@ -152,6 +172,27 @@ export const useProgressStore = create<ProgressState>()(
         set((s) => ({
           phaseRewards: { ...s.phaseRewards, [phaseId]: 'declined' },
         })),
+
+      setCloudProgress: (data) =>
+        set({
+          completed: data.completed,
+          completedDates: data.completedDates,
+          // Rebuild lastCompletedDate from the cloud dates
+          lastCompletedDate:
+            data.completed.length > 0
+              ? (Object.values(data.completedDates).sort().pop() ?? null)
+              : null,
+          streak: data.currentStreak,
+          longestStreak: data.longestStreak,
+          totalPoints: data.pointsBalance,
+          cloudSynced: true,
+          pendingSync: false,
+        }),
+
+      setServerStats: ({ streak, longestStreak, pointsBalance }) =>
+        set({ streak, longestStreak, totalPoints: pointsBalance }),
+
+      markPendingSync: (val) => set({ pendingSync: val }),
 
       reset: () =>
         set({

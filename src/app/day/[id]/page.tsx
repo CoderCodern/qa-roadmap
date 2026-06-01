@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { LessonShell } from '@/components/lesson/LessonShell'
-import { getDayById } from '@/data/roadmap'
-import { getLessonLoader } from '@/lib/lesson-loader'
+import { content } from '@/content'
 
 export async function generateStaticParams() {
-  return Array.from({ length: 56 }, (_, i) => ({ id: String(i + 1) }))
+  const lessons = await content.listLessons('qa')
+  return lessons.map((l) => ({ id: String(l.dayId) }))
 }
 
 export async function generateMetadata({
@@ -13,28 +13,28 @@ export async function generateMetadata({
 }: {
   params: { id: string }
 }): Promise<Metadata> {
-  const day = getDayById(Number(params.id))
-  if (!day) return {}
+  const meta = await content.getLessonMeta({ courseSlug: 'qa', dayId: Number(params.id) })
+  if (!meta) return {}
   return {
-    title: `Day ${day.id}: ${day.title}`,
-    description: day.blurb,
+    title: `Day ${meta.dayId}: ${meta.title}`,
+    description: meta.blurb,
   }
 }
 
 export default async function DayPage({ params }: { params: { id: string } }) {
   const id = Number(params.id)
 
-  if (!id || id < 1 || id > 56 || isNaN(id)) notFound()
+  if (!id || id < 1 || isNaN(id)) notFound()
 
-  const loader = getLessonLoader(id)
-  if (!loader) notFound()
+  const lesson = await content.getLesson({ courseSlug: 'qa', dayId: id })
+  if (!lesson) notFound()
 
-  const { default: LessonContent } = await loader()
+  const { Body } = lesson
 
   return (
     <LessonShell dayId={id}>
       <article className="prose prose-gray prose-lg dark:prose-invert max-w-none">
-        <LessonContent />
+        <Body />
       </article>
     </LessonShell>
   )

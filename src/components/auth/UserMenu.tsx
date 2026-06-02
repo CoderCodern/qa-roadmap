@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
-import { LogOut, User } from 'lucide-react'
+import { LogOut, User, Bookmark, Settings } from 'lucide-react'
 import Image from 'next/image'
 
 export function UserMenu() {
@@ -55,6 +56,28 @@ export function UserMenu() {
               {session.user.email}
             </p>
           </div>
+
+          <Link
+            href="/saved"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <Bookmark className="h-4 w-4" />
+            <span className="lang-en">Saved lessons</span>
+            <span className="lang-vi">Bài đã lưu</span>
+          </Link>
+
+          <Link
+            href="/account"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <Settings className="h-4 w-4" />
+            <span className="lang-en">Account</span>
+            <span className="lang-vi">Tài khoản</span>
+          </Link>
+
+          <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 
           <button
             onClick={() => signOut()}

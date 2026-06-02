@@ -16,7 +16,7 @@ import type { CloudProgressData } from '@/lib/store'
  */
 export function CloudSync() {
   const { data: session, status } = useSession()
-  const { hydrated, setCloudProgress, markPendingSync } = useProgressStore()
+  const { hydrated, setCloudProgress, markPendingSync, setBookmarks } = useProgressStore()
 
   useEffect(() => {
     // Wait until localStorage is hydrated and session is resolved
@@ -27,22 +27,30 @@ export function CloudSync() {
 
     async function fetchCloud() {
       try {
-        const res = await fetch('/api/v1/me/progress')
-        if (!res.ok || cancelled) return
-
-        const data: CloudProgressData & { completed: number[] } = await res.json()
+        const [progressRes, bookmarksRes] = await Promise.all([
+          fetch('/api/v1/me/progress'),
+          fetch('/api/v1/me/bookmarks'),
+        ])
 
         if (cancelled) return
 
-        if (data.completed.length > 0) {
-          // Server has data → it is the source of truth
-          setCloudProgress(data)
-        } else {
-          // Server is empty — check if localStorage has progress to offer sync
-          const localCompleted = useProgressStore.getState().completed
-          if (localCompleted.length > 0) {
-            markPendingSync(true)
+        if (progressRes.ok) {
+          const data: CloudProgressData & { completed: number[] } = await progressRes.json()
+          if (!cancelled) {
+            if (data.completed.length > 0) {
+              setCloudProgress(data)
+            } else {
+              const localCompleted = useProgressStore.getState().completed
+              if (localCompleted.length > 0) {
+                markPendingSync(true)
+              }
+            }
           }
+        }
+
+        if (bookmarksRes.ok && !cancelled) {
+          const { bookmarks } = await bookmarksRes.json() as { bookmarks: { dayId: number }[] }
+          setBookmarks(bookmarks.map((b) => b.dayId))
         }
       } catch {
         // Network error — continue with local data silently
@@ -53,7 +61,7 @@ export function CloudSync() {
     return () => {
       cancelled = true
     }
-  }, [hydrated, status, session?.user?.id, setCloudProgress, markPendingSync])
+  }, [hydrated, status, session?.user?.id, setCloudProgress, markPendingSync, setBookmarks])
 
   return null
 }

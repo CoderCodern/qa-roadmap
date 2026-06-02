@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Flame, FlaskConical, Star } from 'lucide-react'
+import { Sun, Moon, Flame, FlaskConical, Star, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useProgressStore } from '@/lib/store'
@@ -11,6 +11,7 @@ import { MobileNav } from './MobileNav'
 import { ShopModal } from '@/components/ShopModal'
 import { SignInButton } from '@/components/auth/SignInButton'
 import { UserMenu } from '@/components/auth/UserMenu'
+import { SearchModal } from '@/components/search/SearchModal'
 import { cn } from '@/lib/utils'
 
 const navLinks = [
@@ -27,7 +28,20 @@ export function Header() {
   const { status } = useSession()
   const [mounted, setMounted] = useState(false)
   const [shopOpen, setShopOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // Cmd+K / Ctrl+K opens search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <>
@@ -79,7 +93,20 @@ export function Header() {
             </button>
           )}
 
-          {/* Language toggle — pill showing active language */}
+          {/* Search button */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search lessons"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="hidden sm:inline rounded border border-gray-200 bg-white px-1 text-[10px] font-mono text-gray-400 dark:border-gray-600 dark:bg-gray-900">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* Language toggle */}
           <button
             onClick={() => setLanguage(language === 'en' ? 'vi' : 'en')}
             aria-label="Toggle language"
@@ -126,6 +153,7 @@ export function Header() {
     </header>
 
     <ShopModal open={shopOpen} onClose={() => setShopOpen(false)} />
+    <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
   </>
   )
 }

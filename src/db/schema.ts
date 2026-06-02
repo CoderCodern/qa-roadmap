@@ -118,3 +118,35 @@ export const userStats = pgTable('user_stats', {
   pointsBalance: integer('points_balance').notNull().default(0),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
+
+/**
+ * Optional per-user profile data (bio, preferences).
+ * Created lazily on first PATCH /api/v1/me.
+ */
+export const profiles = pgTable('profile', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  bio: text('bio'),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+/**
+ * One row per (user, day) — idempotent bookmark.
+ */
+export const bookmarks = pgTable(
+  'bookmark',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    dayId: integer('day_id').notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (b) => ({
+    uniqueUserDay: uniqueIndex('bookmark_user_day_idx').on(b.userId, b.dayId),
+  }),
+)

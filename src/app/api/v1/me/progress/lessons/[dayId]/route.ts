@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
+
+export const dynamic = 'force-dynamic'
 import { completeLesson, uncompleteLesson, getProgress } from '@/server/progress/service'
 
 interface RouteParams {

@@ -9,6 +9,7 @@ import { getDayById, getPhaseForDay, getPrevDay, getNextDay } from '@/data/roadm
 import { getCompletionMotivation } from '@/data/motivation'
 import { getDayLockInfo } from '@/lib/unlock'
 import { Badge } from '@/components/ui/Badge'
+import { BookmarkButton } from '@/components/lesson/BookmarkButton'
 import { cn } from '@/lib/utils'
 
 interface LessonShellProps {
@@ -255,6 +256,11 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
                   <span className="lang-vi">~{day.estMinutes} phút</span>
                 </span>
               </div>
+            </div>
+
+            {/* Bookmark */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+              <BookmarkButton dayId={dayId} />
             </div>
 
             {/* Navigation */}

@@ -38,6 +38,9 @@ importers:
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(@types/react@18.3.29)(react@18.3.1)
+      fuse.js:
+        specifier: ^7.0.0
+        version: 7.4.0
       lucide-react:
         specifier: ^1.16.0
         version: 1.16.0(react@18.3.1)
@@ -1643,6 +1646,10 @@ packages:
 
   functions-have-names@1.2.3:
     resolution: {integrity: sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==}
+
+  fuse.js@7.4.0:
+    resolution: {integrity: sha512-3UqmoSFwzX1sNB1YSk+Co0EdH29XCW2p9g48OAiy93cjKqzuABsqw2VIgSN3CmsT/wo6pIJ3F0Jxeiiby8rhIQ==}
+    engines: {node: '>=10'}
 
   generator-function@2.0.1:
     resolution: {integrity: sha512-SFdFmIJi+ybC0vjlHN0ZGVGHc3lgE0DxPAT0djjVg+kjOnSqclqmj0KQ7ykTOLP6YxoqOvuAODGdcHJn+43q3g==}
@@ -4595,6 +4602,8 @@ snapshots:
       is-callable: 1.2.7
 
   functions-have-names@1.2.3: {}
+
+  fuse.js@7.4.0: {}
 
   generator-function@2.0.1: {}
 

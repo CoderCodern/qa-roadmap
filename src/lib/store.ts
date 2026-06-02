@@ -41,6 +41,8 @@ export type ProgressState = {
   cloudSynced: boolean
   /** True when user has local progress but no cloud data — prompt to sync. */
   pendingSync: boolean
+  /** Server-synced bookmarked day IDs. */
+  bookmarks: number[]
   toggleDay: (id: number) => void
   setLanguage: (lang: Language) => void
   setHydrated: () => void
@@ -63,6 +65,10 @@ export type ProgressState = {
   setServerStats: (stats: { streak: number; longestStreak: number; pointsBalance: number }) => void
   /** Toggles the pending-sync banner. */
   markPendingSync: (val: boolean) => void
+  /** Replaces bookmarks with server data. */
+  setBookmarks: (dayIds: number[]) => void
+  /** Optimistic local toggle — server write handled separately. */
+  toggleBookmarkLocal: (dayId: number) => void
   reset: () => void
 }
 
@@ -86,6 +92,7 @@ export const useProgressStore = create<ProgressState>()(
       devPreview: false,
       cloudSynced: false,
       pendingSync: false,
+      bookmarks: [],
 
       toggleDay: (id) => {
         const state = get()
@@ -193,6 +200,15 @@ export const useProgressStore = create<ProgressState>()(
         set({ streak, longestStreak, totalPoints: pointsBalance }),
 
       markPendingSync: (val) => set({ pendingSync: val }),
+
+      setBookmarks: (dayIds) => set({ bookmarks: dayIds }),
+
+      toggleBookmarkLocal: (dayId) =>
+        set((s) => ({
+          bookmarks: s.bookmarks.includes(dayId)
+            ? s.bookmarks.filter((id) => id !== dayId)
+            : [...s.bookmarks, dayId],
+        })),
 
       reset: () =>
         set({

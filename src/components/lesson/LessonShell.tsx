@@ -10,6 +10,8 @@ import { getCompletionMotivation } from '@/data/motivation'
 import { getDayLockInfo } from '@/lib/unlock'
 import { Badge } from '@/components/ui/Badge'
 import { BookmarkButton } from '@/components/lesson/BookmarkButton'
+import { RatingWidget } from '@/components/ratings/RatingWidget'
+import { CommentsSection } from '@/components/comments/CommentsSection'
 import { cn } from '@/lib/utils'
 
 interface LessonShellProps {
@@ -263,6 +265,11 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
               <BookmarkButton dayId={dayId} />
             </div>
 
+            {/* Rating */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+              <RatingWidget dayId={dayId} />
+            </div>
+
             {/* Navigation */}
             <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -299,6 +306,9 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
           </div>
         </aside>
       </div>
+
+      {/* Comments */}
+      <CommentsSection dayId={dayId} />
 
       {/* Bottom navigation */}
       <div className="mt-12 flex justify-between border-t border-gray-200 pt-8 dark:border-gray-800">

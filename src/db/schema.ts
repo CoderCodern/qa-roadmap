@@ -3,6 +3,7 @@ import {
   text,
   timestamp,
   integer,
+  real,
   primaryKey,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
@@ -150,3 +151,59 @@ export const bookmarks = pgTable(
     uniqueUserDay: uniqueIndex('bookmark_user_day_idx').on(b.userId, b.dayId),
   }),
 )
+
+/**
+ * User-generated comments on a lesson.
+ * status: 'approved' (visible) | 'hidden' (admin-removed)
+ * parentId: null = top-level, non-null = reply to another comment
+ */
+export const comments = pgTable('comment', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  dayId: integer('day_id').notNull(),
+  parentId: text('parent_id'), // self-ref; no FK constraint to keep schema simple
+  body: text('body').notNull(),
+  status: text('status').notNull().default('approved'), // 'approved' | 'hidden'
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+/**
+ * One rating per (user, day) — upsert on write.
+ * stars: 1–5 integer. review: optional short text.
+ */
+export const ratings = pgTable(
+  'rating',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    dayId: integer('day_id').notNull(),
+    stars: integer('stars').notNull(), // 1–5
+    review: text('review'),
+    createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+  },
+  (r) => ({
+    uniqueUserDay: uniqueIndex('rating_user_day_idx').on(r.userId, r.dayId),
+  }),
+)
+
+/**
+ * Denormalized per-lesson stats — updated on every rating write so lesson
+ * pages never run aggregations at read time.
+ */
+export const lessonStats = pgTable('lesson_stats', {
+  dayId: integer('day_id').primaryKey(),
+  avgStars: real('avg_stars').notNull().default(0),
+  ratingsCount: integer('ratings_count').notNull().default(0),
+  commentsCount: integer('comments_count').notNull().default(0),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})

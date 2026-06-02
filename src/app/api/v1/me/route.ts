@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
+
+export const dynamic = 'force-dynamic'
 import { getProfile, upsertProfile } from '@/server/profile/service'
 
 export async function GET(): Promise<NextResponse> {

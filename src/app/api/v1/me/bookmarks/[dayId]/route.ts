@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { addBookmark, removeBookmark } from '@/server/bookmarks/service'
 
+export const dynamic = 'force-dynamic'
+
 interface RouteContext {
   params: { dayId: string }
 }

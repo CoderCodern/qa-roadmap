@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { getBookmarks } from '@/server/bookmarks/service'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(): Promise<NextResponse> {
   const session = await auth()
   if (!session?.user?.id) {

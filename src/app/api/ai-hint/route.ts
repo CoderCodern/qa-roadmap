@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { checkRateLimit } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 /** 10 requests per minute per IP */
 const RATE_LIMIT = { limit: 10, windowMs: 60_000 }
 

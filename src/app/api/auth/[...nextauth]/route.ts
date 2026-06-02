@@ -5,10 +5,10 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   const { handlers } = await import('@/auth')
-  return handlers.GET(req)
+  return handlers.GET(req as never)
 }
 
 export async function POST(req: Request) {
   const { handlers } = await import('@/auth')
-  return handlers.POST(req)
+  return handlers.POST(req as never)
 }

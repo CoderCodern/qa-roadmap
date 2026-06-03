@@ -17,9 +17,11 @@ import { cn } from '@/lib/utils'
 interface LessonShellProps {
   dayId: number
   children: ReactNode
+  /** DB override for the static roadmap.ts `available` flag — set by admin panel */
+  availableOverride?: boolean
 }
 
-export function LessonShell({ dayId, children }: LessonShellProps) {
+export function LessonShell({ dayId, children, availableOverride }: LessonShellProps) {
   const { completed, hydrated, toggleDay, setServerStats, language, devPreview } = useProgressStore()
   const { data: session } = useSession()
   const [justCompleted, setJustCompleted] = useState(false)
@@ -74,7 +76,9 @@ export function LessonShell({ dayId, children }: LessonShellProps) {
   if (!day || !phase) return <>{children}</>
 
   // Lock check — only enforce after store is hydrated to avoid pre-hydration flash.
-  const lockInfo = hydrated ? getDayLockInfo(dayId, completed, devPreview) : { locked: false as const }
+  const lockInfo = hydrated
+    ? getDayLockInfo(dayId, completed, devPreview, availableOverride)
+    : { locked: false as const }
 
   if (lockInfo.locked) {
     const isComingSoon = lockInfo.type === 'coming-soon'

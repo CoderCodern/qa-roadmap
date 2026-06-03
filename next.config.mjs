@@ -1,6 +1,7 @@
 import createMDX from '@next/mdx'
 import remarkGfm from 'remark-gfm'
 import remarkFrontmatter from 'remark-frontmatter'
+import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
 import rehypePrettyCode from 'rehype-pretty-code'
 
 /** @type {import('rehype-pretty-code').Options} */
@@ -11,7 +12,10 @@ const prettyCodeOptions = {
 
 const withMDX = createMDX({
   options: {
-    remarkPlugins: [remarkFrontmatter, remarkGfm],
+    // remarkFrontmatter parses the YAML block; remarkMdxFrontmatter turns it
+    // into an ES module export (`export const frontmatter = { … }`).
+    // Both must appear before remarkGfm.
+    remarkPlugins: [remarkFrontmatter, remarkMdxFrontmatter, remarkGfm],
     rehypePlugins: [[rehypePrettyCode, prettyCodeOptions]],
   },
 })

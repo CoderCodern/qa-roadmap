@@ -10,6 +10,7 @@ import { Footer } from '@/components/layout/Footer'
 import { NavigationProgress } from '@/components/layout/NavigationProgress'
 import { PhaseRewardChecker } from '@/components/PhaseRewardChecker'
 import { ProgressSyncBanner } from '@/components/progress/ProgressSyncBanner'
+import { PostHogProvider } from '@/components/analytics/PostHogProvider'
 import './globals.css'
 
 const inter = Inter({
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${inter.variable} font-sans antialiased bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100`}>
         <AuthSessionProvider>
+          <PostHogProvider>
           <ThemeProviderWrapper>
             <NavigationProgress />
             <StoreHydration />
@@ -49,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Footer />
             </div>
           </ThemeProviderWrapper>
+          </PostHogProvider>
         </AuthSessionProvider>
       </body>
     </html>

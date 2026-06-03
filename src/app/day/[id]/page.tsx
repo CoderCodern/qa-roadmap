@@ -34,7 +34,7 @@ export default async function DayPage({ params }: { params: { id: string } }) {
 
   const [lesson, override] = await Promise.all([
     content.getLesson({ courseSlug: 'qa', dayId: id }),
-    db.query.lessonAvailability.findFirst({ where: eq(lessonAvailability.dayId, id) }),
+    db.query.lessonAvailability.findFirst({ where: eq(lessonAvailability.dayId, id) }).catch(() => undefined),
   ])
 
   if (!lesson) notFound()

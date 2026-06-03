@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default async function RoadmapPage() {
   // Fetch every row that the admin has explicitly overridden.
   // Days with no row fall back to the static `available` flag in roadmap.ts.
-  const rows = await db.select().from(lessonAvailability)
+  const rows = await db.select().from(lessonAvailability).catch(() => [] as typeof lessonAvailability.$inferSelect[])
   const availabilityOverrides: Record<number, boolean> = {}
   for (const row of rows) {
     availabilityOverrides[row.dayId] = row.available

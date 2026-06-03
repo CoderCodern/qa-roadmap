@@ -4,6 +4,7 @@ import {
   timestamp,
   integer,
   real,
+  boolean,
   primaryKey,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
@@ -205,5 +206,16 @@ export const lessonStats = pgTable('lesson_stats', {
   avgStars: real('avg_stars').notNull().default(0),
   ratingsCount: integer('ratings_count').notNull().default(0),
   commentsCount: integer('comments_count').notNull().default(0),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
+})
+
+/**
+ * Admin overrides for the static roadmap.ts `available` flag.
+ * When a row exists for a dayId, it takes precedence over roadmap.ts.
+ * Toggled via /admin/lessons without requiring a code deploy.
+ */
+export const lessonAvailability = pgTable('lesson_availability', {
+  dayId: integer('day_id').primaryKey(),
+  available: boolean('available').notNull().default(true),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })

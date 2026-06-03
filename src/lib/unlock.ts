@@ -59,8 +59,14 @@ export function getPhaseLockInfo(phaseId: number, completed: number[]): PhaseLoc
   }
 }
 
-export function getDayLockInfo(dayId: number, completed: number[], devPreview = false): DayLockInfo {
-  if (!isDayAvailable(dayId, devPreview)) return { locked: true, type: 'coming-soon' }
+export function getDayLockInfo(
+  dayId: number,
+  completed: number[],
+  devPreview = false,
+  availableOverride?: boolean,
+): DayLockInfo {
+  const available = availableOverride !== undefined ? availableOverride : isDayAvailable(dayId, devPreview)
+  if (!available) return { locked: true, type: 'coming-soon' }
   if (isDayUnlocked(dayId, completed)) return { locked: false }
   const phase = PHASES.find((p) => p.days.some((d) => d.id === dayId))
   if (!phase) return { locked: true, type: 'prev-day', prevDayId: dayId - 1 }

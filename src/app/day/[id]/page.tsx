@@ -2,6 +2,12 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { LessonShell } from '@/components/lesson/LessonShell'
 import { content } from '@/content'
+import { db } from '@/db'
+import { lessonAvailability } from '@/db/schema'
+import { eq } from 'drizzle-orm'
+
+// ISR: revalidate at most every 60s. Admin toggles call revalidatePath() for instant effect.
+export const revalidate = 60
 
 export async function generateStaticParams() {
   const lessons = await content.listLessons('qa')
@@ -26,13 +32,17 @@ export default async function DayPage({ params }: { params: { id: string } }) {
 
   if (!id || id < 1 || isNaN(id)) notFound()
 
-  const lesson = await content.getLesson({ courseSlug: 'qa', dayId: id })
+  const [lesson, override] = await Promise.all([
+    content.getLesson({ courseSlug: 'qa', dayId: id }),
+    db.query.lessonAvailability.findFirst({ where: eq(lessonAvailability.dayId, id) }),
+  ])
+
   if (!lesson) notFound()
 
   const { Body } = lesson
 
   return (
-    <LessonShell dayId={id}>
+    <LessonShell dayId={id} availableOverride={override?.available}>
       <article className="prose prose-gray prose-lg dark:prose-invert max-w-none">
         <Body />
       </article>

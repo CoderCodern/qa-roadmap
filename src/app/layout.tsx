@@ -10,7 +10,7 @@ import { Footer } from '@/components/layout/Footer'
 import { NavigationProgress } from '@/components/layout/NavigationProgress'
 import { PhaseRewardChecker } from '@/components/PhaseRewardChecker'
 import { ProgressSyncBanner } from '@/components/progress/ProgressSyncBanner'
-import { PostHogProvider } from '@/components/analytics/PostHogProvider'
+import { PostHogProvider, ConsentBanner } from '@/components/analytics/PostHogProvider'
 import './globals.css'
 
 const inter = Inter({
@@ -50,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <main className="flex-1">{children}</main>
               <Footer />
             </div>
+            <ConsentBanner />
           </ThemeProviderWrapper>
           </PostHogProvider>
         </AuthSessionProvider>

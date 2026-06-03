@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
-import { LogOut, User, Bookmark, Settings } from 'lucide-react'
+import { LogOut, User, Bookmark, Settings, ShieldCheck } from 'lucide-react'
 import Image from 'next/image'
 
 export function UserMenu() {
@@ -24,7 +24,7 @@ export function UserMenu() {
 
   if (!session?.user) return null
 
-  const { name, image } = session.user
+  const { name, image, isAdmin } = session.user
 
   return (
     <div className="relative" ref={menuRef}>
@@ -76,6 +76,20 @@ export function UserMenu() {
             <span className="lang-en">Account</span>
             <span className="lang-vi">Tài khoản</span>
           </Link>
+
+          {isAdmin && (
+            <>
+              <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="flex w-full items-center gap-2 px-4 py-2 text-sm text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span>Admin Panel</span>
+              </Link>
+            </>
+          )}
 
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 

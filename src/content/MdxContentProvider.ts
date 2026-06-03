@@ -86,7 +86,8 @@ export class MdxContentProvider implements IContentProvider {
    * filesystem scan — no manual registration needed when adding new lessons).
    * Metadata comes from roadmap.ts for performance; no MDX modules are loaded.
    */
-  async listLessons(_: string): Promise<LessonMeta[]> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async listLessons(_courseSlug: string): Promise<LessonMeta[]> {
     return getAvailableLessonIds()
       .map(id => buildMeta(id))
       .filter((m): m is LessonMeta => m !== null)

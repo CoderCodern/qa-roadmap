@@ -40,18 +40,34 @@ jsonplaceholder-api-tests/
 └── requirements.txt
 ```
 
-**Design decisions:**
-- `ApiClient` wraps `requests.Session` — base URL in one place
-- Schemas stored as JSON files — reused across test files
-- `scope="session"` fixture for `ApiClient` — one HTTP session for all tests
-- Separate test files by resource (`test_posts.py`, `test_users.py`)
-- Negative tests in `test_negative.py` — clear separation of concern
+**Design decisions and why:**
+
+- **`ApiClient` wraps `requests.Session`**: base URL is defined in one place. If JSONPlaceholder ever changes its domain, you update one constant instead of every test file.
+- **`__init__.py` in `api/` and `tests/`**: makes them Python packages. This allows absolute imports like `from api.client import ApiClient` to work without path manipulation.
+- **Schemas stored as JSON files**: reusable across multiple test files, editable without touching test logic, and shareable with the API team as contract documentation.
+- **`scope="session"` fixture for `ApiClient`**: the underlying `requests.Session` pools TCP connections — one session for the whole test run means fewer TCP handshakes and faster tests.
+- **Separate test files by resource (`test_posts.py`, `test_users.py`)**: each file owns a single resource. It's easy to run just `pytest tests/test_posts.py` when you're working on post-related tests.
+- **Negative tests in `test_negative.py`**: clear separation of concern — positive tests verify happy paths, negative tests verify resilience.
+
+**How to import a JSON schema from a file:**
+```python
+import json
+from pathlib import Path
+
+schema = json.loads(Path("schemas/post.json").read_text())
+```
+`Path.read_text()` reads the file contents as a string; `json.loads()` parses it into a Python dict that `jsonschema.validate()` accepts.
+
+**What `validate(instance=data, schema=schema)` does when validation fails:**
+It raises `jsonschema.ValidationError` with a human-readable message describing exactly which field failed and why (e.g., `'title' is a required property`). This makes schema assertion failures much more informative than a bare `assert "title" in data`.
 </En>
 <Vi>
 **Cấu trúc dự án cuối cùng:**
 ```
 jsonplaceholder-api-tests/
-├── .github/workflows/api-tests.yml
+├── .github/
+│   └── workflows/
+│       └── api-tests.yml
 ├── api/
 │   ├── __init__.py
 │   └── client.py
@@ -59,6 +75,7 @@ jsonplaceholder-api-tests/
 │   ├── post.json
 │   └── user.json
 ├── tests/
+│   ├── __init__.py
 │   ├── conftest.py
 │   ├── test_posts.py
 │   ├── test_users.py
@@ -67,14 +84,40 @@ jsonplaceholder-api-tests/
 └── requirements.txt
 ```
 
-**Các quyết định thiết kế:**
-- `ApiClient` bọc `requests.Session` — base URL ở một chỗ
-- Schema lưu dưới dạng JSON file — tái sử dụng trên các file test
-- Fixture `scope="session"` cho `ApiClient`
-- File test riêng biệt theo tài nguyên
+**Các quyết định thiết kế và lý do:**
+
+- **`ApiClient` bọc `requests.Session`**: base URL được định nghĩa ở một chỗ. Nếu JSONPlaceholder thay đổi domain, bạn chỉ cập nhật một hằng số thay vì mọi file test.
+- **`__init__.py` trong `api/` và `tests/`**: biến chúng thành Python package. Điều này cho phép import tuyệt đối như `from api.client import ApiClient` hoạt động mà không cần thao tác đường dẫn.
+- **Schema lưu dưới dạng JSON file**: có thể tái sử dụng trên nhiều file test, chỉnh sửa mà không cần đụng vào logic test, và chia sẻ với team API như tài liệu contract.
+- **Fixture `scope="session"` cho `ApiClient`**: `requests.Session` bên dưới pool các kết nối TCP — một session cho toàn bộ test run có nghĩa là ít TCP handshake hơn và test nhanh hơn.
+- **File test riêng biệt theo tài nguyên**: mỗi file sở hữu một tài nguyên. Dễ dàng chạy chỉ `pytest tests/test_posts.py` khi bạn đang làm việc với test liên quan đến post.
+- **Test tiêu cực trong `test_negative.py`**: phân tách rõ ràng — test tích cực xác minh happy path, test tiêu cực xác minh khả năng phục hồi.
+
+**Cách import JSON schema từ file:**
+```python
+import json
+from pathlib import Path
+
+schema = json.loads(Path("schemas/post.json").read_text())
+```
+`Path.read_text()` đọc nội dung file dưới dạng string; `json.loads()` phân tích nó thành Python dict mà `jsonschema.validate()` chấp nhận.
+
+**`validate(instance=data, schema=schema)` làm gì khi xác thực thất bại:**
+Nó ném `jsonschema.ValidationError` với thông báo dễ đọc mô tả chính xác trường nào thất bại và tại sao (ví dụ: `'title' is a required property`). Điều này làm cho lỗi xác thực schema thông tin hơn nhiều so với `assert "title" in data` thuần túy.
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — ApiClient and JSON schemas**
+
+</En>
+<Vi>
+
+**Phần 1 — ApiClient và JSON schema**
+
+</Vi>
 
 ```python
 # api/client.py
@@ -114,9 +157,64 @@ class ApiClient:
     "userId": {"type": "integer", "minimum": 1},
     "title":  {"type": "string",  "minLength": 1},
     "body":   {"type": "string",  "minLength": 1}
+  },
+  "additionalProperties": false
+}
+```
+
+```json
+// schemas/user.json — nested address and company objects
+{
+  "type": "object",
+  "required": ["id", "name", "username", "email", "address", "phone", "website", "company"],
+  "properties": {
+    "id":       {"type": "integer", "minimum": 1},
+    "name":     {"type": "string",  "minLength": 1},
+    "username": {"type": "string",  "minLength": 1},
+    "email":    {"type": "string"},
+    "address": {
+      "type": "object",
+      "required": ["street", "suite", "city", "zipcode", "geo"],
+      "properties": {
+        "street":  {"type": "string"},
+        "suite":   {"type": "string"},
+        "city":    {"type": "string"},
+        "zipcode": {"type": "string"},
+        "geo": {
+          "type": "object",
+          "required": ["lat", "lng"],
+          "properties": {
+            "lat": {"type": "string"},
+            "lng": {"type": "string"}
+          }
+        }
+      }
+    },
+    "phone":   {"type": "string"},
+    "website": {"type": "string"},
+    "company": {
+      "type": "object",
+      "required": ["name", "catchPhrase", "bs"],
+      "properties": {
+        "name":        {"type": "string"},
+        "catchPhrase": {"type": "string"},
+        "bs":          {"type": "string"}
+      }
+    }
   }
 }
 ```
+
+<En>
+
+**Part 2 — conftest.py fixtures and test_posts.py**
+
+</En>
+<Vi>
+
+**Phần 2 — Fixture conftest.py và test_posts.py**
+
+</Vi>
 
 ```python
 # tests/conftest.py
@@ -127,6 +225,8 @@ from api.client import ApiClient
 
 @pytest.fixture(scope="session")
 def api() -> ApiClient:
+    # scope="session" means this runs once per test run — not once per test.
+    # All tests share the same ApiClient and its underlying requests.Session.
     return ApiClient()
 
 @pytest.fixture(scope="session")
@@ -189,6 +289,7 @@ def test_delete_post(api: ApiClient):
     assert response.status_code == 200
 
 def test_get_post_comments(api: ApiClient):
+    # Tests the nested resource endpoint — different from /comments?postId=1
     response = api.get("/posts/1/comments")
     assert response.status_code == 200
     comments = response.json()
@@ -200,36 +301,256 @@ def test_get_post_comments(api: ApiClient):
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Set up the full project structure, implement `api/client.py` and `schemas/post.json`, write all 8 tests in `test_posts.py`, and run `pytest -v` — all should pass
-- [ ] Create `schemas/user.json` with the full schema for JSONPlaceholder's user object (including `address` and `company` nested objects), then write `tests/test_users.py` with at least 5 tests
-- [ ] Verify that `scope="session"` on the `api` fixture means the `ApiClient` is created only once — add a `print("Creating ApiClient")` inside `__init__` and confirm it appears exactly once in the test output
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Set up the project and run test_posts.py",
+    code: `# Setup steps — run these in your terminal, then verify test_posts.py passes
+#
+# 1. Create the directory structure:
+#    mkdir -p jsonplaceholder-api-tests/api jsonplaceholder-api-tests/schemas jsonplaceholder-api-tests/tests
+#    touch jsonplaceholder-api-tests/api/__init__.py jsonplaceholder-api-tests/tests/__init__.py
+#
+# 2. Create api/client.py and schemas/post.json from the Code/Demo above.
+#
+# 3. Create tests/conftest.py from the Code/Demo above.
+#
+# 4. Create tests/test_posts.py from the Code/Demo above.
+#
+# 5. Install dependencies:
+#    pip install requests pytest jsonschema
+#
+# 6. Run from the project root:
+#    pytest tests/test_posts.py -v
+#
+# TODO (EN): After running, paste the output of "pytest tests/test_posts.py -v" here as a comment.
+# TODO (VI): Sau khi chạy, dán đầu ra của "pytest tests/test_posts.py -v" ở đây dưới dạng comment.
+#
+# Expected: 8 tests, all PASSED
+#
+# Verification — add this print to ApiClient.__init__ and confirm it appears exactly once:
+# print("Creating ApiClient — scope=session means this should appear only once")
+`
+  },
+  {
+    title: "Exercise 2 — Write test_users.py with schema validation",
+    code: `# tests/test_users.py
+# TODO (EN): Using schemas/user.json from the Code/Demo, write at least 5 tests for /users.
+# TODO (VI): Dùng schemas/user.json từ Code/Demo, viết ít nhất 5 test cho /users.
+import pytest
+from jsonschema import validate
+from api.client import ApiClient
+
+# Test 1: GET /users returns 10 users
+def test_get_all_users(api: ApiClient):
+    response = api.get("/users")
+    # TODO (EN): assert status and list length
+    # TODO (VI): kiểm tra status và độ dài danh sách
+    pass
+
+# Test 2: GET /users/1 validates against user_schema
+def test_get_user_schema(api: ApiClient, user_schema: dict):
+    response = api.get("/users/1")
+    # TODO (EN): assert status and call validate()
+    # TODO (VI): kiểm tra status và gọi validate()
+    pass
+
+# Test 3: Parametrize over user IDs [1, 5, 10]
+@pytest.mark.parametrize("user_id", [1, 5, 10])
+def test_get_user_by_id(api: ApiClient, user_id: int, user_schema: dict):
+    # TODO (EN): assert response and that user["id"] == user_id
+    # TODO (VI): kiểm tra response và user["id"] == user_id
+    pass
+
+# Test 4: Nested fields — address.city is a non-empty string
+def test_user_address_fields(api: ApiClient):
+    response = api.get("/users/1")
+    user = response.json()
+    # TODO (EN): assert user["address"]["city"] is a non-empty string
+    # TODO (VI): kiểm tra user["address"]["city"] là string không rỗng
+    pass
+
+# Test 5: GET /users/{id}/posts — user's posts list
+def test_user_posts_relationship(api: ApiClient):
+    response = api.get("/users/1/posts")
+    # TODO (EN): assert status 200, result is a list, and all posts have userId == 1
+    # TODO (VI): kiểm tra status 200, kết quả là list, và tất cả post có userId == 1
+    pass`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: create the full project structure, copy the code from Code/Demo into the right files, run `pytest tests/test_posts.py -v`, and confirm all 8 tests pass. Add the `print` to `ApiClient.__init__` and verify it appears exactly once in the output.
+- [ ] Exercise 2: implement the 5 user tests in `tests/test_users.py` — replace every `pass` with the correct assertion. Run `pytest tests/test_users.py -v` to verify.
+
+> Note: This code requires a local Python environment. From the project root: `pip install requests pytest jsonschema` then `pytest tests/ -v`.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài tập 1: tạo cấu trúc dự án đầy đủ, copy code từ Code/Demo vào đúng file, chạy `pytest tests/test_posts.py -v` và xác nhận cả 8 test pass. Thêm `print` vào `ApiClient.__init__` và xác nhận nó xuất hiện đúng một lần.
+- [ ] Bài tập 2: triển khai 5 user test trong `tests/test_users.py` — thay mỗi `pass` bằng assertion đúng. Chạy `pytest tests/test_users.py -v` để xác minh.
+
+> Lưu ý: Code này cần môi trường Python cục bộ. Từ thư mục gốc dự án: `pip install requests pytest jsonschema` rồi `pytest tests/ -v`.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Why store JSON schemas in separate `.json` files instead of inline Python dicts?",
+    qVi: "Tại sao lưu JSON schema trong các file `.json` riêng biệt thay vì Python dict inline?",
     choices: [
       "Python dicts cannot represent JSON Schema",
       "Separate files are reusable across test files, version-controlled, and editable without touching Python code",
       "jsonschema only reads from files",
       "It is required by the jsonschema specification"
     ],
+    choicesVi: [
+      "Python dict không thể biểu diễn JSON Schema",
+      "File riêng biệt có thể tái sử dụng trên các file test, được version-control và chỉnh sửa mà không cần đụng vào Python code",
+      "jsonschema chỉ đọc từ file",
+      "Đặc tả jsonschema yêu cầu điều đó"
+    ],
     answer: 1,
-    explain: "Separate schema files can be imported by multiple test files, shared with the API team as contract documentation, edited without touching test logic, and validated with schema linters. Inline dicts are fine for simple schemas but don't scale well."
+    explain: "Separate schema files can be imported by multiple test files, shared with the API team as contract documentation, edited without touching test logic, and validated with schema linters. Inline dicts are fine for simple schemas but don't scale well.",
+    explainVi: "File schema riêng biệt có thể được import bởi nhiều file test, chia sẻ với team API như tài liệu contract, chỉnh sửa mà không cần đụng vào logic test và xác thực bằng schema linter. Dict inline ổn cho schema đơn giản nhưng không mở rộng tốt."
   },
   {
     q: "What does `api.get('/posts/1/comments')` test that `api.get('/comments?postId=1')` doesn't?",
+    qVi: "`api.get('/posts/1/comments')` kiểm thử điều gì mà `api.get('/comments?postId=1')` không kiểm thử?",
     choices: [
       "They are identical — both test the same thing",
       "The nested URL tests the hierarchical relationship resource endpoint, which may have different behavior or access control",
       "The nested URL is faster",
       "The query parameter form does not return comments"
     ],
+    choicesVi: [
+      "Chúng giống nhau — cả hai kiểm thử cùng một thứ",
+      "URL lồng nhau kiểm thử endpoint tài nguyên có quan hệ phân cấp, có thể có hành vi hoặc kiểm soát truy cập khác nhau",
+      "URL lồng nhau nhanh hơn",
+      "Dạng tham số truy vấn không trả về comment"
+    ],
     answer: 1,
-    explain: "REST APIs often expose both /posts/1/comments (nested resource) and /comments?postId=1 (filtered collection). They may return the same data, but the nested form tests the API's understanding of resource ownership — useful for access control and parent-resource validation."
+    explain: "REST APIs often expose both /posts/1/comments (nested resource) and /comments?postId=1 (filtered collection). They may return the same data, but the nested form tests the API's understanding of resource ownership — useful for access control and parent-resource validation.",
+    explainVi: "REST API thường cung cấp cả /posts/1/comments (tài nguyên lồng nhau) và /comments?postId=1 (collection được lọc). Chúng có thể trả về cùng dữ liệu, nhưng dạng lồng nhau kiểm thử hiểu biết của API về sở hữu tài nguyên — hữu ích cho kiểm soát truy cập và xác thực tài nguyên cha."
+  },
+  {
+    q: "Why separate test files by resource (/posts, /users) rather than by test type (positive, negative)?",
+    qVi: "Tại sao tách file test theo tài nguyên (/posts, /users) thay vì theo loại test (tích cực, tiêu cực)?",
+    choices: [
+      "pytest requires separate files per resource",
+      "Resource-based organization lets you run all tests for one resource in isolation, reflects the API structure, and makes it easy to find related tests",
+      "It prevents tests from running in parallel",
+      "JSON schemas must match file names"
+    ],
+    choicesVi: [
+      "pytest yêu cầu file riêng biệt theo tài nguyên",
+      "Tổ chức theo tài nguyên cho phép chạy tất cả test cho một tài nguyên trong sự cô lập, phản ánh cấu trúc API và giúp dễ tìm các test liên quan",
+      "Nó ngăn test chạy song song",
+      "JSON schema phải khớp tên file"
+    ],
+    answer: 1,
+    explain: "Organizing by resource mirrors the API structure itself. When the /users endpoint changes, you immediately know which test file to look at. Running pytest tests/test_users.py gives instant feedback on user-related functionality without running post or comment tests.",
+    explainVi: "Tổ chức theo tài nguyên phản ánh chính cấu trúc API. Khi endpoint /users thay đổi, bạn biết ngay file test nào cần xem. Chạy pytest tests/test_users.py cho phản hồi ngay lập tức về chức năng liên quan đến user mà không chạy test post hoặc comment."
+  },
+  {
+    q: "What does `scope='session'` on the ApiClient fixture mean for test performance?",
+    qVi: "`scope='session'` trên fixture ApiClient có ý nghĩa gì cho hiệu suất test?",
+    choices: [
+      "Each test gets its own ApiClient instance",
+      "One ApiClient is created for the entire test run — the underlying requests.Session pools TCP connections, reducing network overhead",
+      "The fixture is created once per test module",
+      "It makes tests run faster by skipping validation"
+    ],
+    choicesVi: [
+      "Mỗi test có instance ApiClient riêng",
+      "Một ApiClient được tạo cho toàn bộ test run — requests.Session bên dưới pool các kết nối TCP, giảm overhead mạng",
+      "Fixture được tạo một lần mỗi module test",
+      "Nó làm test chạy nhanh hơn bằng cách bỏ qua xác thực"
+    ],
+    answer: 1,
+    explain: "scope='session' means pytest calls the fixture factory exactly once and reuses the result for all tests. The requests.Session inside ApiClient maintains a connection pool — subsequent requests to the same host reuse existing TCP connections instead of establishing new ones.",
+    explainVi: "scope='session' có nghĩa là pytest gọi factory fixture chính xác một lần và tái sử dụng kết quả cho tất cả test. requests.Session bên trong ApiClient duy trì connection pool — các request tiếp theo đến cùng host tái sử dụng kết nối TCP hiện có thay vì thiết lập kết nối mới."
+  },
+  {
+    q: "How do you import a JSON schema from a file in Python for use with jsonschema?",
+    qVi: "Làm thế nào để import JSON schema từ file trong Python để dùng với jsonschema?",
+    choices: [
+      "schema = open('schemas/post.json')",
+      "schema = json.loads(Path('schemas/post.json').read_text())",
+      "schema = jsonschema.load('schemas/post.json')",
+      "schema = import_json('schemas/post.json')"
+    ],
+    choicesVi: [
+      "schema = open('schemas/post.json')",
+      "schema = json.loads(Path('schemas/post.json').read_text())",
+      "schema = jsonschema.load('schemas/post.json')",
+      "schema = import_json('schemas/post.json')"
+    ],
+    answer: 1,
+    explain: "Path('schemas/post.json').read_text() reads the file contents as a string. json.loads() parses that string into a Python dict. jsonschema.validate() accepts a Python dict as the schema argument — not a file path or file object.",
+    explainVi: "Path('schemas/post.json').read_text() đọc nội dung file dưới dạng string. json.loads() phân tích string đó thành Python dict. jsonschema.validate() chấp nhận Python dict làm đối số schema — không phải đường dẫn file hay file object."
+  },
+  {
+    q: "What is the purpose of `__init__.py` files in the `api/` and `tests/` directories?",
+    qVi: "Mục đích của file `__init__.py` trong thư mục `api/` và `tests/` là gì?",
+    choices: [
+      "They contain the main test configuration",
+      "They mark the directories as Python packages, enabling absolute imports like `from api.client import ApiClient`",
+      "They are required by pytest to discover tests",
+      "They store shared fixtures"
+    ],
+    choicesVi: [
+      "Chúng chứa cấu hình test chính",
+      "Chúng đánh dấu các thư mục là Python package, cho phép import tuyệt đối như `from api.client import ApiClient`",
+      "Chúng cần thiết để pytest phát hiện test",
+      "Chúng lưu trữ fixture dùng chung"
+    ],
+    answer: 1,
+    explain: "Without __init__.py, Python treats the directory as a namespace package, which can cause import resolution issues when running pytest from the project root. With __init__.py, Python recognizes api/ as a proper package and resolves `from api.client import ApiClient` correctly.",
+    explainVi: "Không có __init__.py, Python coi thư mục là namespace package, có thể gây ra vấn đề phân giải import khi chạy pytest từ thư mục gốc dự án. Với __init__.py, Python nhận ra api/ là package đúng và phân giải `from api.client import ApiClient` đúng cách."
+  },
+  {
+    q: "What does `validate(instance=data, schema=schema)` do when validation fails?",
+    qVi: "`validate(instance=data, schema=schema)` làm gì khi xác thực thất bại?",
+    choices: [
+      "It returns False",
+      "It raises jsonschema.ValidationError with a message describing exactly which field failed and why",
+      "It logs a warning and continues",
+      "It returns the list of errors"
+    ],
+    choicesVi: [
+      "Nó trả về False",
+      "Nó ném jsonschema.ValidationError với thông báo mô tả chính xác trường nào thất bại và tại sao",
+      "Nó ghi log cảnh báo và tiếp tục",
+      "Nó trả về danh sách lỗi"
+    ],
+    answer: 1,
+    explain: "validate() raises jsonschema.ValidationError on failure. The error includes a human-readable message like \"'title' is a required property\" or \"42 is not of type 'string'\". This is much more informative than a bare AssertionError from assert 'title' in data.",
+    explainVi: "validate() ném jsonschema.ValidationError khi thất bại. Lỗi bao gồm thông báo dễ đọc như \"'title' is a required property\" hoặc \"42 is not of type 'string'\". Điều này nhiều thông tin hơn nhiều so với AssertionError thuần túy từ assert 'title' in data."
+  },
+  {
+    q: "Why are CRUD operations tested separately for each HTTP method in test_posts.py?",
+    qVi: "Tại sao các thao tác CRUD được kiểm thử riêng biệt cho từng HTTP method trong test_posts.py?",
+    choices: [
+      "REST APIs only support GET by default",
+      "Each HTTP method has different semantics, expected status codes, and response shapes — testing them separately makes failures easy to pinpoint",
+      "pytest cannot combine multiple HTTP methods in one test",
+      "It is faster to run separate tests"
+    ],
+    choicesVi: [
+      "REST API mặc định chỉ hỗ trợ GET",
+      "Mỗi HTTP method có ngữ nghĩa, status code và cấu trúc response khác nhau — kiểm thử riêng giúp dễ xác định lỗi",
+      "pytest không thể kết hợp nhiều HTTP method trong một test",
+      "Chạy các test riêng biệt nhanh hơn"
+    ],
+    answer: 1,
+    explain: "GET returns 200, POST returns 201, PUT/PATCH return 200, DELETE returns 200 or 204 — each has different semantics. If you combine them, a failure message like 'assert 200 == 201' requires context to debug. Separate tests give clear failure messages: 'test_create_post FAILED' immediately tells you the POST path broke.",
+    explainVi: "GET trả về 200, POST trả về 201, PUT/PATCH trả về 200, DELETE trả về 200 hoặc 204 — mỗi cái có ngữ nghĩa khác nhau. Nếu bạn kết hợp chúng, thông báo lỗi như 'assert 200 == 201' cần ngữ cảnh để debug. Test riêng biệt cho thông báo lỗi rõ ràng: 'test_create_post FAILED' ngay lập tức cho biết đường dẫn POST bị lỗi."
   }
 ]} />
 

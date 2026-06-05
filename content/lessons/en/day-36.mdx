@@ -19,81 +19,164 @@ Kiểm thử API là kỹ năng phân biệt kỹ sư QA cấp junior với mid-
 
 <En>
 **HTTP request structure:**
-- **Method:** GET, POST, PUT, PATCH, DELETE, OPTIONS
-- **URL:** the target endpoint
-- **Headers:** metadata (Content-Type, Authorization, Accept)
-- **Body:** data sent with the request (POST/PUT/PATCH only)
+
+Every HTTP request has four parts. As a QA engineer you must know what belongs in each one:
+
+| Part | Description | Example |
+|------|-------------|---------|
+| **Method** | The verb — what action to perform | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+| **URL** | The target endpoint (resource + path) | `https://api.example.com/users/42` |
+| **Headers** | Key-value metadata about the request | `Content-Type: application/json`, `Authorization: Bearer <token>` |
+| **Body** | Data payload sent with the request | `{"email": "alice@example.com"}` — only for POST/PUT/PATCH |
 
 **HTTP response structure:**
-- **Status code:** numeric result code
-- **Headers:** metadata from the server (Content-Type, Set-Cookie)
-- **Body:** data returned (JSON, HTML, empty)
+
+The server always replies with three parts:
+
+| Part | Description | Example |
+|------|-------------|---------|
+| **Status code** | Numeric result — tells you what happened | `200`, `404`, `500` |
+| **Headers** | Metadata from the server | `Content-Type: application/json`, `Set-Cookie` |
+| **Body** | The returned data | JSON object, HTML page, or empty |
 
 **The most important status codes for API testing:**
 
-| Code | Meaning | When you see it |
-|------|---------|-----------------|
-| 200 | OK | Successful GET, PUT, PATCH |
-| 201 | Created | Successful POST (resource created) |
-| 204 | No Content | Successful DELETE (empty body) |
-| 400 | Bad Request | Invalid input — server rejected it |
-| 401 | Unauthorized | Missing or invalid authentication |
-| 403 | Forbidden | Authenticated but not permitted |
-| 404 | Not Found | Resource does not exist |
-| 409 | Conflict | Duplicate resource (email already taken) |
-| 422 | Unprocessable Entity | Validation failed |
-| 500 | Internal Server Error | Bug in the server |
+| Code | Meaning | When you see it in the wild |
+|------|---------|---------------------------|
+| 200 | OK | Successful GET, PUT, PATCH — generic success |
+| 201 | Created | POST that successfully created a resource |
+| 204 | No Content | DELETE or PATCH that succeeds but returns no body |
+| 400 | Bad Request | The client sent malformed input the server refuses to process |
+| 401 | Unauthorized | Missing or invalid authentication token |
+| 403 | Forbidden | Authenticated but the user lacks permission |
+| 404 | Not Found | The resource doesn't exist at that URL |
+| 409 | Conflict | Duplicate resource (e.g., email already registered) |
+| 422 | Unprocessable Entity | Input parsed correctly but fails validation rules |
+| 429 | Too Many Requests | Rate limit hit |
+| 500 | Internal Server Error | Bug or crash on the server side |
+| 503 | Service Unavailable | Server is overloaded or down for maintenance |
 
-**HTTP methods — what they mean semantically:**
+**HTTP methods — semantics and idempotency:**
 
-| Method | Purpose | Idempotent? |
-|--------|---------|-------------|
-| GET | Read only | Yes |
-| POST | Create | No |
-| PUT | Replace entirely | Yes |
-| PATCH | Partial update | Usually |
-| DELETE | Remove | Yes |
+Idempotent means calling the same request multiple times produces the same result as calling it once. This matters for retry logic and test design.
+
+| Method | Purpose | Idempotent? | Has Body? | Safe? |
+|--------|---------|-------------|-----------|-------|
+| GET | Read a resource | Yes | No | Yes |
+| POST | Create a new resource | No | Yes | No |
+| PUT | Replace a resource entirely | Yes | Yes | No |
+| PATCH | Partially update a resource | Usually | Yes | No |
+| DELETE | Remove a resource | Yes | Optional | No |
+| OPTIONS | Discover allowed methods | Yes | No | Yes |
+
+A "safe" method does not modify server state. GET and OPTIONS are read-only by definition.
+
+**PATCH vs PUT — when to use which:**
+
+- Use **PUT** when you are sending the complete replacement object. Missing fields get overwritten with defaults or nulls.
+- Use **PATCH** when you are sending only the fields you want to change. Other fields remain untouched.
+
+A common bug to test: `PUT /users/42` called with a partial body silently clears fields not included. Always test that PUT includes all required fields.
+
+**What the Content-Type header does:**
+
+`Content-Type: application/json` tells the server how to parse the request body. If you send JSON but forget this header, many servers return `400 Bad Request` because they don't know how to read the body. When testing APIs, always verify the correct Content-Type is set in both the request and the response.
+
+**401 vs 403 — the most commonly confused pair:**
+
+- **401 Unauthorized**: The server doesn't know who you are. You either sent no token, an expired token, or a malformed token. Fix: log in and get a fresh token.
+- **403 Forbidden**: The server knows exactly who you are, but you don't have permission to perform this action. Fix: your account needs elevated privileges.
+
+Testing tip: always test both 401 (no token) and 403 (wrong role) as separate negative test cases.
 </En>
 <Vi>
 **Cấu trúc HTTP request:**
-- **Method:** GET, POST, PUT, PATCH, DELETE
-- **URL:** endpoint mục tiêu
-- **Headers:** metadata (Content-Type, Authorization)
-- **Body:** dữ liệu gửi với request (chỉ POST/PUT/PATCH)
+
+Mỗi HTTP request có bốn phần. Là kỹ sư QA, bạn cần biết từng phần chứa gì:
+
+| Phần | Mô tả | Ví dụ |
+|------|-------|-------|
+| **Method** | Động từ — hành động cần thực hiện | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+| **URL** | Endpoint mục tiêu (tài nguyên + đường dẫn) | `https://api.example.com/users/42` |
+| **Headers** | Metadata dạng key-value về request | `Content-Type: application/json`, `Authorization: Bearer <token>` |
+| **Body** | Dữ liệu gửi kèm request | `{"email": "alice@example.com"}` — chỉ dùng với POST/PUT/PATCH |
 
 **Cấu trúc HTTP response:**
-- **Status code:** mã kết quả số
-- **Headers:** metadata từ server
-- **Body:** dữ liệu trả về (JSON, HTML, rỗng)
+
+Server luôn trả lời với ba phần:
+
+| Phần | Mô tả | Ví dụ |
+|------|-------|-------|
+| **Status code** | Kết quả dạng số — cho biết điều gì xảy ra | `200`, `404`, `500` |
+| **Headers** | Metadata từ server | `Content-Type: application/json`, `Set-Cookie` |
+| **Body** | Dữ liệu được trả về | JSON object, trang HTML, hoặc rỗng |
 
 **Các status code quan trọng nhất cho kiểm thử API:**
 
-| Code | Ý nghĩa | Khi nào gặp |
-|------|---------|-----------------|
-| 200 | OK | GET, PUT, PATCH thành công |
-| 201 | Created | POST thành công |
-| 204 | No Content | DELETE thành công |
-| 400 | Bad Request | Đầu vào không hợp lệ |
-| 401 | Unauthorized | Thiếu xác thực |
-| 403 | Forbidden | Không có quyền |
-| 404 | Not Found | Tài nguyên không tồn tại |
-| 500 | Internal Server Error | Lỗi trong server |
+| Code | Ý nghĩa | Khi nào gặp trong thực tế |
+|------|---------|--------------------------|
+| 200 | OK | GET, PUT, PATCH thành công — thành công thông thường |
+| 201 | Created | POST tạo tài nguyên thành công |
+| 204 | No Content | DELETE hoặc PATCH thành công nhưng không trả body |
+| 400 | Bad Request | Client gửi dữ liệu sai định dạng |
+| 401 | Unauthorized | Token xác thực thiếu hoặc không hợp lệ |
+| 403 | Forbidden | Đã xác thực nhưng không có quyền |
+| 404 | Not Found | Tài nguyên không tồn tại tại URL đó |
+| 409 | Conflict | Tài nguyên trùng lặp (email đã đăng ký) |
+| 422 | Unprocessable Entity | Dữ liệu hợp lệ về cú pháp nhưng không qua validation |
+| 429 | Too Many Requests | Vượt giới hạn tốc độ |
+| 500 | Internal Server Error | Lỗi hoặc crash phía server |
+| 503 | Service Unavailable | Server quá tải hoặc bảo trì |
 
-**Các HTTP method — ý nghĩa ngữ nghĩa:**
+**HTTP method — ngữ nghĩa và tính idempotent:**
 
-| Method | Mục đích | Idempotent? |
-|--------|---------|-------------|
-| GET | Chỉ đọc | Có |
-| POST | Tạo mới | Không |
-| PUT | Thay thế hoàn toàn | Có |
-| PATCH | Cập nhật một phần | Thường |
-| DELETE | Xoá | Có |
+Idempotent có nghĩa là gọi cùng một request nhiều lần cho kết quả giống như gọi một lần. Điều này quan trọng cho logic retry và thiết kế test.
+
+| Method | Mục đích | Idempotent? | Có Body? | An toàn? |
+|--------|---------|-------------|----------|---------|
+| GET | Đọc tài nguyên | Có | Không | Có |
+| POST | Tạo tài nguyên mới | Không | Có | Không |
+| PUT | Thay thế toàn bộ tài nguyên | Có | Có | Không |
+| PATCH | Cập nhật một phần tài nguyên | Thường | Có | Không |
+| DELETE | Xoá tài nguyên | Có | Tuỳ chọn | Không |
+| OPTIONS | Khám phá method được phép | Có | Không | Có |
+
+Method "an toàn" là method không thay đổi trạng thái server. GET và OPTIONS chỉ đọc theo định nghĩa.
+
+**PATCH vs PUT — khi nào dùng cái nào:**
+
+- Dùng **PUT** khi bạn gửi toàn bộ object thay thế. Các trường thiếu sẽ bị ghi đè bằng giá trị mặc định hoặc null.
+- Dùng **PATCH** khi bạn chỉ gửi các trường muốn thay đổi. Các trường còn lại giữ nguyên.
+
+Lỗi thường gặp cần kiểm thử: `PUT /users/42` gọi với body thiếu trường sẽ âm thầm xoá trắng các trường đó. Luôn kiểm tra PUT có đủ các trường bắt buộc.
+
+**Header Content-Type làm gì:**
+
+`Content-Type: application/json` báo cho server biết cách phân tích body request. Nếu bạn gửi JSON nhưng quên header này, nhiều server trả về `400 Bad Request`. Khi kiểm thử API, luôn xác minh Content-Type đúng cho cả request lẫn response.
+
+**401 vs 403 — cặp hay bị nhầm nhất:**
+
+- **401 Unauthorized**: Server không biết bạn là ai. Bạn không gửi token, token hết hạn, hoặc token sai định dạng. Cách sửa: đăng nhập lại để lấy token mới.
+- **403 Forbidden**: Server biết chính xác bạn là ai, nhưng bạn không có quyền thực hiện hành động này. Cách sửa: tài khoản của bạn cần quyền cao hơn.
+
+Mẹo kiểm thử: luôn viết hai test case âm tính riêng biệt — 401 (không có token) và 403 (sai role).
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Modelling HTTP request and response structures**
+
+</En>
+<Vi>
+
+**Phần 1 — Mô phỏng cấu trúc HTTP request và response**
+
+</Vi>
+
 ```python
-# Simulating HTTP concepts before we use real HTTP libraries (Day 40)
+# Simulating HTTP concepts before using real HTTP libraries (Day 40)
 # This illustrates the structure without making real network calls
 
 def build_request(method: str, url: str, headers: dict = None, body: dict = None) -> dict:
@@ -111,9 +194,6 @@ def simulate_response(status: int, body: dict = None, headers: dict = None) -> d
         "body": body,
     }
 
-def is_success(response: dict) -> bool:
-    return 200 <= response["status_code"] < 300
-
 # Example: POST to create a user
 create_request = build_request(
     "POST",
@@ -122,59 +202,365 @@ create_request = build_request(
 )
 print("Request:", create_request)
 
-# Simulated responses
-success_response = simulate_response(201, {"id": 42, "email": "alice@example.com"})
-auth_error = simulate_response(401, {"error": "Token missing or expired"})
-not_found = simulate_response(404, {"error": "User not found"})
+# Simulated responses representing common API scenarios
+success_201  = simulate_response(201, {"id": 42, "email": "alice@example.com"})
+auth_error   = simulate_response(401, {"error": "Token missing or expired"})
+forbidden    = simulate_response(403, {"error": "Insufficient permissions"})
+not_found    = simulate_response(404, {"error": "User not found"})
+conflict     = simulate_response(409, {"error": "Email already registered"})
 server_error = simulate_response(500, {"error": "Database connection failed"})
+```
 
-# Assertions we'd write in real tests
-assert is_success(success_response)
-assert not is_success(auth_error)
+<En>
 
-# Status code classification
-for resp in [success_response, auth_error, not_found, server_error]:
+**Part 2 — Status code classification and assertion helpers**
+
+</En>
+<Vi>
+
+**Phần 2 — Phân loại status code và các hàm assertion hỗ trợ**
+
+</Vi>
+
+```python
+def is_success(response: dict) -> bool:
+    return 200 <= response["status_code"] < 300
+
+def is_client_error(response: dict) -> bool:
+    return 400 <= response["status_code"] < 500
+
+def is_server_error(response: dict) -> bool:
+    return 500 <= response["status_code"] < 600
+
+def classify(response: dict) -> str:
+    code = response["status_code"]
+    if 200 <= code < 300:
+        return "success"
+    elif 400 <= code < 500:
+        return "client error"
+    elif 500 <= code < 600:
+        return "server error"
+    return "unknown"
+
+# Basic assertions — the kind you'll write in real tests
+assert is_success(success_201),        "Expected 201 to be success"
+assert not is_success(auth_error),     "Expected 401 to not be success"
+assert is_client_error(auth_error),    "Expected 401 to be client error"
+assert is_client_error(forbidden),     "Expected 403 to be client error"
+assert is_server_error(server_error),  "Expected 500 to be server error"
+
+# 401 vs 403 distinction
+assert auth_error["status_code"] == 401,  "No token → 401"
+assert forbidden["status_code"] == 403,   "Wrong role → 403"
+
+# Classify all responses
+all_responses = [success_201, auth_error, forbidden, not_found, conflict, server_error]
+for resp in all_responses:
     code = resp["status_code"]
-    category = (
-        "success" if 200 <= code < 300 else
-        "client error" if 400 <= code < 500 else
-        "server error"
-    )
-    print(f"  {code} → {category}")
+    print(f"  {code} → {classify(resp)}")
+```
+
+<En>
+
+**Part 3 — Simulating PATCH vs PUT behaviour**
+
+</En>
+<Vi>
+
+**Phần 3 — Mô phỏng hành vi PATCH so với PUT**
+
+</Vi>
+
+```python
+# Illustrates the semantic difference between PUT and PATCH
+
+stored_user = {
+    "id": 42,
+    "email": "alice@example.com",
+    "name": "Alice Smith",
+    "role": "admin",
+    "is_active": True,
+}
+
+def apply_put(current: dict, payload: dict) -> dict:
+    """PUT replaces the entire resource — fields not in payload become None."""
+    return {"id": current["id"], **payload}
+
+def apply_patch(current: dict, payload: dict) -> dict:
+    """PATCH merges — only the provided fields are updated."""
+    return {**current, **payload}
+
+# PUT with a partial payload — name and role are wiped out
+put_result = apply_put(stored_user, {"email": "alice@new.com"})
+print("After PUT: ", put_result)
+# {"id": 42, "email": "alice@new.com"}  ← name, role, is_active gone!
+
+# PATCH with a partial payload — only email changes
+patch_result = apply_patch(stored_user, {"email": "alice@new.com"})
+print("After PATCH:", patch_result)
+# {"id": 42, "email": "alice@new.com", "name": "Alice Smith", "role": "admin", "is_active": True}
+
+# Test assertions
+assert "name" not in put_result or put_result.get("name") is None, \
+    "PUT should not preserve fields not in payload"
+assert patch_result["name"] == "Alice Smith", \
+    "PATCH must preserve fields not in payload"
+assert patch_result["email"] == "alice@new.com", \
+    "PATCH must update the provided field"
+
+print("PATCH vs PUT assertions passed!")
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] For each HTTP method (GET, POST, PUT, PATCH, DELETE), write one sentence describing a real use case from an e-commerce API (e.g., GET /products, POST /orders)
-- [ ] Given the status codes 200, 201, 204, 400, 401, 403, 404, 500 — categorize each as success, client error, or server error and give a real example of when each would occur
-- [ ] Draw a simple diagram showing an HTTP request from client to server and the response back, labelling: method, URL, headers, body, status code
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Status code classifier",
+    code: `def classify_status(code: int) -> str:
+    # TODO (EN): Return "success", "client error", or "server error"
+    # based on the status code range. Raise ValueError for unknown ranges.
+    # TODO (VI): Trả về "success", "client error", hoặc "server error"
+    # dựa trên phạm vi status code. Raise ValueError cho phạm vi không xác định.
+    pass
+
+# These assertions must all pass
+assert classify_status(200) == "success"
+assert classify_status(201) == "success"
+assert classify_status(204) == "success"
+assert classify_status(400) == "client error"
+assert classify_status(401) == "client error"
+assert classify_status(404) == "client error"
+assert classify_status(500) == "server error"
+print("All classify_status assertions passed!")`
+  },
+  {
+    title: "Exercise 2 — HTTP method lookup table",
+    code: `# Complete the table with correct values
+HTTP_METHODS = {
+    "GET":    {"idempotent": ???, "has_body": ???, "safe": ???},
+    "POST":   {"idempotent": ???, "has_body": ???, "safe": ???},
+    "PUT":    {"idempotent": ???, "has_body": ???, "safe": ???},
+    "PATCH":  {"idempotent": ???, "has_body": ???, "safe": ???},
+    "DELETE": {"idempotent": ???, "has_body": ???, "safe": ???},
+}
+
+# TODO (EN): Fill in True/False for each field based on HTTP semantics.
+# TODO (VI): Điền True/False cho từng trường dựa trên ngữ nghĩa HTTP.
+
+# Assertions
+assert HTTP_METHODS["GET"]["safe"] is True,     "GET is safe"
+assert HTTP_METHODS["POST"]["idempotent"] is False, "POST is not idempotent"
+assert HTTP_METHODS["DELETE"]["idempotent"] is True, "DELETE is idempotent"
+assert HTTP_METHODS["PUT"]["has_body"] is True,  "PUT has a body"
+print("HTTP method table is correct!")`
+  },
+  {
+    title: "Exercise 3 — 401 vs 403 test cases",
+    code: `def get_resource(token: str, user_role: str) -> dict:
+    """
+    Simulate an auth-gated API endpoint.
+    Rules:
+      - No token (empty string) → 401
+      - Token present but role is not "admin" → 403
+      - Token present and role is "admin" → 200 with data
+    """
+    # TODO (EN): Implement the function following the rules above.
+    # TODO (VI): Triển khai hàm theo các quy tắc trên.
+    pass
+
+# Test cases — all must pass
+no_token    = get_resource("", "admin")
+wrong_role  = get_resource("valid-token", "viewer")
+authorized  = get_resource("valid-token", "admin")
+
+assert no_token["status_code"] == 401,   "No token → 401"
+assert wrong_role["status_code"] == 403, "Wrong role → 403"
+assert authorized["status_code"] == 200, "Admin with token → 200"
+print("Auth test cases passed!")`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Implement `classify_status(code)` that returns the right category string. Handle edge cases (e.g., code 399 or 99) by raising a `ValueError`.
+- [ ] Exercise 2: Fill in the `HTTP_METHODS` lookup table. Every `True`/`False` value must reflect actual HTTP specification semantics — not guesses.
+- [ ] Exercise 3: Implement `get_resource` so that the three provided assertions all pass. Return a dict with at least a `"status_code"` key.
+
+**Hints:**
+- For Exercise 1, use `200 <= code < 300` style range checks.
+- For Exercise 2, remember that idempotent means "same result if called N times". POST creates a new resource each call — that's not idempotent.
+- For Exercise 3, check for empty string token first (401), then check role (403), then return 200 data.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài 1: Triển khai `classify_status(code)` trả về chuỗi danh mục đúng. Xử lý trường hợp biên (ví dụ: code 399 hoặc 99) bằng cách raise `ValueError`.
+- [ ] Bài 2: Điền vào bảng `HTTP_METHODS`. Mỗi giá trị `True`/`False` phải phản ánh ngữ nghĩa đặc tả HTTP thực tế — không phải đoán.
+- [ ] Bài 3: Triển khai `get_resource` sao cho ba assertion được cung cấp đều pass. Trả về dict có ít nhất key `"status_code"`.
+
+**Gợi ý:**
+- Bài 1: Dùng kiểm tra phạm vi kiểu `200 <= code < 300`.
+- Bài 2: Nhớ rằng idempotent nghĩa là "kết quả giống nhau dù gọi N lần". POST tạo tài nguyên mới mỗi lần gọi — đó không phải idempotent.
+- Bài 3: Kiểm tra token rỗng trước (401), rồi kiểm tra role (403), rồi trả về dữ liệu 200.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "A POST request to /api/users succeeds. Which status code should the response have?",
+    qVi: "Một POST request đến /api/users thành công. Status code nào response nên có?",
     choices: [
       "200 OK",
       "201 Created",
       "204 No Content",
       "202 Accepted"
     ],
+    choicesVi: [
+      "200 OK",
+      "201 Created",
+      "204 No Content",
+      "202 Accepted"
+    ],
     answer: 1,
-    explain: "201 Created is the semantically correct response for a successful resource creation. 200 is for general success (used with GET/PUT). 204 means success with no response body (common for DELETE). A POST that creates a resource should return 201."
+    explain: "201 Created is the semantically correct response for a successful resource creation. 200 is for general success (used with GET/PUT). 204 means success with no response body (common for DELETE). A POST that creates a resource should return 201.",
+    explainVi: "201 Created là response ngữ nghĩa đúng cho việc tạo tài nguyên thành công. 200 dùng cho thành công thông thường (GET/PUT). 204 nghĩa là thành công nhưng không có body (thường dùng cho DELETE). POST tạo tài nguyên nên trả về 201."
   },
   {
     q: "What is the difference between 401 and 403?",
+    qVi: "Sự khác nhau giữa 401 và 403 là gì?",
     choices: [
-      "401 means the server is down, 403 means it's overloaded",
-      "401 means not authenticated (who are you?), 403 means not authorized (you're logged in but not allowed)",
+      "401 means the server is down, 403 means it is overloaded",
+      "401 means not authenticated (who are you?), 403 means not authorized (you are logged in but not allowed)",
       "They are the same and used interchangeably",
       "401 is for APIs, 403 is for websites"
     ],
+    choicesVi: [
+      "401 nghĩa là server bị down, 403 là server bị quá tải",
+      "401 nghĩa là chưa xác thực (bạn là ai?), 403 nghĩa là không có quyền (đã đăng nhập nhưng không được phép)",
+      "Chúng giống nhau và có thể dùng thay nhau",
+      "401 dùng cho API, 403 dùng cho website"
+    ],
     answer: 1,
-    explain: "401 Unauthorized means the request lacks valid authentication — the server doesn't know who you are. 403 Forbidden means the server knows who you are (authenticated) but you don't have permission to access that resource."
+    explain: "401 Unauthorized means the request lacks valid authentication — the server does not know who you are. 403 Forbidden means the server knows who you are (authenticated) but you do not have permission to access that resource.",
+    explainVi: "401 Unauthorized có nghĩa là request thiếu xác thực hợp lệ — server không biết bạn là ai. 403 Forbidden có nghĩa là server biết bạn là ai (đã xác thực) nhưng bạn không có quyền truy cập tài nguyên đó."
+  },
+  {
+    q: "Which HTTP method is NOT idempotent?",
+    qVi: "HTTP method nào KHÔNG phải idempotent?",
+    choices: [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    choicesVi: [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE"
+    ],
+    answer: 2,
+    explain: "POST is not idempotent because each call creates a new resource. Sending the same POST twice results in two separate resources with different IDs. GET, PUT, and DELETE are idempotent — calling them multiple times with the same input has the same effect as calling them once.",
+    explainVi: "POST không phải idempotent vì mỗi lần gọi tạo ra một tài nguyên mới. Gửi cùng một POST hai lần dẫn đến hai tài nguyên riêng biệt với ID khác nhau. GET, PUT, và DELETE là idempotent — gọi chúng nhiều lần với cùng đầu vào có cùng kết quả như gọi một lần."
+  },
+  {
+    q: "What does idempotent mean for HTTP methods?",
+    qVi: "Idempotent có nghĩa gì đối với HTTP method?",
+    choices: [
+      "The request is encrypted and safe from interception",
+      "Calling the same request multiple times has the same effect as calling it once",
+      "The method does not require a request body",
+      "The server always returns a 200 status code"
+    ],
+    choicesVi: [
+      "Request được mã hoá và an toàn khỏi bị nghe lén",
+      "Gọi cùng một request nhiều lần có cùng kết quả như gọi một lần",
+      "Method không yêu cầu request body",
+      "Server luôn trả về status code 200"
+    ],
+    answer: 1,
+    explain: "Idempotent means the side effect of N identical requests is the same as a single request. DELETE /users/42 called three times removes the user once — the second and third calls return 404, but the state of the system is unchanged from the first call.",
+    explainVi: "Idempotent có nghĩa là tác động phụ của N request giống nhau bằng với một request duy nhất. DELETE /users/42 gọi ba lần xoá user một lần — lần gọi thứ hai và thứ ba trả về 404, nhưng trạng thái hệ thống không thay đổi so với lần gọi đầu tiên."
+  },
+  {
+    q: "When should you use PATCH instead of PUT?",
+    qVi: "Khi nào nên dùng PATCH thay vì PUT?",
+    choices: [
+      "When you want to delete a field from a resource",
+      "When you only want to update specific fields without affecting the rest of the resource",
+      "When the server does not support PUT",
+      "When the request body is empty"
+    ],
+    choicesVi: [
+      "Khi bạn muốn xoá một trường khỏi tài nguyên",
+      "Khi bạn chỉ muốn cập nhật các trường cụ thể mà không ảnh hưởng phần còn lại của tài nguyên",
+      "Khi server không hỗ trợ PUT",
+      "Khi body request rỗng"
+    ],
+    answer: 1,
+    explain: "PATCH is a partial update — you send only the fields you want to change, and the server merges them with the existing resource. PUT replaces the entire resource, so any field you omit from the body may be cleared. Use PATCH for targeted updates.",
+    explainVi: "PATCH là cập nhật một phần — bạn chỉ gửi các trường muốn thay đổi và server hợp nhất chúng với tài nguyên hiện tại. PUT thay thế toàn bộ tài nguyên, vì vậy bất kỳ trường nào bạn bỏ qua trong body có thể bị xoá. Dùng PATCH cho các cập nhật có mục tiêu."
+  },
+  {
+    q: "What does the Content-Type request header tell the server?",
+    qVi: "Header Content-Type trong request cho server biết điều gì?",
+    choices: [
+      "The size of the response the client can handle",
+      "How to parse the request body — the format of the data being sent",
+      "Whether the request requires authentication",
+      "The version of HTTP being used"
+    ],
+    choicesVi: [
+      "Kích thước response mà client có thể xử lý",
+      "Cách phân tích body request — định dạng dữ liệu đang được gửi",
+      "Request có yêu cầu xác thực không",
+      "Phiên bản HTTP đang sử dụng"
+    ],
+    answer: 1,
+    explain: "Content-Type tells the server the media type of the request body. For example, Content-Type: application/json tells the server to parse the body as JSON. If omitted, the server may return 400 Bad Request because it cannot determine how to interpret the body.",
+    explainVi: "Content-Type cho server biết media type của body request. Ví dụ, Content-Type: application/json cho server biết phân tích body dưới dạng JSON. Nếu bỏ qua, server có thể trả về 400 Bad Request vì không thể xác định cách diễn giải body."
+  },
+  {
+    q: "A successful DELETE /api/orders/99 request returns no body. Which status code is most appropriate?",
+    qVi: "Request DELETE /api/orders/99 thành công không trả về body. Status code nào phù hợp nhất?",
+    choices: [
+      "200 OK",
+      "201 Created",
+      "204 No Content",
+      "404 Not Found"
+    ],
+    choicesVi: [
+      "200 OK",
+      "201 Created",
+      "204 No Content",
+      "404 Not Found"
+    ],
+    answer: 2,
+    explain: "204 No Content signals success but explicitly tells the client there is no body to read. It is the standard response for DELETE and for PATCH/PUT operations where the server chooses not to return the updated resource.",
+    explainVi: "204 No Content báo hiệu thành công nhưng rõ ràng cho client biết không có body để đọc. Đây là response tiêu chuẩn cho DELETE và cho các thao tác PATCH/PUT khi server chọn không trả về tài nguyên đã cập nhật."
+  },
+  {
+    q: "What does 422 Unprocessable Entity mean, specifically?",
+    qVi: "422 Unprocessable Entity có nghĩa cụ thể là gì?",
+    choices: [
+      "The server could not parse the JSON syntax — it is malformed",
+      "The request was syntactically valid but failed business validation rules (e.g., email format wrong, required field missing)",
+      "The requested resource does not exist",
+      "The server is too busy to handle the request"
+    ],
+    choicesVi: [
+      "Server không thể phân tích cú pháp JSON — nó bị lỗi định dạng",
+      "Request có cú pháp hợp lệ nhưng không qua được quy tắc validation nghiệp vụ (ví dụ: sai định dạng email, thiếu trường bắt buộc)",
+      "Tài nguyên được yêu cầu không tồn tại",
+      "Server quá bận để xử lý request"
+    ],
+    answer: 1,
+    explain: "422 means the server understood the content type and the body was syntactically valid JSON, but the content itself failed validation. For example, sending an email field without an @ symbol or a required field set to null. Compare to 400, which often means the body was unparseable.",
+    explainVi: "422 có nghĩa là server hiểu content type và body là JSON có cú pháp hợp lệ, nhưng nội dung không qua validation. Ví dụ, gửi trường email không có ký tự @ hoặc trường bắt buộc được đặt thành null. So với 400, thường có nghĩa là body không thể phân tích được."
   }
 ]} />
 

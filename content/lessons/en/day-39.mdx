@@ -20,74 +20,148 @@ Một collection test chỉ hoạt động với một URL không thể tái s�
 <En>
 **Variable scopes in Postman (narrowest wins):**
 
-| Scope | Set via | Available |
-|-------|---------|-----------|
-| Global | Globals panel | Everywhere, always |
-| Environment | Environment panel | Active environment only |
-| Collection | Collection > Variables | That collection only |
-| Local | `pm.variables.set()` | Current request only |
+| Scope | Set via | Available | Typical use |
+|-------|---------|-----------|-------------|
+| Global | Globals panel | Everywhere, always | Rarely — prefer Environment |
+| Environment | Environment panel | Active environment only | `base_url`, `api_key` per env |
+| Collection | Collection > Variables | That collection only | Shared constants across requests |
+| Local | `pm.variables.set()` | Current request only | Temporary per-request data |
+
+When the same name exists in multiple scopes, the **narrowest scope wins**. So a local variable always beats an environment variable of the same name. Use this intentionally — never accidentally.
 
 **Common variable naming convention:**
 - `base_url` — `https://api.staging.example.com`
-- `api_key` — sensitive; use Postman Secret type
-- `auth_token` — set dynamically from login response
-- `user_id` — set from a create response, used in subsequent tests
+- `api_key` — sensitive; use Postman's **Secret** type so the value is masked in logs
+- `auth_token` — set dynamically from a login response, never stored in plain text
+- `user_id` — set from a create-user response, then used by later requests in the same run
 
-**Dynamic variables (built-in):**
-- `{{$randomEmail}}` — random email
-- `{{$randomUUID}}` — random UUID
-- `{{$timestamp}}` — current Unix timestamp
-- `{{$isoTimestamp}}` — ISO 8601 timestamp
+**Dynamic variables (built-in, no script needed):**
+- `{{$randomEmail}}` — generates `foo12345@bar.org` on every send
+- `{{$randomUUID}}` — unique UUID like `f47ac10b-58cc-4372-a567-0e02b2c3d479`
+- `{{$timestamp}}` — current Unix timestamp as an integer
+- `{{$isoTimestamp}}` — ISO 8601 string like `2024-01-15T10:30:00.000Z`
+- `{{$randomInt}}` — random integer between 0 and 1000
+
+Dynamic variables are resolved at send time. Use them in request bodies, URLs, and headers without any pre-request script.
 
 **Pre-request scripts — generate dynamic data before sending:**
+
 ```javascript
-// Generate unique email for this test run
+// Generate a unique email for this test run so each run creates a fresh user
 const timestamp = Date.now();
 pm.variables.set("test_email", `test+${timestamp}@example.com`);
+
+// You can also compute values based on other variables
+const userId = pm.environment.get("user_id");
+pm.variables.set("profile_url", `/users/${userId}/profile`);
 ```
 
+Pre-request scripts run **before** the request is sent. Tests scripts run **after** the response arrives. This separation lets you prepare data, send the request, then validate the result — all in one automated step.
+
 **Chaining requests — the key workflow:**
-1. POST /auth/login → save `token` to environment
+
+The most powerful Postman technique is saving values from one response and using them in the next request:
+
+1. POST /auth/login → extract `token` from response → `pm.environment.set("token", body.token)`
 2. GET /users → send `Authorization: Bearer {{token}}`
-3. POST /users → create user, save `user_id`
-4. DELETE `/users/{{user_id}}` → clean up
+3. POST /users → create user, save `user_id` from response
+4. GET `/users/{{user_id}}` → verify the created user
+5. DELETE `/users/{{user_id}}` → clean up after the test run
+
+This chain is run as a Postman Collection Runner in CI, or manually when you need to quickly test a full workflow against a new environment.
+
+**pm.variables vs pm.environment — when to use each:**
+
+- `pm.variables.set()` — local scope, gone after the request finishes. Use for temporary computed values within a single request.
+- `pm.environment.set()` — persists for the duration of the session. Use when the value needs to be available in later requests.
+- `pm.globals.set()` — persists across all environments. Avoid unless truly global configuration; prefer environment scope.
+
+**Referencing variables in request fields:**
+
+Use double-brace syntax everywhere in Postman — URL, headers, body, params:
+- URL: `{{base_url}}/posts/{{post_id}}`
+- Header value: `Bearer {{auth_token}}`
+- JSON body: `{ "email": "{{test_email}}", "userId": {{user_id}} }`
+
+If a variable does not exist in the current scope, Postman leaves the placeholder unreplaced — you get a literal `{{post_id}}` in the request. Watch for this in failed tests; it almost always means a scoping or ordering issue.
 </En>
 <Vi>
 **Phạm vi biến trong Postman (hẹp hơn thắng):**
 
-| Phạm vi | Đặt qua | Có sẵn |
-|-------|---------|-----------|
-| Global | Panel Globals | Mọi nơi, luôn luôn |
-| Environment | Panel Environment | Chỉ môi trường đang hoạt động |
-| Collection | Collection > Variables | Chỉ collection đó |
-| Local | `pm.variables.set()` | Chỉ request hiện tại |
+| Phạm vi | Đặt qua | Có sẵn | Dùng điển hình |
+|-------|---------|-----------|-------------|
+| Global | Panel Globals | Mọi nơi, luôn luôn | Hiếm khi — ưu tiên dùng Environment |
+| Environment | Panel Environment | Chỉ môi trường đang hoạt động | `base_url`, `api_key` theo môi trường |
+| Collection | Collection > Variables | Chỉ collection đó | Hằng số dùng chung giữa các request |
+| Local | `pm.variables.set()` | Chỉ request hiện tại | Dữ liệu tạm thời trong một request |
 
-**Biến động (tích hợp sẵn):**
-- `{{$randomEmail}}` — email ngẫu nhiên
-- `{{$randomUUID}}` — UUID ngẫu nhiên
-- `{{$timestamp}}` — Unix timestamp hiện tại
+Khi cùng một tên tồn tại ở nhiều phạm vi, **phạm vi hẹp nhất thắng**. Biến local luôn ghi đè biến environment cùng tên. Hãy sử dụng điều này có chủ ý — không phải vô tình.
+
+**Quy ước đặt tên biến phổ biến:**
+- `base_url` — `https://api.staging.example.com`
+- `api_key` — nhạy cảm; dùng loại **Secret** của Postman để giá trị bị ẩn trong log
+- `auth_token` — đặt động từ response đăng nhập, không bao giờ lưu dưới dạng văn bản thường
+- `user_id` — đặt từ response tạo user, sau đó dùng trong các request tiếp theo
+
+**Biến động (tích hợp sẵn, không cần script):**
+- `{{$randomEmail}}` — tạo email ngẫu nhiên như `foo12345@bar.org` mỗi lần gửi
+- `{{$randomUUID}}` — UUID duy nhất như `f47ac10b-58cc-4372-a567-0e02b2c3d479`
+- `{{$timestamp}}` — Unix timestamp hiện tại dạng số nguyên
+- `{{$isoTimestamp}}` — chuỗi ISO 8601 như `2024-01-15T10:30:00.000Z`
+- `{{$randomInt}}` — số nguyên ngẫu nhiên từ 0 đến 1000
+
+Biến động được giải quyết tại thời điểm gửi. Dùng chúng trong body, URL và header mà không cần pre-request script.
 
 **Pre-request script — tạo dữ liệu động trước khi gửi:**
-```javascript
-const timestamp = Date.now();
-pm.variables.set("test_email", `test+${timestamp}@example.com`);
-```
+
+Pre-request script chạy **trước** khi request được gửi. Test script chạy **sau** khi response đến. Sự tách biệt này cho phép bạn chuẩn bị dữ liệu, gửi request, rồi xác nhận kết quả — tất cả trong một bước tự động.
 
 **Chuỗi request — quy trình làm việc chính:**
-1. POST /auth/login → lưu `token` vào environment
+
+Kỹ thuật Postman mạnh nhất là lưu giá trị từ một response và dùng trong request tiếp theo:
+
+1. POST /auth/login → trích xuất `token` → `pm.environment.set("token", body.token)`
 2. GET /users → gửi `Authorization: Bearer {{token}}`
-3. POST /users → tạo user, lưu `user_id`
-4. DELETE `/users/{{user_id}}` → dọn dẹp
+3. POST /users → tạo user, lưu `user_id` từ response
+4. GET `/users/{{user_id}}` → xác minh user đã tạo
+5. DELETE `/users/{{user_id}}` → dọn dẹp sau khi chạy test
+
+**pm.variables vs pm.environment — khi nào dùng cái nào:**
+
+- `pm.variables.set()` — phạm vi local, mất sau khi request kết thúc. Dùng cho giá trị tính toán tạm thời trong một request.
+- `pm.environment.set()` — tồn tại trong suốt phiên làm việc. Dùng khi giá trị cần có sẵn trong các request sau.
+- `pm.globals.set()` — tồn tại qua tất cả môi trường. Tránh dùng trừ khi thực sự là cấu hình toàn cục.
+
+**Tham chiếu biến trong các trường request:**
+
+Dùng cú pháp double-brace ở mọi nơi trong Postman — URL, header, body, params:
+- URL: `{{base_url}}/posts/{{post_id}}`
+- Giá trị header: `Bearer {{auth_token}}`
+- Body JSON: `{ "email": "{{test_email}}", "userId": {{user_id}} }`
+
+Nếu một biến không tồn tại trong phạm vi hiện tại, Postman để nguyên placeholder — bạn sẽ thấy `{{post_id}}` trong request. Hãy chú ý điều này trong các test thất bại; đây hầu như luôn là vấn đề về phạm vi hoặc thứ tự.
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — GET with a dynamic page variable (pre-request + tests)**
+
+</En>
+<Vi>
+
+**Phần 1 — GET với biến trang động (pre-request + tests)**
+
+</Vi>
+
 ```javascript
-// --- Request 1: GET /posts (pre-request script tab) ---
-// Generate a random page number for variety
+// --- Request 1: GET /posts ---
+// Pre-request script tab: generate a random page so each run is slightly different
 pm.variables.set("page", Math.floor(Math.random() * 5) + 1);
 
 // URL: {{base_url}}/posts?_page={{page}}&_limit=5
+
 // Tests tab:
 pm.test("Status is 200", () => pm.response.to.have.status(200));
 pm.test("Returns array", () => {
@@ -96,9 +170,29 @@ pm.test("Returns array", () => {
 pm.test("Returns at most 5 items", () => {
     pm.expect(pm.response.json().length).to.be.at.most(5);
 });
+pm.test("Each post has required fields", () => {
+    pm.response.json().forEach(post => {
+        pm.expect(post).to.have.property("id");
+        pm.expect(post).to.have.property("title");
+        pm.expect(post).to.have.property("userId");
+    });
+});
+```
 
+<En>
+
+**Part 2 — POST and chain the created id into the next request**
+
+</En>
+<Vi>
+
+**Phần 2 — POST và chuỗi id đã tạo vào request tiếp theo**
+
+</Vi>
+
+```javascript
 // --- Request 2: POST /posts ---
-// Pre-request script:
+// Pre-request script: stamp the title with a timestamp for uniqueness
 const ts = Date.now();
 pm.variables.set("post_title", `Test Post ${ts}`);
 pm.variables.set("post_userId", 1);
@@ -113,9 +207,10 @@ pm.variables.set("post_userId", 1);
 // Tests tab:
 pm.test("Status is 201", () => pm.response.to.have.status(201));
 
-pm.test("Response has id", () => {
+pm.test("Response has id — save to environment for next request", () => {
     const body = pm.response.json();
     pm.expect(body).to.have.property("id");
+    // Chain: save the new post id so Request 3 can fetch it
     pm.environment.set("created_post_id", body.id);
 });
 
@@ -123,50 +218,301 @@ pm.test("Title matches sent value", () => {
     const body = pm.response.json();
     pm.expect(body.title).to.equal(pm.variables.get("post_title"));
 });
+```
 
+<En>
+
+**Part 3 — GET the created post by chained id and validate**
+
+</En>
+<Vi>
+
+**Phần 3 — GET bài viết đã tạo bằng id đã chuỗi và xác nhận**
+
+</Vi>
+
+```javascript
 // --- Request 3: GET /posts/{{created_post_id}} ---
-// Tests:
+// URL uses the environment variable set in Request 2's Tests tab
+
+// Tests tab:
 pm.test("Status is 200", () => pm.response.to.have.status(200));
-pm.test("Id matches created post", () => {
+
+pm.test("Id matches the created post", () => {
     const body = pm.response.json();
     pm.expect(body.id).to.equal(
         parseInt(pm.environment.get("created_post_id"))
     );
 });
+
+pm.test("Post has all required fields", () => {
+    const body = pm.response.json();
+    ["id", "title", "body", "userId"].forEach(field => {
+        pm.expect(body).to.have.property(field);
+    });
+});
+
+// Clean up the environment variable after the chain is done
+pm.environment.unset("created_post_id");
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] In Postman, create two environments: "JSONPlaceholder Dev" (`base_url = https://jsonplaceholder.typicode.com`) and "JSONPlaceholder Alt" (same URL but add `limit = 5`) — run your collection under each environment
-- [ ] Use a pre-request script to generate a unique title using `Date.now()`, then assert in the Tests tab that the response title matches what you sent
-- [ ] Chain three requests: GET all posts → save the first post's id → GET that specific post by id → assert the ids match
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Environment setup and switching",
+    code: `// Open Postman and paste this into the Tests tab of any request.
+// First, create two environments:
+//   "JSONPlaceholder Dev"  → base_url = https://jsonplaceholder.typicode.com
+//   "JSONPlaceholder Alt"  → base_url = https://jsonplaceholder.typicode.com
+//                            limit    = 5
+//
+// Then run your collection under each environment and verify both pass.
+
+// Tests tab — check the active environment name:
+pm.test("Active environment is set", () => {
+    // TODO: assert that pm.environment.name is not empty
+    // HINT: pm.environment.name returns the active environment name as a string
+    const envName = ???;
+    pm.expect(envName).to.be.a("string").and.not.empty;
+});
+
+pm.test("base_url variable is defined", () => {
+    // TODO: get base_url from the environment and assert it starts with "https://"
+    const baseUrl = ???;
+    pm.expect(baseUrl).to.match(/^https:\/\//);
+});`
+  },
+  {
+    title: "Exercise 2 — Pre-request script with unique title",
+    code: `// Pre-request script tab — generate a unique title using Date.now()
+// TODO (EN): Set a local variable "post_title" to "Test Post " + the current timestamp
+// TODO (VI): Đặt biến local "post_title" thành "Test Post " + timestamp hiện tại
+const timestamp = ???;
+pm.variables.set("post_title", ???);
+
+// Request body should reference {{post_title}}:
+// { "title": "{{post_title}}", "body": "body text", "userId": 1 }
+
+// Tests tab — assert the title in the response matches what was sent:
+pm.test("Title in response matches sent title", () => {
+    const body = pm.response.json();
+    const sentTitle = ???; // TODO: read back the local variable
+    pm.expect(body.title).to.equal(sentTitle);
+});`
+  },
+  {
+    title: "Exercise 3 — Chain three requests",
+    code: `// Request 1 Tests tab: GET /posts — save the first post id
+pm.test("Save first post id to environment", () => {
+    const posts = pm.response.json();
+    pm.expect(posts).to.be.an("array").with.length.above(0);
+    // TODO (EN): save posts[0].id to the environment as "chained_post_id"
+    // TODO (VI): lưu posts[0].id vào environment với tên "chained_post_id"
+    pm.environment.set("chained_post_id", ???);
+});
+
+// Request 2 Tests tab: GET /posts/{{chained_post_id}}
+pm.test("Chained id matches fetched post id", () => {
+    const body = pm.response.json();
+    const savedId = parseInt(pm.environment.get("chained_post_id"));
+    // TODO (EN): assert body.id equals savedId
+    // TODO (VI): khẳng định body.id bằng savedId
+    pm.expect(???).to.equal(???);
+});
+
+// Request 3 Tests tab: GET /posts/{{chained_post_id}}/comments
+pm.test("Comments belong to the chained post", () => {
+    const comments = pm.response.json();
+    const postId = parseInt(pm.environment.get("chained_post_id"));
+    // TODO: assert every comment has postId === postId
+    comments.forEach(comment => {
+        pm.expect(???).to.equal(???);
+    });
+    pm.environment.unset("chained_post_id"); // clean up
+});`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Open Postman and create a collection called "Phase 4 Exercises"
+- [ ] Add the "JSONPlaceholder Dev" environment with `base_url = https://jsonplaceholder.typicode.com`
+- [ ] For Exercise 1: create a second "JSONPlaceholder Alt" environment with `limit = 5` added, switch between them and confirm both run cleanly
+- [ ] For Exercise 2: use the pre-request script to set a timestamped title, send a POST to `/posts`, then assert the title echoes back
+- [ ] For Exercise 3: create three sequential requests — GET /posts, GET /posts/`{{chained_post_id}}`, GET /posts/`{{chained_post_id}}`/comments — and fill in the `???` placeholders
+
+> Note: Open Postman and paste each snippet into the relevant **Pre-request Script** or **Tests** tab. The `{{base_url}}` placeholder is resolved from your active environment.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Mở Postman và tạo một collection tên "Phase 4 Exercises"
+- [ ] Thêm môi trường "JSONPlaceholder Dev" với `base_url = https://jsonplaceholder.typicode.com`
+- [ ] Bài 1: tạo môi trường thứ hai "JSONPlaceholder Alt" có thêm `limit = 5`, chuyển đổi giữa hai môi trường và xác nhận cả hai chạy thành công
+- [ ] Bài 2: dùng pre-request script để đặt tiêu đề có timestamp, gửi POST đến `/posts`, rồi khẳng định tiêu đề được phản hồi lại
+- [ ] Bài 3: tạo ba request tuần tự — GET /posts, GET /posts/`{{chained_post_id}}`, GET /posts/`{{chained_post_id}}`/comments — và điền vào các chỗ `???`
+
+> Lưu ý: Mở Postman và dán mỗi đoạn code vào tab **Pre-request Script** hoặc **Tests** tương ứng. Placeholder `{{base_url}}` được giải quyết từ môi trường đang hoạt động.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "If the same variable name is set in both Global and Environment scope, which value wins?",
+    qVi: "Nếu cùng một tên biến được đặt ở cả phạm vi Global và Environment, giá trị nào thắng?",
     choices: [
       "Global — it has the highest priority",
       "Environment — narrower scope overrides broader scope",
       "They throw an error — duplicate variables are not allowed",
       "The last one written wins"
     ],
+    choicesVi: [
+      "Global — nó có độ ưu tiên cao nhất",
+      "Environment — phạm vi hẹp hơn ghi đè phạm vi rộng hơn",
+      "Chúng báo lỗi — không cho phép biến trùng lặp",
+      "Cái được ghi sau cùng thắng"
+    ],
     answer: 1,
-    explain: "Postman resolves variables from narrowest to broadest: Local > Data > Environment > Collection > Global. Environment overrides Global for the same variable name — allowing per-environment overrides of global defaults."
+    explain: "Postman resolves variables from narrowest to broadest: Local > Data > Environment > Collection > Global. Environment overrides Global for the same variable name — allowing per-environment overrides of global defaults.",
+    explainVi: "Postman giải quyết biến từ hẹp nhất đến rộng nhất: Local > Data > Environment > Collection > Global. Environment ghi đè Global cho cùng tên biến — cho phép ghi đè theo từng môi trường của các giá trị mặc định toàn cục."
   },
   {
     q: "What is the purpose of `pm.environment.set('token', value)` in a login request's test script?",
+    qVi: "Mục đích của `pm.environment.set('token', value)` trong test script của request đăng nhập là gì?",
     choices: [
       "It validates the token format",
       "It saves the token so subsequent requests in the collection can use it via {{token}}",
       "It sends the token back to the server",
       "It creates a new environment"
     ],
+    choicesVi: [
+      "Nó xác nhận định dạng token",
+      "Nó lưu token để các request tiếp theo trong collection có thể dùng qua {{token}}",
+      "Nó gửi token trở lại server",
+      "Nó tạo một môi trường mới"
+    ],
     answer: 1,
-    explain: "Saving to the environment allows chaining — the login request extracts the token from the response and stores it, then all subsequent requests can reference {{token}} in their Authorization header without re-logging in."
+    explain: "Saving to the environment allows chaining — the login request extracts the token from the response and stores it, then all subsequent requests can reference {{token}} in their Authorization header without re-logging in.",
+    explainVi: "Lưu vào environment cho phép chuỗi request — request đăng nhập trích xuất token từ response và lưu lại, sau đó tất cả request tiếp theo có thể tham chiếu {{token}} trong Authorization header mà không cần đăng nhập lại."
+  },
+  {
+    q: "What does `{{$randomEmail}}` generate in Postman?",
+    qVi: "`{{$randomEmail}}` tạo ra gì trong Postman?",
+    choices: [
+      "An email address from your Postman account",
+      "A randomly generated email address each time the request is sent",
+      "The email stored in the active environment variable",
+      "It always generates the same email for the current collection"
+    ],
+    choicesVi: [
+      "Một địa chỉ email từ tài khoản Postman của bạn",
+      "Một địa chỉ email được tạo ngẫu nhiên mỗi lần request được gửi",
+      "Email được lưu trong biến môi trường đang hoạt động",
+      "Nó luôn tạo cùng một email cho collection hiện tại"
+    ],
+    answer: 1,
+    explain: "Dynamic variables like {{$randomEmail}} are resolved fresh on every send — no script required. They are ideal for creating unique test data (emails, UUIDs, names) without any pre-request setup.",
+    explainVi: "Các biến động như {{$randomEmail}} được giải quyết mới mỗi lần gửi — không cần script. Chúng lý tưởng để tạo dữ liệu test duy nhất (email, UUID, tên) mà không cần thiết lập pre-request."
+  },
+  {
+    q: "When would you use Global scope instead of Environment scope for a variable?",
+    qVi: "Khi nào bạn sẽ dùng phạm vi Global thay vì phạm vi Environment cho một biến?",
+    choices: [
+      "Always — Global is more reliable than Environment",
+      "When a value is truly shared across all environments and collections, like a feature flag toggle used in testing",
+      "When you want the variable to expire after one request",
+      "When the variable contains sensitive data like passwords"
+    ],
+    choicesVi: [
+      "Luôn luôn — Global đáng tin cậy hơn Environment",
+      "Khi một giá trị thực sự được chia sẻ trên tất cả môi trường và collection, như cờ tính năng dùng trong kiểm thử",
+      "Khi bạn muốn biến hết hạn sau một request",
+      "Khi biến chứa dữ liệu nhạy cảm như mật khẩu"
+    ],
+    answer: 1,
+    explain: "Global scope is appropriate only for values that genuinely apply everywhere — for example, a shared timeout value or a universal API version string. Most variables belong in Environment scope so they can differ between dev, staging, and prod.",
+    explainVi: "Phạm vi Global chỉ phù hợp cho các giá trị thực sự áp dụng ở mọi nơi — ví dụ, giá trị timeout chung hoặc chuỗi phiên bản API toàn cục. Hầu hết các biến thuộc phạm vi Environment để chúng có thể khác nhau giữa dev, staging và prod."
+  },
+  {
+    q: "What is a pre-request script used for in Postman?",
+    qVi: "Pre-request script trong Postman dùng để làm gì?",
+    choices: [
+      "It runs after the response is received to validate fields",
+      "It executes before the request is sent to set variables, generate data, or set up authentication",
+      "It logs the response to the Postman console",
+      "It is required for all requests that use environment variables"
+    ],
+    choicesVi: [
+      "Nó chạy sau khi response được nhận để xác nhận các trường",
+      "Nó thực thi trước khi request được gửi để đặt biến, tạo dữ liệu, hoặc thiết lập xác thực",
+      "Nó ghi log response vào console Postman",
+      "Nó bắt buộc cho tất cả request dùng biến môi trường"
+    ],
+    answer: 1,
+    explain: "Pre-request scripts run before the HTTP request is sent. Common uses include generating unique test data (timestamps, random values), computing auth signatures, or setting variables that will be injected into the request URL or body.",
+    explainVi: "Pre-request script chạy trước khi HTTP request được gửi. Các dùng phổ biến bao gồm tạo dữ liệu test duy nhất (timestamp, giá trị ngẫu nhiên), tính toán chữ ký xác thực, hoặc đặt biến sẽ được chèn vào URL hoặc body của request."
+  },
+  {
+    q: "How do you reference an environment variable named `base_url` in a Postman request URL?",
+    qVi: "Làm thế nào để tham chiếu biến môi trường tên `base_url` trong URL request Postman?",
+    choices: [
+      "$base_url",
+      "%(base_url)s",
+      "{{base_url}}",
+      "${base_url}"
+    ],
+    choicesVi: [
+      "$base_url",
+      "%(base_url)s",
+      "{{base_url}}",
+      "${base_url}"
+    ],
+    answer: 2,
+    explain: "Postman uses double-brace syntax {{variable_name}} to reference variables in URLs, headers, body, and query params. This is resolved at send time from the narrowest matching scope.",
+    explainVi: "Postman dùng cú pháp double-brace {{variable_name}} để tham chiếu biến trong URL, header, body và query param. Điều này được giải quyết tại thời điểm gửi từ phạm vi khớp hẹp nhất."
+  },
+  {
+    q: "What happens when you reference `{{user_id}}` in a URL but the variable `user_id` doesn't exist in the current environment?",
+    qVi: "Điều gì xảy ra khi bạn tham chiếu `{{user_id}}` trong URL nhưng biến `user_id` không tồn tại trong môi trường hiện tại?",
+    choices: [
+      "Postman throws an error and blocks the request",
+      "Postman replaces it with an empty string",
+      "The literal text {{user_id}} is sent in the URL, which will likely cause a 404 or 400 error",
+      "Postman automatically uses the Global scope value instead"
+    ],
+    choicesVi: [
+      "Postman báo lỗi và chặn request",
+      "Postman thay thế nó bằng chuỗi rỗng",
+      "Văn bản {{user_id}} được gửi trong URL, có thể gây ra lỗi 404 hoặc 400",
+      "Postman tự động dùng giá trị phạm vi Global thay thế"
+    ],
+    answer: 2,
+    explain: "Postman does not error on missing variables — it leaves the raw {{user_id}} placeholder in the URL. This typically results in a 404 or 400 from the server. Always check the Postman console to see the actual resolved URL when debugging.",
+    explainVi: "Postman không báo lỗi khi biến bị thiếu — nó để nguyên placeholder {{user_id}} trong URL. Điều này thường dẫn đến 404 hoặc 400 từ server. Luôn kiểm tra console Postman để xem URL đã được giải quyết thực sự khi debug."
+  },
+  {
+    q: "What is the key difference between `pm.variables.set()` and `pm.environment.set()`?",
+    qVi: "Sự khác biệt chính giữa `pm.variables.set()` và `pm.environment.set()` là gì?",
+    choices: [
+      "pm.variables.set() is only available in pre-request scripts; pm.environment.set() only in tests",
+      "pm.variables.set() is local to the current request and lost after it completes; pm.environment.set() persists across requests in the session",
+      "They are identical — both set environment-level variables",
+      "pm.environment.set() requires an environment to be active; pm.variables.set() works without one"
+    ],
+    choicesVi: [
+      "pm.variables.set() chỉ có trong pre-request script; pm.environment.set() chỉ trong tests",
+      "pm.variables.set() là local cho request hiện tại và mất sau khi hoàn thành; pm.environment.set() tồn tại qua các request trong phiên",
+      "Chúng giống hệt nhau — cả hai đều đặt biến cấp environment",
+      "pm.environment.set() yêu cầu môi trường đang hoạt động; pm.variables.set() hoạt động không cần"
+    ],
+    answer: 1,
+    explain: "pm.variables.set() writes to the local scope — the value only lives for the duration of the current request's script execution. pm.environment.set() writes to the active environment, so the value is accessible by all subsequent requests in the collection run.",
+    explainVi: "pm.variables.set() ghi vào phạm vi local — giá trị chỉ tồn tại trong thời gian thực thi script của request hiện tại. pm.environment.set() ghi vào môi trường đang hoạt động, vì vậy giá trị có thể truy cập bởi tất cả request tiếp theo trong collection run."
   }
 ]} />
 

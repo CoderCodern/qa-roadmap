@@ -18,74 +18,181 @@ REST là kiến trúc được sử dụng bởi phần lớn các web API bạn
 ## Concept
 
 <En>
-**REST principles (what makes an API RESTful):**
-1. **Stateless** — each request carries everything needed; server stores no session state
-2. **Resource-based** — URLs identify resources (`/users/42`, not `/getUser?id=42`)
-3. **HTTP verbs convey intent** — GET reads, POST creates, PUT replaces, DELETE removes
-4. **Uniform interface** — consistent response structure across all endpoints
+**The six REST constraints:**
 
-**REST URL conventions:**
-```
-GET    /users          → list all users
-POST   /users          → create a user
-GET    /users/42       → get user 42
-PUT    /users/42       → replace user 42 entirely
-PATCH  /users/42       → update specific fields of user 42
-DELETE /users/42       → delete user 42
-GET    /users/42/posts → list posts belonging to user 42
-```
+REST (Representational State Transfer) is not a protocol — it is a set of architectural constraints. An API that satisfies them is called RESTful.
 
-**JSON data types:**
-```json
-{
-  "string": "hello",
-  "number": 42,
-  "float": 3.14,
-  "boolean": true,
-  "null": null,
-  "array": [1, 2, 3],
-  "nested_object": {
-    "key": "value"
-  }
-}
+| Constraint | What it means in practice |
+|------------|--------------------------|
+| **Stateless** | Each request carries all information needed. The server keeps no session state between requests. Auth token must be in every request. |
+| **Client-server** | The UI and backend are independent. Either can change without breaking the other, as long as the interface contract is stable. |
+| **Resource-based** | URLs identify resources, not actions. `/users/42` is a resource. `/getUser?id=42` is not RESTful — it puts the verb in the URL. |
+| **HTTP verbs convey intent** | GET reads, POST creates, PUT replaces, PATCH partially updates, DELETE removes. The method is the action. |
+| **Uniform interface** | Consistent response structure across all endpoints. If `/users` returns `{"items": [], "total": 0}`, so should `/products`. |
+| **Cacheable** | Responses should indicate whether they can be cached. GET responses are typically cacheable; POST is not. |
+
+**Why stateless matters for testing:**
+
+Because no session state is stored server-side, you can run tests in any order, in parallel, and against any server instance. A stateful API requires tests to run in sequence and share cookies/sessions — making tests fragile and hard to scale.
+
+**RESTful URL conventions:**
+
+```
+GET    /users            → list all users (collection)
+POST   /users            → create a new user
+GET    /users/42         → get a specific user
+PUT    /users/42         → replace user 42 entirely
+PATCH  /users/42         → update specific fields of user 42
+DELETE /users/42         → delete user 42
+GET    /users/42/posts   → list posts belonging to user 42
+POST   /users/42/posts   → create a post for user 42
 ```
 
-**What to test in a REST response:**
-- Status code is correct for the method/action
-- Response body has the expected fields
-- Field types are correct (id is int, email is string, etc.)
-- Required fields are never null/missing
-- Created resources have an `id`
-- Timestamps are present and in the right format
-- Pagination metadata is accurate (total, page, limit)
+Non-RESTful URLs to flag during API review:
+
+| Bad URL | Why it is wrong | RESTful alternative |
+|---------|----------------|---------------------|
+| `/getUser?id=42` | Verb in URL | `GET /users/42` |
+| `/createOrder` | Verb in URL | `POST /orders` |
+| `/users/delete/42` | Verb in URL | `DELETE /users/42` |
+| `/users/42/activate` | Action on resource is OK if truly an action | Acceptable — `/activate` is an action, not a resource |
+
+**JSON data types — every type and its Python equivalent:**
+
+| JSON type | Example | Python equivalent | isinstance() check |
+|-----------|---------|-------------------|-------------------|
+| string | `"hello"` | `str` | `isinstance(v, str)` |
+| number (int) | `42` | `int` | `isinstance(v, int)` |
+| number (float) | `3.14` | `float` | `isinstance(v, float)` |
+| boolean | `true` / `false` | `bool` | `isinstance(v, bool)` |
+| null | `null` | `None` | `v is None` |
+| array | `[1, 2, 3]` | `list` | `isinstance(v, list)` |
+| object | `{"key": "val"}` | `dict` | `isinstance(v, dict)` |
+
+**Python gotcha:** In Python, `bool` is a subclass of `int`. This means `isinstance(True, int)` returns `True`. Always check `isinstance(v, bool)` before checking `isinstance(v, int)` when distinguishing them:
+
+```python
+# Wrong order — True passes the int check before bool check
+value = True
+if isinstance(value, int):
+    print("int")   # This prints for True too!
+
+# Correct order
+if isinstance(value, bool):
+    print("bool")
+elif isinstance(value, int):
+    print("int")
+```
+
+**What to test in a REST response — full checklist:**
+
+| Category | What to assert |
+|----------|----------------|
+| Status code | Matches the expected code for the method and action |
+| Required fields | All documented fields are present (`"id" in body`) |
+| Field types | Each field has the correct type (`isinstance`) |
+| Non-null guarantees | Required fields are not `None` |
+| ID assignment | Created resources have a positive integer `id` |
+| Timestamps | Present and in ISO 8601 UTC format (`"T"` and `"Z"` present) |
+| Nested objects | Sub-objects are dicts with their own required fields |
+| Arrays | List fields contain the right element type |
+| Pagination | `total`, `page`, `limit` present and logically consistent |
+| Enum fields | Role/status fields only contain allowed values |
 </En>
 <Vi>
-**Nguyên tắc REST:**
-1. **Stateless** — mỗi request mang mọi thứ cần thiết; server không lưu trạng thái phiên
-2. **Dựa trên tài nguyên** — URL xác định tài nguyên (`/users/42`)
-3. **HTTP verb truyền đạt ý định** — GET đọc, POST tạo, PUT thay thế, DELETE xoá
-4. **Giao diện thống nhất** — cấu trúc response nhất quán
+**Sáu ràng buộc REST:**
 
-**Quy ước URL REST:**
+REST (Representational State Transfer) không phải là giao thức — đó là một tập hợp ràng buộc kiến trúc. API thỏa mãn chúng được gọi là RESTful.
+
+| Ràng buộc | Ý nghĩa trong thực tế |
+|-----------|----------------------|
+| **Stateless** | Mỗi request mang tất cả thông tin cần thiết. Server không lưu trạng thái phiên giữa các request. Token xác thực phải có trong mỗi request. |
+| **Client-server** | UI và backend độc lập. Cái này có thể thay đổi mà không phá vỡ cái kia, miễn là hợp đồng giao diện ổn định. |
+| **Resource-based** | URL xác định tài nguyên, không phải hành động. `/users/42` là tài nguyên. `/getUser?id=42` không phải RESTful — nó đặt động từ vào URL. |
+| **HTTP verb truyền đạt ý định** | GET đọc, POST tạo, PUT thay thế, PATCH cập nhật một phần, DELETE xoá. Method chính là hành động. |
+| **Giao diện thống nhất** | Cấu trúc response nhất quán trên tất cả endpoint. Nếu `/users` trả về `{"items": [], "total": 0}`, thì `/products` cũng vậy. |
+| **Cacheable** | Response nên chỉ ra liệu chúng có thể được cache không. Response GET thường có thể cache; POST thì không. |
+
+**Tại sao stateless quan trọng cho kiểm thử:**
+
+Vì không có trạng thái phiên được lưu phía server, bạn có thể chạy test theo bất kỳ thứ tự nào, song song, và trên bất kỳ server instance nào. API stateful yêu cầu test chạy theo thứ tự và chia sẻ cookie/session — làm test dễ vỡ và khó mở rộng.
+
+**Quy ước URL RESTful:**
+
 ```
-GET    /users          → liệt kê tất cả user
-POST   /users          → tạo user
-GET    /users/42       → lấy user 42
-PUT    /users/42       → thay thế toàn bộ user 42
-PATCH  /users/42       → cập nhật một số trường của user 42
-DELETE /users/42       → xoá user 42
+GET    /users            → liệt kê tất cả user (collection)
+POST   /users            → tạo user mới
+GET    /users/42         → lấy user cụ thể
+PUT    /users/42         → thay thế toàn bộ user 42
+PATCH  /users/42         → cập nhật các trường cụ thể của user 42
+DELETE /users/42         → xoá user 42
+GET    /users/42/posts   → liệt kê bài viết của user 42
+POST   /users/42/posts   → tạo bài viết cho user 42
 ```
 
-**Những gì cần kiểm thử trong REST response:**
-- Status code đúng cho method/action
-- Body response có các trường mong đợi
-- Kiểu trường đúng (id là int, email là string)
-- Các trường bắt buộc không bao giờ null/thiếu
-- Tài nguyên đã tạo có `id`
-- Metadata phân trang chính xác
+URL không RESTful cần gắn cờ khi review API:
+
+| URL xấu | Tại sao sai | Thay thế RESTful |
+|---------|------------|-----------------|
+| `/getUser?id=42` | Động từ trong URL | `GET /users/42` |
+| `/createOrder` | Động từ trong URL | `POST /orders` |
+| `/users/delete/42` | Động từ trong URL | `DELETE /users/42` |
+
+**Kiểu dữ liệu JSON — mọi kiểu và tương đương Python:**
+
+| Kiểu JSON | Ví dụ | Tương đương Python | Kiểm tra isinstance() |
+|-----------|-------|-------------------|----------------------|
+| string | `"hello"` | `str` | `isinstance(v, str)` |
+| number (int) | `42` | `int` | `isinstance(v, int)` |
+| number (float) | `3.14` | `float` | `isinstance(v, float)` |
+| boolean | `true` / `false` | `bool` | `isinstance(v, bool)` |
+| null | `null` | `None` | `v is None` |
+| array | `[1, 2, 3]` | `list` | `isinstance(v, list)` |
+| object | `{"key": "val"}` | `dict` | `isinstance(v, dict)` |
+
+**Chú ý Python:** `bool` là lớp con của `int`. `isinstance(True, int)` trả về `True`. Luôn kiểm tra `isinstance(v, bool)` trước `isinstance(v, int)`:
+
+```python
+# Thứ tự sai — True vượt qua kiểm tra int trước bool
+value = True
+if isinstance(value, int):
+    print("int")   # In ra cả với True!
+
+# Thứ tự đúng
+if isinstance(value, bool):
+    print("bool")
+elif isinstance(value, int):
+    print("int")
+```
+
+**Những gì cần kiểm thử trong REST response — danh sách đầy đủ:**
+
+| Danh mục | Điều cần assert |
+|----------|----------------|
+| Status code | Khớp với code mong đợi cho method và hành động |
+| Trường bắt buộc | Tất cả trường được ghi chép đều có mặt (`"id" in body`) |
+| Kiểu trường | Mỗi trường có kiểu đúng (`isinstance`) |
+| Đảm bảo không null | Các trường bắt buộc không phải `None` |
+| Gán ID | Tài nguyên đã tạo có `id` là số nguyên dương |
+| Timestamps | Có mặt và theo định dạng ISO 8601 UTC |
+| Object lồng nhau | Sub-object là dict với các trường bắt buộc riêng |
+| Mảng | Trường list chứa đúng kiểu phần tử |
+| Phân trang | `total`, `page`, `limit` có mặt và nhất quán về mặt logic |
+| Trường enum | Trường role/status chỉ chứa các giá trị được phép |
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — Asserting fields, types, and values in a REST response**
+
+</En>
+<Vi>
+
+**Phần 1 — Assert các trường, kiểu và giá trị trong REST response**
+
+</Vi>
 
 ```python
 import json
@@ -109,68 +216,448 @@ raw_response = '''
 
 user = json.loads(raw_response)
 
-# --- Assert presence and types ---
-assert "id" in user,    "Missing required field: id"
-assert "email" in user, "Missing required field: email"
-assert "role" in user,  "Missing required field: role"
+# --- Assert presence of required fields ---
+required_fields = ["id", "email", "name", "role", "is_active", "created_at", "profile", "tags"]
+for field in required_fields:
+    assert field in user, f"Missing required field: {field}"
 
-assert isinstance(user["id"], int),      f"id must be int, got {type(user['id'])}"
-assert isinstance(user["email"], str),   "email must be str"
-assert isinstance(user["is_active"], bool), "is_active must be bool"
-assert isinstance(user["tags"], list),   "tags must be a list"
-assert isinstance(user["profile"], dict), "profile must be a dict"
+# --- Assert field types (note: check bool before int) ---
+assert isinstance(user["id"], int),         f"id must be int, got {type(user['id'])}"
+assert isinstance(user["email"], str),       "email must be str"
+assert isinstance(user["name"], str),        "name must be str"
+assert isinstance(user["is_active"], bool),  "is_active must be bool (not int)"
+assert isinstance(user["tags"], list),       "tags must be a list"
+assert isinstance(user["profile"], dict),    "profile must be a dict"
 
 # --- Assert values ---
 assert user["role"] in {"admin", "editor", "viewer"}, \
     f"Unexpected role: {user['role']}"
-assert "@" in user["email"], "email must contain @"
-assert user["id"] > 0, "id must be positive"
+assert "@" in user["email"],  "email must contain @"
+assert user["id"] > 0,        "id must be a positive integer"
+assert user["name"].strip(),  "name must not be blank"
 
-# --- Assert nested object ---
-assert "avatar_url" in user["profile"]
-assert user["profile"]["avatar_url"].startswith("https://")
+# --- Assert nested object fields ---
+assert "avatar_url" in user["profile"], "profile must have avatar_url"
+assert user["profile"]["avatar_url"].startswith("https://"), \
+    "avatar_url must start with https://"
 
-# --- Assert timestamp format (basic check) ---
+# --- Assert list contents ---
+assert len(user["tags"]) > 0, "tags must not be empty"
+for tag in user["tags"]:
+    assert isinstance(tag, str), f"Each tag must be str, got {type(tag)}"
+
+# --- Assert ISO 8601 timestamp format ---
 created_at = user["created_at"]
 assert "T" in created_at and "Z" in created_at, \
-    "created_at should be ISO 8601 UTC format"
+    "created_at should be ISO 8601 UTC format (contains T and Z)"
 
 print("All REST response assertions passed!")
 print(f"User: {user['name']} ({user['role']})")
 ```
 
+<En>
+
+**Part 2 — Asserting a paginated list response**
+
+</En>
+<Vi>
+
+**Phần 2 — Assert response danh sách có phân trang**
+
+</Vi>
+
+```python
+import json
+
+# GET /users?page=2&limit=10
+raw_list_response = '''
+{
+  "items": [
+    {"id": 11, "email": "user11@example.com", "name": "User Eleven"},
+    {"id": 12, "email": "user12@example.com", "name": "User Twelve"}
+  ],
+  "total": 47,
+  "page": 2,
+  "limit": 10
+}
+'''
+
+data = json.loads(raw_list_response)
+
+# --- Assert pagination envelope ---
+assert "items" in data,  "Response must have items field"
+assert "total" in data,  "Response must have total field"
+assert "page"  in data,  "Response must have page field"
+assert "limit" in data,  "Response must have limit field"
+
+# --- Assert pagination types ---
+assert isinstance(data["items"], list),  "items must be a list"
+assert isinstance(data["total"], int),   "total must be int"
+assert isinstance(data["page"],  int),   "page must be int"
+assert isinstance(data["limit"], int),   "limit must be int"
+
+# --- Assert pagination logic ---
+assert data["total"] >= 0,     "total must be non-negative"
+assert data["page"]  >= 1,     "page must be at least 1"
+assert data["limit"] >= 1,     "limit must be at least 1"
+assert len(data["items"]) <= data["limit"], \
+    f"items count ({len(data['items'])}) must not exceed limit ({data['limit']})"
+
+# --- Assert each item in the list ---
+for item in data["items"]:
+    assert isinstance(item, dict),       "Each item must be a dict"
+    assert "id"    in item,              "Each item must have id"
+    assert "email" in item,              "Each item must have email"
+    assert isinstance(item["id"], int),  "item id must be int"
+    assert "@" in item["email"],         "item email must contain @"
+
+print(f"Paginated list valid: {len(data['items'])} items, page {data['page']}, total {data['total']}")
+```
+
+<En>
+
+**Part 3 — Checking missing fields and null values safely**
+
+</En>
+<Vi>
+
+**Phần 3 — Kiểm tra các trường bị thiếu và giá trị null một cách an toàn**
+
+</Vi>
+
+```python
+import json
+
+# A response where some optional fields are missing or null
+partial_user_json = '''
+{
+  "id": 99,
+  "email": "bob@example.com",
+  "name": null,
+  "role": "viewer",
+  "is_active": true
+}
+'''
+
+user = json.loads(partial_user_json)
+
+# --- Check if a field is missing entirely ---
+if "name" not in user:
+    print("name field is missing from response")
+else:
+    # Field exists but may be null
+    if user["name"] is None:
+        print("name field is present but null — is this allowed by the spec?")
+    else:
+        assert isinstance(user["name"], str), "name must be str when present"
+
+# --- Pattern: assert required, allow optional ---
+REQUIRED = ["id", "email", "role", "is_active"]
+OPTIONAL = ["name", "profile", "tags", "created_at"]
+
+for field in REQUIRED:
+    assert field in user and user[field] is not None, \
+        f"Required field '{field}' is missing or null"
+
+for field in OPTIONAL:
+    if field in user and user[field] is not None:
+        print(f"Optional field '{field}' is present: {user[field]}")
+
+# --- JSON null vs Python None ---
+# json.loads converts JSON null → Python None
+assert user["name"] is None,         "JSON null becomes Python None"
+assert not isinstance(user["name"], str), "null is not a string"
+
+print("Null-safety checks passed!")
+```
+
 ## Exercise
 
-<ExerciseBox>
-- [ ] Design the URL structure for a blog API with posts and comments — list at least 6 endpoints covering CRUD for both resources
-- [ ] Given the JSON response for a paginated list (`{"items": [...], "total": 47, "page": 2, "limit": 10}`), write assertions that verify: items is a list, total is a positive int, page is at least 1, and there are at most `limit` items
-- [ ] For each of the 4 JSON types (string, number, boolean, null), write a Python assertion using `isinstance()` or `is None` to verify the type
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Validate a paginated API response",
+    code: `import json
+
+# Paste this paginated response and write assertions below
+raw = '''
+{
+  "items": [
+    {"id": 1, "title": "First Post", "author_id": 10},
+    {"id": 2, "title": "Second Post", "author_id": 11}
+  ],
+  "total": 25,
+  "page": 1,
+  "limit": 10
+}
+'''
+
+data = json.loads(raw)
+
+# TODO (EN): Write assertions that verify ALL of the following:
+#   1. items is a list
+#   2. total is a positive int
+#   3. page is at least 1
+#   4. there are at most \`limit\` items in the list
+#   5. each item has id (int), title (str), and author_id (int)
+# TODO (VI): Viết assertion kiểm tra TẤT CẢ những điều sau:
+#   1. items là list
+#   2. total là int dương
+#   3. page ít nhất là 1
+#   4. số items trong list không vượt quá \`limit\`
+#   5. mỗi item có id (int), title (str), và author_id (int)
+
+print("All paginated response assertions passed!")`
+  },
+  {
+    title: "Exercise 2 — JSON type checker function",
+    code: `import json
+
+def assert_field_type(obj: dict, field: str, expected_type: type) -> None:
+    """
+    Assert that obj[field] exists, is not None, and is of expected_type.
+    Raise AssertionError with a descriptive message if any check fails.
+    """
+    # TODO (EN): Implement this function.
+    # Special case: if expected_type is bool, check bool before int
+    # because bool is a subclass of int in Python.
+    # TODO (VI): Triển khai hàm này.
+    # Trường hợp đặc biệt: nếu expected_type là bool, kiểm tra bool trước int
+    # vì bool là lớp con của int trong Python.
+    pass
+
+# Test your function with this JSON
+sample = json.loads('{"id": 5, "active": true, "score": 9.5, "tags": [], "profile": {}}')
+
+assert_field_type(sample, "id",      int)
+assert_field_type(sample, "active",  bool)
+assert_field_type(sample, "score",   float)
+assert_field_type(sample, "tags",    list)
+assert_field_type(sample, "profile", dict)
+
+# This should raise AssertionError (active is bool, not int at the top level)
+try:
+    # True is technically isinstance int, but our function should catch bool first
+    assert_field_type({"flag": True}, "flag", int)
+    print("BUG: should have raised for bool vs int confusion")
+except AssertionError:
+    print("Correctly caught bool/int confusion")
+
+print("assert_field_type works correctly!")`
+  },
+  {
+    title: "Exercise 3 — Design REST URLs for a blog API",
+    code: `# Map each action to its correct REST URL and HTTP method
+# Fill in the ??? with the right method and URL
+
+BLOG_API = {
+    "list_all_posts":        {"method": "???", "url": "???"},
+    "create_post":           {"method": "???", "url": "???"},
+    "get_post_by_id":        {"method": "???", "url": "??? (use post_id=7)"},
+    "update_post_title":     {"method": "???", "url": "??? (use post_id=7)"},
+    "replace_entire_post":   {"method": "???", "url": "??? (use post_id=7)"},
+    "delete_post":           {"method": "???", "url": "??? (use post_id=7)"},
+    "list_comments_on_post": {"method": "???", "url": "??? (use post_id=7)"},
+    "add_comment_to_post":   {"method": "???", "url": "??? (use post_id=7)"},
+}
+
+# TODO (EN): Replace all ??? with correct HTTP method and RESTful URL.
+# TODO (VI): Thay tất cả ??? bằng HTTP method và URL RESTful đúng.
+
+# Validation checks
+assert BLOG_API["list_all_posts"]["method"]    == "GET"
+assert BLOG_API["list_all_posts"]["url"]       == "/posts"
+assert BLOG_API["create_post"]["method"]       == "POST"
+assert BLOG_API["create_post"]["url"]          == "/posts"
+assert BLOG_API["get_post_by_id"]["method"]    == "GET"
+assert BLOG_API["update_post_title"]["method"] == "PATCH"
+assert BLOG_API["replace_entire_post"]["method"] == "PUT"
+assert BLOG_API["delete_post"]["method"]       == "DELETE"
+assert "/posts/7/comments" in BLOG_API["list_comments_on_post"]["url"]
+print("Blog API URL design is correct!")`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Write all five paginated response assertions. Make sure you iterate over each item in the list and check its fields individually.
+- [ ] Exercise 2: Implement `assert_field_type`. The function must handle the `bool` vs `int` subclass edge case. It should raise `AssertionError` with a helpful message (not just `assert False`).
+- [ ] Exercise 3: Fill in the `BLOG_API` dict with correct HTTP methods and RESTful URLs. All provided assertion checks must pass.
+
+**Hints:**
+- Exercise 1: `len(data["items"]) <= data["limit"]` catches the case where the server returns too many items.
+- Exercise 2: Use `if expected_type is bool` to specifically handle the bool/int conflict before the general `isinstance` check.
+- Exercise 3: Nested resources follow the pattern `/parent/{id}/children`. An action that targets a specific resource uses its ID in the URL path.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài 1: Viết tất cả năm assertion cho response phân trang. Hãy chắc chắn bạn duyệt qua từng item trong list và kiểm tra các trường riêng lẻ.
+- [ ] Bài 2: Triển khai `assert_field_type`. Hàm phải xử lý trường hợp biên của `bool` là lớp con của `int`. Nên raise `AssertionError` với thông báo hữu ích (không chỉ `assert False`).
+- [ ] Bài 3: Điền vào dict `BLOG_API` với HTTP method và URL RESTful đúng. Tất cả kiểm tra assertion được cung cấp phải pass.
+
+**Gợi ý:**
+- Bài 1: `len(data["items"]) <= data["limit"]` bắt trường hợp server trả về quá nhiều item.
+- Bài 2: Dùng `if expected_type is bool` để xử lý đặc biệt xung đột bool/int trước kiểm tra `isinstance` chung.
+- Bài 3: Tài nguyên lồng nhau theo mẫu `/parent/{id}/children`. Hành động nhắm đến tài nguyên cụ thể dùng ID của nó trong đường dẫn URL.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What does 'stateless' mean in REST?",
+    qVi: "'Stateless' trong REST có nghĩa là gì?",
     choices: [
       "The server never stores any data",
       "Each request contains all information needed to process it — the server keeps no session state between requests",
       "The API does not support authentication",
       "REST APIs cannot maintain database state"
     ],
+    choicesVi: [
+      "Server không bao giờ lưu dữ liệu nào",
+      "Mỗi request chứa tất cả thông tin cần thiết để xử lý — server không giữ trạng thái phiên giữa các request",
+      "API không hỗ trợ xác thực",
+      "REST API không thể duy trì trạng thái cơ sở dữ liệu"
+    ],
     answer: 1,
-    explain: "Stateless means the server doesn't remember previous requests. Every request must be self-contained with auth tokens, parameters, and context. This enables horizontal scaling and simpler server design."
+    explain: "Stateless means the server doesn't remember previous requests. Every request must be self-contained with auth tokens, parameters, and context. This enables horizontal scaling and simpler server design.",
+    explainVi: "Stateless có nghĩa là server không nhớ các request trước. Mỗi request phải tự đủ với token xác thực, tham số và ngữ cảnh. Điều này cho phép mở rộng theo chiều ngang và thiết kế server đơn giản hơn."
   },
   {
     q: "Which URL follows REST conventions for getting a specific user?",
+    qVi: "URL nào theo đúng quy ước REST để lấy một user cụ thể?",
     choices: [
       "/getUser?id=42",
       "/users/get/42",
       "/users/42",
       "/api?action=getUser&id=42"
     ],
+    choicesVi: [
+      "/getUser?id=42",
+      "/users/get/42",
+      "/users/42",
+      "/api?action=getUser&id=42"
+    ],
     answer: 2,
-    explain: "/users/42 is the RESTful convention: the URL identifies a resource (user 42), and the HTTP method (GET) conveys the intent. Action verbs in URLs (/getUser) are not RESTful — they mix the verb into the resource path."
+    explain: "/users/42 is the RESTful convention: the URL identifies a resource (user 42), and the HTTP method (GET) conveys the intent. Action verbs in URLs (/getUser) are not RESTful — they mix the verb into the resource path.",
+    explainVi: "/users/42 là quy ước RESTful: URL xác định tài nguyên (user 42) và HTTP method (GET) truyền đạt ý định. Động từ hành động trong URL (/getUser) không phải RESTful — chúng trộn động từ vào đường dẫn tài nguyên."
+  },
+  {
+    q: "In JSON, what Python type does `true` map to after json.loads()?",
+    qVi: "Trong JSON, `true` ánh xạ sang kiểu Python nào sau json.loads()?",
+    choices: [
+      "int (1)",
+      "str (\"true\")",
+      "bool (True)",
+      "NoneType"
+    ],
+    choicesVi: [
+      "int (1)",
+      "str (\"true\")",
+      "bool (True)",
+      "NoneType"
+    ],
+    answer: 2,
+    explain: "json.loads converts JSON true → Python True (bool), false → False (bool), null → None. JSON numbers map to int or float. Be careful: in Python, bool is a subclass of int, so isinstance(True, int) returns True. Always check isinstance(v, bool) before isinstance(v, int).",
+    explainVi: "json.loads chuyển đổi JSON true → Python True (bool), false → False (bool), null → None. Số JSON ánh xạ sang int hoặc float. Cẩn thận: trong Python, bool là lớp con của int, nên isinstance(True, int) trả về True. Luôn kiểm tra isinstance(v, bool) trước isinstance(v, int)."
+  },
+  {
+    q: "How do you correctly check if a JSON field named 'score' is missing from a parsed response dict?",
+    qVi: "Làm thế nào để kiểm tra đúng xem trường JSON tên 'score' có bị thiếu trong dict response đã parse không?",
+    choices: [
+      "if response['score'] is None",
+      "if response['score'] == False",
+      "if 'score' not in response",
+      "if response.score is None"
+    ],
+    choicesVi: [
+      "if response['score'] is None",
+      "if response['score'] == False",
+      "if 'score' not in response",
+      "if response.score is None"
+    ],
+    answer: 2,
+    explain: "Use 'score' not in response to test whether the key exists. response['score'] raises KeyError if the key is missing — it does not return None. response['score'] is None checks for a present key with a null value, which is a different condition.",
+    explainVi: "Dùng 'score' not in response để kiểm tra xem key có tồn tại không. response['score'] raise KeyError nếu key bị thiếu — không trả về None. response['score'] is None kiểm tra key có mặt với giá trị null, đó là điều kiện khác."
+  },
+  {
+    q: "What is wrong with the URL `/getUser?id=42` in a REST API?",
+    qVi: "Điều gì sai với URL `/getUser?id=42` trong REST API?",
+    choices: [
+      "Query parameters are not allowed in REST",
+      "The URL puts an action verb (getUser) in the path instead of using HTTP methods to express intent",
+      "The id should be in the request body, not the URL",
+      "REST APIs must use integers, not query strings"
+    ],
+    choicesVi: [
+      "Tham số query không được phép trong REST",
+      "URL đặt động từ hành động (getUser) trong đường dẫn thay vì dùng HTTP method để diễn đạt ý định",
+      "id nên ở trong body request, không phải URL",
+      "REST API phải dùng số nguyên, không phải query string"
+    ],
+    answer: 1,
+    explain: "REST uses HTTP methods (GET, POST, etc.) to convey the action. The URL should identify the resource, not describe the action. /getUser?id=42 mixes the verb into the URL. The RESTful version is GET /users/42 — the method (GET) is the verb, the path (/users/42) is the resource.",
+    explainVi: "REST dùng HTTP method (GET, POST, v.v.) để truyền đạt hành động. URL nên xác định tài nguyên, không mô tả hành động. /getUser?id=42 trộn động từ vào URL. Phiên bản RESTful là GET /users/42 — method (GET) là động từ, đường dẫn (/users/42) là tài nguyên."
+  },
+  {
+    q: "What should a POST /users response return after successful creation?",
+    qVi: "POST /users response nên trả về gì sau khi tạo thành công?",
+    choices: [
+      "200 OK with an empty body",
+      "201 Created with the created resource (including the assigned id) in the body",
+      "204 No Content",
+      "302 Found redirecting to the new resource"
+    ],
+    choicesVi: [
+      "200 OK với body rỗng",
+      "201 Created với tài nguyên đã tạo (bao gồm id được gán) trong body",
+      "204 No Content",
+      "302 Found chuyển hướng đến tài nguyên mới"
+    ],
+    answer: 1,
+    explain: "201 Created is the correct status for successful resource creation. The response body should contain the created resource, including the server-assigned id and any server-generated fields (timestamps, defaults). This allows the client to know the id without making a second GET request.",
+    explainVi: "201 Created là status đúng cho việc tạo tài nguyên thành công. Body response nên chứa tài nguyên đã tạo, bao gồm id được server gán và bất kỳ trường nào server tạo ra (timestamps, giá trị mặc định). Điều này cho phép client biết id mà không cần thực hiện GET request thứ hai."
+  },
+  {
+    q: "How do you assert that a JSON null value was correctly parsed in Python?",
+    qVi: "Làm thế nào để assert rằng giá trị JSON null đã được parse đúng trong Python?",
+    choices: [
+      "assert response['field'] == 'null'",
+      "assert response['field'] == None",
+      "assert response['field'] is None",
+      "assert response['field'] == False"
+    ],
+    choicesVi: [
+      "assert response['field'] == 'null'",
+      "assert response['field'] == None",
+      "assert response['field'] is None",
+      "assert response['field'] == False"
+    ],
+    answer: 2,
+    explain: "Use `is None` (identity check) rather than `== None` (equality check). Both pass for None, but `is None` is the Pythonic idiom and is explicitly recommended by PEP 8. `== None` can theoretically match objects that override __eq__, while `is None` only matches the singleton None object.",
+    explainVi: "Dùng `is None` (kiểm tra danh tính) thay vì `== None` (kiểm tra bằng nhau). Cả hai đều pass với None, nhưng `is None` là idiom Pythonic và được PEP 8 khuyến nghị rõ ràng. `== None` về lý thuyết có thể khớp với các object ghi đè __eq__, trong khi `is None` chỉ khớp với singleton None."
+  },
+  {
+    q: "What does `isinstance(data, list)` specifically test?",
+    qVi: "`isinstance(data, list)` kiểm tra cụ thể điều gì?",
+    choices: [
+      "That data is not empty",
+      "That data is a JSON array (parsed into a Python list)",
+      "That every element in data is a string",
+      "That data has a .length property"
+    ],
+    choicesVi: [
+      "data không rỗng",
+      "data là JSON array (được parse thành Python list)",
+      "Mọi phần tử trong data là string",
+      "data có thuộc tính .length"
+    ],
+    answer: 1,
+    explain: "isinstance(data, list) checks that data is a Python list, which is what json.loads produces when it parses a JSON array. It does not check if the list is empty or what types the elements are. For that you need len(data) > 0 and a loop over elements.",
+    explainVi: "isinstance(data, list) kiểm tra rằng data là Python list, đây là những gì json.loads tạo ra khi parse JSON array. Nó không kiểm tra list có rỗng không hay các phần tử có kiểu gì. Cho điều đó bạn cần len(data) > 0 và vòng lặp qua các phần tử."
   }
 ]} />
 

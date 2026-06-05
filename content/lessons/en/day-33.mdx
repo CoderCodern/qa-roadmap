@@ -1,185 +1,612 @@
 ---
 id: 33
-title: "GitHub Actions CI"
+title: "Headed vs headless & debugging"
 phase: 3
 estMinutes: 60
-tags: ["playwright", "ci", "github-actions"]
+tags: ["playwright", "debugging"]
 ---
 
 ## Intro
 
 <En>
-Tests that only run on a developer's laptop are not really automated — they are just manual testing with extra steps. Continuous Integration (CI) runs your tests automatically on every push or pull request, catching regressions before they reach production. GitHub Actions is the most accessible CI platform for beginners and professionals alike.
+Even the best-written tests break sometimes — the app changes, a selector stops matching, a timing issue emerges. Knowing how to debug efficiently is what separates an automation engineer who spends hours guessing from one who pinpoints the problem in minutes.
+
+Playwright has world-class debugging tools: the **Playwright Inspector** (step through your test like a debugger), **PWDEBUG** mode, **pause()**, and the **codegen** tool that records your clicks and generates code. Combined with headed mode and slow-mo, you have everything needed to understand exactly what's happening.
 </En>
 <Vi>
-Các test chỉ chạy trên laptop của developer không thực sự được tự động hoá — chúng chỉ là kiểm thử thủ công với các bước thêm vào. Tích hợp liên tục (CI) chạy test của bạn tự động trên mỗi lần push hoặc pull request, bắt được hồi quy trước khi chúng đến production. GitHub Actions là nền tảng CI dễ tiếp cận nhất cho cả người mới bắt đầu và chuyên gia.
+Ngay cả test được viết tốt nhất đôi khi cũng bị hỏng — ứng dụng thay đổi, selector không còn khớp, vấn đề timing nổi lên. Biết cách debug hiệu quả là điều phân biệt kỹ sư automation mất hàng giờ đoán mò với người xác định vấn đề trong vài phút.
+
+Playwright có công cụ debug đẳng cấp thế giới: **Playwright Inspector** (bước qua test như debugger), chế độ **PWDEBUG**, **pause()** và công cụ **codegen** ghi lại click của bạn và tạo code.
 </Vi>
 
 ## Concept
 
 <En>
-**How GitHub Actions works:**
-1. You commit a YAML workflow file to `.github/workflows/`
-2. GitHub detects pushes/PRs and spins up a runner (Linux/macOS/Windows VM)
-3. The runner executes your workflow steps in order
-4. Results appear in the Actions tab — green checkmark or red X
+**The debugging toolkit — choose by situation:**
 
-**Key concepts:**
+| Tool | How to use | Best for |
+|------|-----------|---------|
+| `headless=False` | `browser.launch(headless=False)` | Watching what the browser does |
+| `slow_mo=N` | `browser.launch(slow_mo=500)` | Seeing each action with a delay |
+| `page.pause()` | Add in script/test | Stop at a specific point, then use Inspector |
+| PWDEBUG mode | `PWDEBUG=1 pytest ...` | Full Inspector for your pytest run |
+| `page.screenshot()` | Add in test | Capture the page at failure |
+| Playwright Inspector | Opens with PWDEBUG or pause() | Step through actions, try locators live |
+| codegen | `playwright codegen <url>` | Record clicks and generate Python code |
+| Trace Viewer | `playwright show-trace trace.zip` | Post-mortem analysis of recorded tests |
 
-| Concept | Description |
-|---------|-------------|
-| **Workflow** | The YAML file defining what to run |
-| **Trigger** | When to run (push, PR, schedule) |
-| **Job** | A group of steps running on one runner |
-| **Step** | A single command or action |
-| **Action** | A reusable step (e.g., `actions/checkout@v4`) |
-| **Artifact** | Files uploaded from the runner (test reports, screenshots) |
+**Headed mode and slow_mo:**
+```bash
+# From CLI when running pytest
+pytest tests/ --headed                    # show browser window
+pytest tests/ --headed --slowmo 500       # show window + 500ms delay
 
-**Playwright's official GitHub Action:**
-```yaml
-- name: Install Playwright Browsers
-  run: playwright install chromium --with-deps
+# From Python
+browser = p.chromium.launch(headless=False, slow_mo=500)
 ```
-The `--with-deps` flag installs OS-level dependencies needed by the browser.
 
-**Artifacts:** Upload screenshots and HTML reports so you can download and view them after a CI failure:
-```yaml
-- name: Upload test results
-  uses: actions/upload-artifact@v4
-  if: always()    # upload even if tests fail
-  with:
-    name: playwright-report
-    path: playwright-report/
+**pause() — the most powerful in-test debugger:**
+```python
+# Add pause() anywhere in your script or test
+page.pause()  # execution stops here; Playwright Inspector opens
+# You can inspect the DOM, try locators, step forward
+# Press "Resume" in Inspector to continue, or close to abort
+```
+
+**PWDEBUG=1 — debug entire pytest runs:**
+```bash
+# macOS/Linux
+PWDEBUG=1 pytest tests/test_login.py -v
+
+# Windows (Command Prompt)
+set PWDEBUG=1 && pytest tests/test_login.py -v
+
+# Windows (PowerShell)
+$env:PWDEBUG=1; pytest tests/test_login.py -v
+```
+
+When PWDEBUG=1 is set:
+- Browser opens in headed mode
+- Playwright Inspector opens alongside
+- Tests run step-by-step — press "Step" to advance, "Resume" to run to completion
+
+**Playwright Inspector features:**
+- Pick mode: click any element to see its suggested locator
+- Test locators live in the selector bar
+- See all actions in the action log
+- Step through test one action at a time
+
+**codegen — record and replay:**
+```bash
+# Opens a browser + Inspector; click around, code is generated automatically
+playwright codegen https://practicesoftwaretesting.com
+
+# Save generated code directly to a file
+playwright codegen https://practicesoftwaretesting.com --output my_test.py
+
+# Use a specific browser
+playwright codegen --browser firefox https://example.com
+```
+
+**Common debugging patterns:**
+```python
+# Pattern 1: screenshot at failure point
+def test_something(page):
+    try:
+        page.goto("https://example.com")
+        expect(page.locator(".result")).to_be_visible()
+    except Exception:
+        page.screenshot(path="debug_failure.png", full_page=True)
+        raise  # re-raise so the test still fails
+
+# Pattern 2: print locator info before acting
+locator = page.get_by_role("button", name="Submit")
+print(f"Button count: {locator.count()}")
+print(f"Button visible: {locator.is_visible()}")
+locator.click()
+
+# Pattern 3: evaluate JavaScript to inspect the DOM
+value = page.evaluate("document.querySelector('#email').value")
+print(f"Email input value: {value}")
+
+# Pattern 4: check what URL we're on
+print(f"Current URL: {page.url}")
+print(f"Page title: {page.title()}")
 ```
 </En>
 <Vi>
-**Cách GitHub Actions hoạt động:**
-1. Bạn commit file workflow YAML vào `.github/workflows/`
-2. GitHub phát hiện push/PR và khởi động runner (VM Linux/macOS/Windows)
-3. Runner thực thi các bước workflow theo thứ tự
-4. Kết quả hiển thị trong tab Actions — dấu kiểm xanh hoặc X đỏ
+**Bộ công cụ debug:**
 
-**Các khái niệm quan trọng:**
+| Công cụ | Cách dùng | Tốt nhất cho |
+|------|-----------|---------|
+| `headless=False` | `browser.launch(headless=False)` | Xem trình duyệt làm gì |
+| `slow_mo=N` | `browser.launch(slow_mo=500)` | Thấy từng action với độ trễ |
+| `page.pause()` | Thêm trong script/test | Dừng tại điểm cụ thể, dùng Inspector |
+| PWDEBUG mode | `PWDEBUG=1 pytest ...` | Inspector đầy đủ cho pytest |
+| codegen | `playwright codegen <url>` | Ghi click và tạo code Python |
 
-| Khái niệm | Mô tả |
-|---------|-------------|
-| **Workflow** | File YAML định nghĩa những gì cần chạy |
-| **Trigger** | Khi nào chạy (push, PR, schedule) |
-| **Job** | Nhóm các bước chạy trên một runner |
-| **Step** | Một lệnh hoặc action đơn lẻ |
-| **Artifact** | File được tải lên từ runner (báo cáo, ảnh chụp màn hình) |
+**pause() — debugger trong test mạnh nhất:**
+```python
+page.pause()  # dừng tại đây; Playwright Inspector mở
+# Kiểm tra DOM, thử locator, bước tiếp theo
+```
 
-**Playwright's official GitHub Action:**
-```yaml
-- name: Install Playwright Browsers
-  run: playwright install chromium --with-deps
+**PWDEBUG=1 — debug toàn bộ pytest:**
+```bash
+PWDEBUG=1 pytest tests/test_login.py -v
+```
+
+**codegen — ghi và phát lại:**
+```bash
+playwright codegen https://practicesoftwaretesting.com
+playwright codegen https://example.com --output my_test.py
 ```
 </Vi>
 
 ## Code / Demo
 
-```yaml
-# .github/workflows/playwright.yml
-name: Playwright Tests
+<En>
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+**Part 1 — Headed mode with slow_mo to watch automation live**
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+</En>
+<Vi>
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+**Phần 1 — Chế độ headed với slow_mo để xem automation trực tiếp**
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
+</Vi>
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
+```python
+# demo_headed_slowmo.py
+# Run with: python demo_headed_slowmo.py
+# Watch a real browser window as it navigates and interacts
+from playwright.sync_api import sync_playwright
 
-      - name: Install Playwright browsers
-        run: playwright install chromium --with-deps
+with sync_playwright() as p:
+    # headless=False → visible window
+    # slow_mo=800   → 800ms pause between each action
+    browser = p.chromium.launch(headless=False, slow_mo=800)
+    page = browser.new_page()
 
-      - name: Run Playwright tests
-        run: pytest tests/ --tb=short -q
+    print("Step 1: Opening homepage...")
+    page.goto("https://practicesoftwaretesting.com")
 
-      - name: Upload screenshots on failure
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: failure-screenshots
-          path: screenshots/
-          retention-days: 7
+    print("Step 2: Searching for 'Hammer'...")
+    search = page.get_by_role("textbox", name="Search")
+    search.fill("Hammer")    # slow_mo: you'll see it typed slowly
+    search.press("Enter")
 
-      - name: Upload test traces
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-traces
-          path: "**/*.zip"
-          retention-days: 7
+    page.wait_for_load_state("networkidle")
+
+    print("Step 3: Reading results...")
+    count = page.locator(".card").count()
+    print(f"Found {count} product(s)")
+
+    print("Step 4: Clicking first result...")
+    page.locator(".card").first.click()
+
+    page.wait_for_load_state("networkidle")
+    print(f"Product page URL: {page.url}")
+    print(f"Product title: {page.title()}")
+
+    browser.close()
+    print("Done!")
 ```
 
-```text
-# requirements.txt
-playwright==1.44.0
-pytest-playwright==0.5.0
-pytest==8.2.0
+<En>
+
+**Part 2 — Using pause() to inspect a failing test**
+
+</En>
+<Vi>
+
+**Phần 2 — Dùng pause() để kiểm tra test bị lỗi**
+
+</Vi>
+
+```python
+# debug_with_pause.py
+# Run with: python debug_with_pause.py
+# The Inspector will open — use it to explore the page state
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+    page = browser.new_page()
+
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+
+    # ↓ Inspector opens here — you can try locators, inspect DOM
+    page.pause()
+    # After resuming in Inspector, execution continues:
+
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+
+    # Pause again to see the filled state before submitting
+    # page.pause()  # uncomment to pause here too
+
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url("**/account")
+    print(f"Logged in! URL: {page.url}")
+
+    browser.close()
 ```
 
-```ini
-# pytest.ini
-[pytest]
-addopts = --browser chromium
+<En>
+
+**Part 3 — Debugging patterns in pytest tests**
+
+</En>
+<Vi>
+
+**Phần 3 — Các kỹ thuật debug trong pytest test**
+
+</Vi>
+
+```python
+# tests/test_debug_patterns.py
+# Run with: pytest tests/test_debug_patterns.py -v -s
+# (-s flag shows print() output in pytest)
+from playwright.sync_api import Page, expect
+import pytest
+
+BASE = "https://practicesoftwaretesting.com"
+
+def test_with_debug_info(page: Page):
+    """Shows how to add debugging info that helps when a test fails."""
+    page.goto(BASE)
+    page.wait_for_load_state("networkidle")
+
+    # Debug: print page state
+    print(f"\nURL   : {page.url}")
+    print(f"Title : {page.title()}")
+
+    # Debug: count elements before asserting
+    cards = page.locator(".card")
+    print(f"Cards : {cards.count()}")
+
+    # Debug: check a locator before using it
+    search = page.get_by_role("textbox", name="Search")
+    print(f"Search visible : {search.is_visible()}")
+    print(f"Search enabled : {search.is_enabled()}")
+
+    # Now make the assertion
+    expect(search).to_be_visible()
+    assert cards.count() > 0, "Expected products on homepage"
+
+def test_screenshot_on_step(page: Page, tmp_path):
+    """Take screenshots at key steps for documentation/debugging."""
+    page.goto(BASE)
+    page.screenshot(path=str(tmp_path / "01_homepage.png"))
+
+    page.get_by_role("textbox", name="Search").fill("Pliers")
+    page.screenshot(path=str(tmp_path / "02_search_filled.png"))
+
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+    page.screenshot(path=str(tmp_path / "03_results.png"))
+
+    print(f"\nScreenshots saved to: {tmp_path}")
+    assert page.locator(".card").count() > 0
+```
+
+<En>
+
+**Part 4 — Running with PWDEBUG**
+
+</En>
+<Vi>
+
+**Phần 4 — Chạy với PWDEBUG**
+
+</Vi>
+
+```bash
+# Terminal command — opens Playwright Inspector for the full pytest run:
+PWDEBUG=1 pytest tests/test_login.py::test_valid_login -v
+
+# This will:
+# 1. Open a headed browser
+# 2. Open Playwright Inspector alongside
+# 3. Pause before each Playwright action
+# 4. Let you step through or resume the test
+
+# To codegen a new test:
+playwright codegen https://practicesoftwaretesting.com/auth/login
+# → Click around in the browser that opens
+# → Copy the generated Python code from the Inspector panel
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Push your POM project from Day 30 to a GitHub repository and add the workflow above — watch the Actions tab to see your tests run in CI
-- [ ] Add `if: always()` to an artifact upload step and verify that screenshots are uploaded even when a test fails
-- [ ] Add a second job to the workflow that runs on `macos-latest` — observe that both jobs run in parallel
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Debug a broken locator using Playwright tools",
+    code: `# debug_exercise.py
+# This script has an intentional bug — debug it using Playwright tools
+# Run with: python debug_exercise.py
+from playwright.sync_api import sync_playwright, expect
+
+def run_test():
+    with sync_playwright() as p:
+        # TODO (EN): Change headless=True to headless=False and add slow_mo=600
+        # TODO (VI): Đổi headless=True thành headless=False và thêm slow_mo=600
+        # Task 1: Change to headless=False and add slow_mo=600
+        # so you can watch what happens
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        page.goto("https://practicesoftwaretesting.com")
+        page.wait_for_load_state("networkidle")
+
+        # TODO (EN): Uncomment page.pause() to open Inspector and inspect the search box
+        # TODO (VI): Bỏ comment page.pause() để mở Inspector và inspect ô tìm kiếm
+        # Task 2: Add a page.pause() here so you can inspect the page
+        # before the search runs
+        # page.pause()
+
+        # TODO (EN): Fix this locator — use Inspector's "Pick locator" to find the correct selector
+        # TODO (VI): Sửa locator này — dùng "Pick locator" trong Inspector để tìm selector đúng
+        # Task 3: This locator is wrong — use Inspector's pick mode
+        # to find the correct selector for the search box
+        search = page.locator("#search-box")  # ← fix this!
+        search.fill("Hammer")
+        search.press("Enter")
+
+        page.wait_for_load_state("networkidle")
+
+        # Task 4: Add debug prints to see what's on the page
+        print(f"URL after search: {page.url}")
+        print(f"Cards found: {page.locator('.card').count()}")
+
+        page.screenshot(path="debug_result.png")
+        print("Screenshot saved → debug_result.png")
+
+        browser.close()
+
+run_test()`
+  }
+]}>
+
+<En>
+```bash
+# Step-by-step debugging workflow:
+# 1. Run python debug_exercise.py — it will fail because the locator is wrong
+# 2. Change headless=True to headless=False and add slow_mo=600
+# 3. Uncomment page.pause() — Inspector opens and execution stops
+# 4. In Inspector: click the "Pick locator" target icon, then click the search box
+# 5. Copy the suggested locator and replace "#search-box" in the code
+# 6. Remove page.pause(), restore headless=True, run again — it should pass
+
+# Bonus: record the interaction with codegen
+playwright codegen https://practicesoftwaretesting.com
+```
+
+- [ ] Fix the broken locator using Playwright Inspector
+- [ ] Script runs successfully headless after your fix
+- [ ] Run `playwright codegen https://practicesoftwaretesting.com` and inspect the generated code
+</En>
+<Vi>
+```bash
+# Quy trình debug từng bước:
+# 1. Chạy python debug_exercise.py — sẽ fail vì locator sai
+# 2. Đổi headless=True thành headless=False và thêm slow_mo=600
+# 3. Bỏ comment page.pause() — Inspector mở và dừng thực thi
+# 4. Trong Inspector: click icon "Pick locator", sau đó click vào ô tìm kiếm
+# 5. Sao chép locator được đề xuất và thay thế "#search-box" trong code
+# 6. Xóa page.pause(), khôi phục headless=True, chạy lại — phải pass
+
+# Bonus: ghi lại tương tác với codegen
+playwright codegen https://practicesoftwaretesting.com
+```
+
+- [ ] Sửa locator sai bằng Playwright Inspector
+- [ ] Script chạy thành công ở headless mode sau khi sửa
+- [ ] Chạy `playwright codegen https://practicesoftwaretesting.com` và xem code được tạo ra
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "Why is `--with-deps` needed when installing Playwright browsers in CI?",
+    q: "What happens when you add `page.pause()` inside a Playwright script?",
+    qVi: "Điều gì xảy ra khi bạn thêm `page.pause()` bên trong Playwright script?",
     choices: [
-      "It speeds up browser downloads",
-      "It installs required OS-level system libraries that the browser needs to run",
-      "It downloads test fixtures from the internet",
-      "It enables headless mode automatically"
+      "The test sleeps for 1 second then continues",
+      "Execution stops and Playwright Inspector opens — you can inspect the DOM, try locators, and resume manually",
+      "The test is marked as skipped",
+      "A screenshot is automatically saved"
+    ],
+    choicesVi: [
+      "Test ngủ 1 giây rồi tiếp tục",
+      "Thực thi dừng lại và Playwright Inspector mở — bạn có thể inspect DOM, thử locator và tiếp tục thủ công",
+      "Test được đánh dấu là skipped",
+      "Một screenshot tự động được lưu"
     ],
     answer: 1,
-    explain: "Browsers like Chromium depend on OS libraries (libglib, libgtk, etc.) that are not pre-installed on CI runners. --with-deps installs these automatically. Without it, the browser may fail to launch with cryptic shared library errors."
+    explain: "page.pause() opens the Playwright Inspector and halts execution at that exact point. You can inspect the live DOM, try locator expressions in the selector bar to see what they match, and when ready, click Resume to continue execution.",
+    explainVi: "page.pause() mở Playwright Inspector và dừng thực thi tại điểm đó. Bạn có thể inspect DOM trực tiếp, thử biểu thức locator trong thanh selector để xem chúng khớp gì, và khi sẵn sàng, nhấn Resume để tiếp tục thực thi."
   },
   {
-    q: "What does `if: failure()` mean in a GitHub Actions step?",
+    q: "What environment variable enables Playwright Inspector for a full pytest run?",
+    qVi: "Biến môi trường nào bật Playwright Inspector cho toàn bộ pytest run?",
     choices: [
-      "The step always runs, regardless of previous step results",
-      "The step only runs if a previous step in the job failed",
-      "The step runs only in the main branch",
-      "The step skips on pull requests"
+      "PLAYWRIGHT_DEBUG=1",
+      "PWDEBUG=1",
+      "DEBUG_PLAYWRIGHT=true",
+      "PLAYWRIGHT_INSPECTOR=on"
+    ],
+    choicesVi: [
+      "PLAYWRIGHT_DEBUG=1",
+      "PWDEBUG=1",
+      "DEBUG_PLAYWRIGHT=true",
+      "PLAYWRIGHT_INSPECTOR=on"
     ],
     answer: 1,
-    explain: "if: failure() makes a step conditional on a previous step having failed. This is perfect for uploading screenshots/traces only when tests fail — no artifact storage wasted on successful runs."
+    explain: "Setting PWDEBUG=1 before running pytest opens the browser in headed mode and launches Playwright Inspector, which pauses before each Playwright action and lets you step through the test.",
+    explainVi: "Đặt PWDEBUG=1 trước khi chạy pytest sẽ mở browser ở headed mode và khởi chạy Playwright Inspector, dừng trước mỗi action của Playwright và cho phép bạn bước qua test từng bước."
+  },
+  {
+    q: "What does `playwright codegen https://example.com` do?",
+    qVi: "`playwright codegen https://example.com` làm gì?",
+    choices: [
+      "Generates a test skeleton with no user actions",
+      "Opens a browser where you can click around; the Inspector records your actions and generates Python test code",
+      "Runs all existing tests against example.com",
+      "Creates a conftest.py file for example.com"
+    ],
+    choicesVi: [
+      "Tạo ra khung test không có hành động người dùng",
+      "Mở browser nơi bạn có thể click; Inspector ghi lại hành động của bạn và tạo code test Python",
+      "Chạy tất cả test hiện có với example.com",
+      "Tạo file conftest.py cho example.com"
+    ],
+    answer: 1,
+    explain: "codegen opens a browser and records every action you take (clicks, fills, navigations), generating the corresponding Playwright Python code in the Inspector panel in real time. It's the fastest way to get a starting test for a page you're not familiar with.",
+    explainVi: "codegen mở browser và ghi lại mọi hành động bạn thực hiện (click, fill, điều hướng), tạo code Python Playwright tương ứng trong panel Inspector theo thời gian thực. Đây là cách nhanh nhất để có test ban đầu cho trang bạn chưa quen."
+  },
+  {
+    q: "You add `slow_mo=1000` when launching the browser. What happens?",
+    qVi: "Bạn thêm `slow_mo=1000` khi khởi động browser. Điều gì xảy ra?",
+    choices: [
+      "The browser downloads pages 1000ms slower",
+      "A 1000ms delay is added between each Playwright action — useful for watching automation in slow motion",
+      "Tests timeout after 1000ms",
+      "Screenshots are taken every 1000ms"
+    ],
+    choicesVi: [
+      "Browser tải trang chậm hơn 1000ms",
+      "Thêm độ trễ 1000ms giữa mỗi action của Playwright — hữu ích để xem automation ở chế độ chậm",
+      "Test timeout sau 1000ms",
+      "Screenshot được chụp mỗi 1000ms"
+    ],
+    answer: 1,
+    explain: "slow_mo adds a fixed delay (in ms) between each Playwright action — click, fill, navigate, etc. This lets you watch the browser operate in slow motion, which is invaluable when debugging interactions that happen too fast to follow.",
+    explainVi: "slow_mo thêm độ trễ cố định (tính bằng ms) giữa mỗi action của Playwright — click, fill, điều hướng, v.v. Điều này cho phép bạn xem browser hoạt động ở chế độ chậm, vô cùng hữu ích khi debug các tương tác xảy ra quá nhanh để theo dõi."
+  },
+  {
+    q: "Which pytest flag shows print() output during test execution?",
+    qVi: "Flag pytest nào hiển thị output của print() trong khi test đang chạy?",
+    choices: [
+      "--verbose or -v",
+      "--no-capture or -s",
+      "--print",
+      "--show-output"
+    ],
+    choicesVi: [
+      "--verbose hoặc -v",
+      "--no-capture hoặc -s",
+      "--print",
+      "--show-output"
+    ],
+    answer: 1,
+    explain: "By default, pytest captures stdout (including print()) and only shows it for failing tests. The -s flag (or --no-capture) disables this capture, making print() output visible immediately during the run. Essential for debugging with print statements.",
+    explainVi: "Theo mặc định, pytest bắt stdout (bao gồm print()) và chỉ hiển thị nó cho các test thất bại. Flag -s (hoặc --no-capture) tắt việc bắt này, làm cho output của print() hiển thị ngay lập tức trong khi chạy. Cần thiết khi debug bằng câu lệnh print."
+  },
+  {
+    q: "What does `pytest -x` do when a test fails?",
+    qVi: "`pytest -x` làm gì khi một test thất bại?",
+    choices: [
+      "It retries the failing test up to 3 times",
+      "It skips all remaining tests and marks them as xfail",
+      "It stops the entire test run immediately after the first failure",
+      "It runs the failing test in headed mode for visual debugging"
+    ],
+    choicesVi: [
+      "Thử lại test thất bại tối đa 3 lần",
+      "Bỏ qua tất cả test còn lại và đánh dấu chúng là xfail",
+      "Dừng toàn bộ lần chạy test ngay lập tức sau lỗi đầu tiên",
+      "Chạy test thất bại ở chế độ headed để debug trực quan"
+    ],
+    answer: 2,
+    explain: "pytest -x (or --exitfirst) stops the entire test run after the first test failure. This is useful for debugging — instead of running all 50 tests and getting a long failure list, you fix one failure at a time. Use --maxfail=3 to stop after 3 failures instead.",
+    explainVi: "pytest -x (hoặc --exitfirst) dừng toàn bộ lần chạy test sau lỗi test đầu tiên. Điều này hữu ích để debug — thay vì chạy tất cả 50 test và nhận danh sách lỗi dài, bạn sửa từng lỗi một. Dùng --maxfail=3 để dừng sau 3 lỗi thay thế."
+  },
+  {
+    q: "How do you run a Playwright test in headed (visible browser) mode using pytest?",
+    qVi: "Làm thế nào để chạy Playwright test ở chế độ headed (trình duyệt hiển thị) bằng pytest?",
+    choices: [
+      "Set headless=False inside the test function",
+      "Pass --headed flag to the pytest command",
+      "Add headless=False to conftest.py",
+      "Use PWDEBUG=0 environment variable"
+    ],
+    choicesVi: [
+      "Đặt headless=False bên trong hàm test",
+      "Truyền flag --headed vào lệnh pytest",
+      "Thêm headless=False vào conftest.py",
+      "Dùng biến môi trường PWDEBUG=0"
+    ],
+    answer: 1,
+    explain: "pytest-playwright provides the --headed flag. Running `pytest --headed` launches a visible browser for all tests. Combined with --slowmo=500, you get a slow-motion, visible test run that's ideal for debugging what the browser is doing at each step.",
+    explainVi: "pytest-playwright cung cấp flag --headed. Chạy `pytest --headed` khởi chạy trình duyệt hiển thị cho tất cả test. Kết hợp với --slowmo=500, bạn nhận được lần chạy test hiển thị chậm rãi lý tưởng để debug những gì trình duyệt đang làm ở mỗi bước."
+  },
+  {
+    q: "What is `page.screenshot(path='debug.png')` useful for when debugging?",
+    qVi: "`page.screenshot(path='debug.png')` hữu ích cho điều gì khi debug?",
+    choices: [
+      "It pauses the test and opens a live browser window",
+      "It captures the current page state as an image — useful for seeing what the browser renders at that exact moment",
+      "It saves the page HTML to a file",
+      "It runs a visual comparison against a baseline screenshot"
+    ],
+    choicesVi: [
+      "Nó tạm dừng test và mở cửa sổ trình duyệt trực tiếp",
+      "Nó chụp trạng thái trang hiện tại dưới dạng ảnh — hữu ích để xem trình duyệt hiển thị gì tại thời điểm đó",
+      "Nó lưu HTML trang vào file",
+      "Nó chạy so sánh trực quan với ảnh baseline"
+    ],
+    answer: 1,
+    explain: "Adding `page.screenshot(path='debug.png')` before a failing assertion captures what the page looks like at that exact moment. Open the PNG to see what state the browser was in — the element you're looking for might be off-screen, hidden, or loaded differently than expected.",
+    explainVi: "Thêm `page.screenshot(path='debug.png')` trước assertion thất bại sẽ chụp trang trông như thế nào tại thời điểm đó. Mở PNG để xem trình duyệt đang ở trạng thái nào — phần tử bạn tìm kiếm có thể nằm ngoài màn hình, bị ẩn, hoặc tải khác với dự kiến."
+  },
+  {
+    q: "What does `expect.set_options(timeout=10000)` do in Playwright?",
+    qVi: "`expect.set_options(timeout=10000)` làm gì trong Playwright?",
+    choices: [
+      "Sets a sleep delay of 10 seconds between each assertion",
+      "Sets the global default timeout for all expect() assertions to 10 seconds",
+      "Retries failed assertions 10 times",
+      "Changes the timeout only for the current test"
+    ],
+    choicesVi: [
+      "Đặt độ trễ sleep 10 giây giữa mỗi assertion",
+      "Đặt timeout mặc định toàn cục cho tất cả assertion expect() là 10 giây",
+      "Thử lại các assertion thất bại 10 lần",
+      "Chỉ thay đổi timeout cho test hiện tại"
+    ],
+    answer: 1,
+    explain: "expect.set_options(timeout=10000) sets the global default timeout for all Playwright expect() assertions (like expect(locator).to_be_visible()). The default is 5 seconds. Increasing this globally is useful for slow CI environments; decreasing it makes tests fail faster when debugging. Call it in conftest.py to apply everywhere.",
+    explainVi: "expect.set_options(timeout=10000) đặt timeout mặc định toàn cục cho tất cả assertion expect() của Playwright (như expect(locator).to_be_visible()). Mặc định là 5 giây. Tăng giá trị này toàn cục hữu ích cho môi trường CI chậm; giảm nó làm test thất bại nhanh hơn khi debug. Gọi nó trong conftest.py để áp dụng mọi nơi."
+  },
+  {
+    q: "When should you use Playwright Inspector (page.pause()) vs Playwright Trace Viewer?",
+    qVi: "Khi nào nên dùng Playwright Inspector (page.pause()) so với Playwright Trace Viewer?",
+    choices: [
+      "Inspector for post-failure analysis; Trace Viewer for live debugging",
+      "Inspector for live interactive debugging during a test run; Trace Viewer for analyzing a recorded trace after a run",
+      "They are the same tool with different interfaces",
+      "Inspector is for Chromium only; Trace Viewer works with all browsers"
+    ],
+    choicesVi: [
+      "Inspector để phân tích sau lỗi; Trace Viewer để debug trực tiếp",
+      "Inspector để debug tương tác trực tiếp trong khi chạy test; Trace Viewer để phân tích trace đã ghi sau khi chạy",
+      "Chúng là cùng một công cụ với giao diện khác nhau",
+      "Inspector chỉ dành cho Chromium; Trace Viewer hoạt động với tất cả browser"
+    ],
+    answer: 1,
+    explain: "Inspector (page.pause()) pauses the live test run, opens a GUI where you can step through actions, try selectors interactively, and resume. Trace Viewer (playwright show-trace) opens a pre-recorded trace file — you can't change anything, but you get a complete timeline with DOM snapshots for any past test run. Use Inspector during development; use Trace Viewer to analyze CI failures.",
+    explainVi: "Inspector (page.pause()) tạm dừng lần chạy test trực tiếp, mở GUI nơi bạn có thể bước qua các action, thử selector tương tác và tiếp tục. Trace Viewer (playwright show-trace) mở file trace đã ghi trước — bạn không thể thay đổi gì, nhưng nhận được timeline đầy đủ với DOM snapshot cho bất kỳ lần chạy test nào trong quá khứ. Dùng Inspector trong quá trình phát triển; dùng Trace Viewer để phân tích lỗi CI."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright CI Guide — GitHub Actions", url: "https://playwright.dev/python/docs/ci-intro" },
-  { title: "GitHub Actions Docs", url: "https://docs.github.com/en/actions" }
+  { title: "Playwright Python — Debugging", url: "https://playwright.dev/python/docs/debug" },
+  { title: "Playwright Python — Inspector", url: "https://playwright.dev/python/docs/inspector" },
+  { title: "Playwright Python — codegen", url: "https://playwright.dev/python/docs/codegen" }
 ]} />

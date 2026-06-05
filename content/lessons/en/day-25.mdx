@@ -9,159 +9,681 @@ tags: ["playwright", "actions"]
 ## Intro
 
 <En>
-Locators find elements; actions interact with them. Playwright provides a rich set of actions that mirror everything a user can do: clicking buttons, typing in fields, selecting dropdown options, checking checkboxes, uploading files, pressing keyboard shortcuts. Each action auto-waits for the element to be ready before executing.
+Finding elements is only the first step. The next step is **acting** on them — clicking buttons, typing into inputs, selecting dropdown options, checking checkboxes, uploading files, pressing keyboard shortcuts. Playwright calls these **actions**, and they all share one critical behaviour: **they auto-wait** before executing.
+
+Before every action, Playwright verifies that the target element is:
+1. Attached to the DOM
+2. Visible (not hidden, not `display: none`)
+3. Stable (not animating or moving)
+4. Enabled (not disabled)
+5. Receives pointer events (not covered by another element)
+
+This means you almost never need to add `time.sleep()` between actions.
 </En>
 <Vi>
-Locator tìm phần tử; action tương tác với chúng. Playwright cung cấp một bộ action phong phú phản ánh mọi thứ người dùng có thể làm: nhấp nút, gõ vào trường, chọn tuỳ chọn dropdown, chọn checkbox, tải lên file, nhấn phím tắt. Mỗi action tự động chờ phần tử sẵn sàng trước khi thực thi.
+Tìm phần tử chỉ là bước đầu tiên. Bước tiếp theo là **thao tác** với chúng — nhấp nút, gõ vào input, chọn trong dropdown, đánh dấu checkbox, tải lên file, nhấn phím tắt. Playwright gọi đây là **actions**, và tất cả đều có một hành vi quan trọng: **tự động chờ** trước khi thực thi.
+
+Trước mỗi action, Playwright xác minh rằng phần tử đích:
+1. Được gắn vào DOM
+2. Hiển thị (không bị ẩn, không có `display: none`)
+3. Ổn định (không đang animate hoặc di chuyển)
+4. Được bật (không bị disabled)
+5. Nhận được sự kiện con trỏ (không bị phần tử khác che)
+
+Điều này có nghĩa là bạn hầu như không bao giờ cần thêm `time.sleep()` giữa các action.
 </Vi>
 
 ## Concept
 
 <En>
-**Core actions and when to use them:**
+**The core actions — full reference:**
 
-| Action | Code | Use for |
-|--------|------|---------|
-| Click | `locator.click()` | Buttons, links, checkboxes, radios |
-| Fill | `locator.fill("text")` | Text inputs, textarea — clears first |
-| Type | `locator.type("text")` | Simulates keystrokes (triggers key events) |
-| Clear | `locator.clear()` | Clear an input field |
-| Select option | `locator.select_option("value")` | `<select>` dropdowns |
-| Check / uncheck | `locator.check()` / `locator.uncheck()` | Checkboxes |
-| Press key | `locator.press("Enter")` | Keyboard shortcuts |
-| Hover | `locator.hover()` | Trigger hover states |
-| Focus | `locator.focus()` | Trigger focus/blur events |
-| Screenshot | `page.screenshot(path="file.png")` | Debug visuals |
-
-**`fill()` vs `type()`:**
-- `fill()` clears the field and sets the value directly — fast, preferred.
-- `type()` simulates real keystrokes character by character — use when the app listens to keyboard events (auto-suggest, real-time validation).
-
-**Keyboard shortcuts:**
+**Mouse actions:**
 ```python
-page.keyboard.press("Control+A")  # select all
-page.keyboard.press("Control+C")  # copy
-locator.press("Tab")               # move focus
+locator.click()                         # single left click
+locator.dblclick()                      # double click
+locator.right_click()                   # right click (context menu)
+locator.hover()                         # move mouse over (for tooltips/dropdowns)
+locator.click(button="middle")          # middle click
+locator.click(modifiers=["Shift"])      # shift+click (e.g., range select)
+locator.click(modifiers=["Control"])    # ctrl+click (multi-select in tables)
+locator.click(position={"x": 10, "y": 5})  # click at specific pixel offset within element
+locator.tap()                           # mobile tap event (use when testing touch screens)
 ```
 
-**Select dropdown:**
+**Why `locator.tap()` matters:** On mobile browsers or responsive test configurations, `tap()` sends a touch event instead of a mouse click. Some mobile frameworks only respond to touch events, so using `tap()` instead of `click()` gives you realistic mobile simulation.
+
+**Text input actions:**
 ```python
-locator.select_option("admin")             # by value
-locator.select_option(label="Admin Role")  # by label text
-locator.select_option(index=2)             # by index
+locator.fill("Hello World")     # clear and type (most common — fast, no keystroke events)
+locator.type("Hello World")     # simulate keystrokes one by one (triggers keydown/keyup events)
+locator.press("Enter")          # press a single named key
+locator.press("Control+A")      # keyboard shortcut (select all)
+locator.press("Shift+Tab")      # shift+tab (move focus backwards)
+locator.press("Escape")         # dismiss modals, dropdowns, autocomplete
+locator.clear()                 # clear input without typing anything
+
+page.keyboard.press("Tab")      # page-level keyboard (when no specific element has focus)
+page.keyboard.press("F5")       # function keys — refresh the page
+page.keyboard.type("text")      # type at whatever has focus currently
 ```
+
+**When to use `type()` vs `fill()`:** Use `fill()` for 95% of cases — it's faster and sufficient. Use `type()` when the application has keystroke listeners that trigger as you type (e.g., autocomplete suggestions that appear letter-by-letter, character counting inputs, or real-time validation).
+
+**Keyboard shortcuts with `locator.press()`:** Key names follow the `KeyboardEvent.key` standard values — `Control`, `Shift`, `Alt`, `Meta` (Cmd on Mac). Combine them with `+` as the separator:
+```python
+locator.press("Control+A")   # select all text in the input
+locator.press("Control+C")   # copy
+locator.press("Control+Z")   # undo
+locator.press("Tab")         # move focus to next field
+locator.press("Escape")      # close modal or dismiss autocomplete
+locator.press("ArrowDown")   # navigate dropdown options
+```
+
+**Form control actions:**
+```python
+# Checkboxes and radio buttons
+locator.check()               # ensure checkbox IS checked (idempotent — safe to call even if already checked)
+locator.uncheck()             # ensure checkbox IS NOT checked (idempotent)
+locator.set_checked(True)     # programmatic set — equivalent to check()
+locator.set_checked(False)    # programmatic set — equivalent to uncheck()
+
+# Why prefer check() over click() for checkboxes:
+# click() TOGGLES the current state — unreliable if state is unknown
+# check() GUARANTEES the checkbox ends up checked — much more expressive and safe
+
+# Select dropdowns
+page.select_option("select#country", "us")               # by value attribute
+page.select_option("select#country", label="United States")  # by visible text (most readable)
+page.select_option("select#country", index=0)            # by 0-based position
+page.select_option("select#size", ["s", "m"])            # multi-select (list of values)
+
+# File upload — bypasses the OS file picker completely
+page.locator("input[type='file']").set_input_files("path/to/file.pdf")
+page.locator("input[type='file']").set_input_files(["file1.pdf", "file2.pdf"])  # multiple files
+page.locator("input[type='file']").set_input_files([])   # clear file selection
+```
+
+**Scroll actions:**
+```python
+page.mouse.wheel(0, 300)              # scroll down 300px on the page
+page.mouse.wheel(0, -300)             # scroll up 300px
+locator.scroll_into_view_if_needed()  # scroll so element is in the viewport before acting
+```
+
+**Drag and drop:**
+```python
+page.drag_and_drop("#source", "#target")   # using CSS selectors
+locator.drag_to(other_locator)             # using locators (preferred — waits for both elements)
+# drag_to() is useful for: sortable lists, kanban boards, file uploads via drag, sliders
+```
+
+**Forcing actions (last resort):**
+If Playwright's actionability checks prevent an action (e.g., element is covered by a cookie banner), you can bypass them with `force=True` — but this should be rare. The correct fix is usually to dismiss the overlay first:
+```python
+locator.click(force=True)   # skips all actionability checks — the element may not even be interactable
+# Only use when: the overlay is intentional and dismissing it isn't possible in test context
+```
+
+**Reading values back:**
+```python
+locator.text_content()         # all text including text in child elements
+locator.inner_text()           # visible text only — respects CSS display:none
+locator.get_attribute("href")  # returns the HTML attribute value (initial value in DOM)
+locator.input_value()          # current value of an input/textarea/select (what JS sees)
+locator.is_checked()           # True/False for checkbox or radio button
+locator.is_enabled()           # True/False — False means the form element is disabled
+locator.is_visible()           # True/False — one-shot check, no retry (use sparingly)
+```
+
+**`input_value()` vs `get_attribute('value')`:** `input_value()` returns the live JavaScript value of the input — what the user sees right now. `get_attribute('value')` returns the initial HTML attribute from the markup, which doesn't update when the user types. Always use `input_value()` to read what's in an input field.
+
+**`is_visible()` vs `expect(locator).to_be_visible()`:** `is_visible()` queries the DOM once and returns a boolean immediately — no retry. If the element isn't ready yet, it returns `False`. `expect(locator).to_be_visible()` polls every ~100ms and retries for up to 5 seconds — reliable for async content. Use `expect()` in assertions.
 </En>
 <Vi>
-**Các action cốt lõi và khi nào dùng:**
+**Các action cốt lõi — tham chiếu đầy đủ:**
 
-| Action | Code | Dùng cho |
-|--------|------|---------|
-| Click | `locator.click()` | Nút, link, checkbox, radio |
-| Fill | `locator.fill("text")` | Input text, textarea — xoá trước |
-| Type | `locator.type("text")` | Mô phỏng tổ hợp phím |
-| Clear | `locator.clear()` | Xoá trường input |
-| Select option | `locator.select_option("value")` | Dropdown `<select>` |
-| Check / uncheck | `locator.check()` / `locator.uncheck()` | Checkbox |
-| Press key | `locator.press("Enter")` | Phím tắt |
-| Hover | `locator.hover()` | Kích hoạt trạng thái hover |
+**Thao tác chuột:**
+```python
+locator.click()                         # nhấp trái đơn
+locator.dblclick()                      # nhấp đúp
+locator.right_click()                   # nhấp phải (mở context menu)
+locator.hover()                         # di chuột qua (hiện tooltip/dropdown)
+locator.click(modifiers=["Shift"])      # shift+click (chọn vùng)
+locator.click(modifiers=["Control"])    # ctrl+click (chọn nhiều)
+locator.click(position={"x": 10, "y": 5})  # nhấp tại vị trí pixel cụ thể
+locator.tap()                           # sự kiện chạm (dùng khi test mobile)
+```
 
-**`fill()` vs `type()`:**
-- `fill()` xoá trường và đặt giá trị trực tiếp — nhanh, được ưu tiên.
-- `type()` mô phỏng tổ hợp phím thực từng ký tự — dùng khi app lắng nghe sự kiện bàn phím.
+**Tại sao `locator.tap()` quan trọng:** Trên trình duyệt mobile hoặc cấu hình test responsive, `tap()` gửi touch event thay vì mouse click. Một số framework mobile chỉ phản hồi touch event, vì vậy dùng `tap()` thay vì `click()` cho bạn mô phỏng mobile thực tế.
+
+**Nhập văn bản:**
+```python
+locator.fill("Hello World")     # xóa và gõ (phổ biến nhất — nhanh, không trigger keystroke events)
+locator.type("Hello World")     # giả lập từng phím (trigger keydown/keyup events)
+locator.press("Enter")          # nhấn một phím
+locator.press("Control+A")      # phím tắt (chọn tất cả)
+locator.press("Shift+Tab")      # shift+tab (di chuyển focus ngược)
+locator.press("Escape")         # đóng modal, dropdown, autocomplete
+locator.clear()                 # xóa input mà không gõ gì
+
+page.keyboard.press("Tab")      # bàn phím cấp trang (khi không có phần tử cụ thể nào được focus)
+page.keyboard.type("text")      # gõ tại vị trí đang được focus
+```
+
+**Khi nào dùng `type()` vs `fill()`:** Dùng `fill()` cho 95% trường hợp — nhanh hơn và đủ dùng. Dùng `type()` khi ứng dụng có keystroke listener kích hoạt khi bạn gõ (ví dụ: gợi ý autocomplete, đếm ký tự thời gian thực, validation ngay khi nhập).
+
+**Phím tắt với `locator.press()`:** Tên phím theo chuẩn `KeyboardEvent.key` — `Control`, `Shift`, `Alt`, `Meta` (Cmd trên Mac). Kết hợp bằng dấu `+`:
+```python
+locator.press("Control+A")   # chọn tất cả văn bản trong input
+locator.press("Control+Z")   # hoàn tác
+locator.press("Tab")         # chuyển focus sang field tiếp theo
+locator.press("Escape")      # đóng modal hoặc bỏ autocomplete
+locator.press("ArrowDown")   # điều hướng trong dropdown
+```
+
+**Điều khiển form:**
+```python
+# Checkbox và radio button
+locator.check()               # đảm bảo checkbox ĐƯỢC đánh dấu (idempotent — an toàn dù đã check rồi)
+locator.uncheck()             # đảm bảo checkbox KHÔNG được đánh dấu (idempotent)
+locator.set_checked(True)     # đặt lập trình — tương đương check()
+locator.set_checked(False)    # đặt lập trình — tương đương uncheck()
+
+# Tại sao dùng check() thay vì click() cho checkbox:
+# click() CHUYỂN ĐỔI trạng thái hiện tại — không đáng tin nếu trạng thái không biết trước
+# check() ĐẢM BẢO checkbox kết thúc ở trạng thái được đánh dấu — rõ ràng và an toàn hơn
+
+# Chọn dropdown
+page.select_option("select#country", "us")                   # theo value attribute
+page.select_option("select#country", label="United States")  # theo text hiển thị (dễ đọc nhất)
+page.select_option("select#country", index=0)                # theo vị trí 0-based
+page.select_option("select#size", ["s", "m"])                # multi-select (list các value)
+
+# Upload file — bỏ qua dialog chọn file của OS hoàn toàn
+page.locator("input[type='file']").set_input_files("path/to/file.pdf")
+page.locator("input[type='file']").set_input_files(["file1.pdf", "file2.pdf"])  # nhiều file
+page.locator("input[type='file']").set_input_files([])   # xóa file đã chọn
+```
+
+**Kéo và thả:**
+```python
+page.drag_and_drop("#source", "#target")   # dùng CSS selector
+locator.drag_to(other_locator)             # dùng locator (ưu tiên — chờ cả hai phần tử)
+# drag_to() hữu ích cho: danh sách có thể sắp xếp, kanban board, upload file bằng kéo thả, slider
+```
+
+**Đọc giá trị:**
+```python
+locator.text_content()         # toàn bộ text kể cả text trong phần tử con
+locator.inner_text()           # chỉ text hiển thị — tôn trọng CSS display:none
+locator.get_attribute("href")  # giá trị attribute HTML (giá trị ban đầu trong DOM)
+locator.input_value()          # giá trị hiện tại của input/textarea/select (JavaScript thấy)
+locator.is_checked()           # True/False cho checkbox hoặc radio
+locator.is_enabled()           # True/False — False nghĩa là form element bị disabled
+locator.is_visible()           # True/False — kiểm tra một lần, không retry
+```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Filling a login form and submitting**
+
+</En>
+<Vi>
+
+**Phần 1 — Điền form đăng nhập và gửi**
+
+</Vi>
+
 ```python
-# tests/test_actions.py — using Playwright's demo TODO app
+# demo_actions_login.py
+# Run with: python demo_actions_login.py
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+
+    # Navigate to the login page
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+
+    # Fill email — uses get_by_label() for resilient, accessible targeting
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+
+    # Fill password — fill() clears the field first, then sets value
+    page.get_by_label("Password").fill("welcome01")
+
+    # Click the submit button — Playwright auto-waits for it to be enabled and visible
+    page.get_by_role("button", name="Login").click()
+
+    # After login, Playwright needs to wait explicitly for the navigation to complete
+    # wait_for_url() polls until the URL pattern matches or times out
+    page.wait_for_url("**/account")
+    print(f"Logged in! Current URL: {page.url}")
+
+    # Assert the account heading is visible — confirms we are on the right page
+    expect(page.get_by_role("heading", name="My account")).to_be_visible()
+    print("Login successful!")
+
+    browser.close()
+
+# Expected output:
+# Logged in! Current URL: https://practicesoftwaretesting.com/account
+# Login successful!
+```
+
+<En>
+
+**Part 2 — Checkboxes, dropdowns, and keyboard**
+
+</En>
+<Vi>
+
+**Phần 2 — Checkbox, dropdown và bàn phím**
+
+</Vi>
+
+```python
+# demo_actions_form.py
+# Demonstrates check, select_option, and keyboard actions
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.goto("https://practicesoftwaretesting.com")
+
+    # --- Hover to open a dropdown navigation menu ---
+    # hover() moves the mouse over the element to trigger CSS :hover styles
+    categories = page.get_by_role("link", name="Categories")
+    categories.hover()
+    page.wait_for_timeout(500)  # brief pause for CSS transition to complete
+    print(f"Hovered over Categories")
+
+    # --- Use the search box with keyboard shortcut ---
+    search = page.get_by_role("textbox", name="Search")
+    search.click()                  # focus the input first
+    search.fill("Hammer")           # clear and type the search term
+    search.press("Enter")           # press Enter to submit (same as clicking Search button)
+
+    # Wait for search API to return results before counting cards
+    page.wait_for_load_state("networkidle")
+    results = page.locator(".card")
+    print(f"Search results for 'Hammer': {results.count()}")
+
+    # --- Navigate to contact form to test a select dropdown ---
+    page.goto("https://practicesoftwaretesting.com/contact")
+
+    # Fill text fields — get_by_label() matches the visible label text
+    page.get_by_label("First name").fill("Test")
+    page.get_by_label("Last name").fill("User")
+    page.get_by_label("Email").fill("test@example.com")
+
+    # Select a dropdown option by its visible label text (what the user sees)
+    # label= is the most readable option — avoids coupling to internal value attributes
+    page.select_option("select[name='subject']", label="Webmaster")
+    print("Selected subject: Webmaster")
+
+    # Fill the message textarea — same fill() API works for multi-line textareas
+    page.get_by_label("Message").fill("This is an automated test message.")
+    print("Form filled successfully!")
+
+    browser.close()
+
+# Expected output:
+# Hovered over Categories
+# Search results for 'Hammer': 1
+# Selected subject: Webmaster
+# Form filled successfully!
+```
+
+<En>
+
+**Part 3 — Pytest test using actions**
+
+</En>
+<Vi>
+
+**Phần 3 — Pytest test dùng actions**
+
+</Vi>
+
+```python
+# tests/test_actions.py
+# Run with: pytest tests/test_actions.py -v
 from playwright.sync_api import Page, expect
 
-DEMO_URL = "https://demo.playwright.dev/todomvc"
+BASE = "https://practicesoftwaretesting.com"
 
-def test_add_todo_item(page: Page):
-    page.goto(DEMO_URL)
-    # Fill the new todo input and press Enter
-    page.get_by_placeholder("What needs to be done?").fill("Write Playwright tests")
-    page.get_by_placeholder("What needs to be done?").press("Enter")
-    # Verify item was added
-    todo_item = page.get_by_role("listitem").filter(has_text="Write Playwright tests")
-    expect(todo_item).to_be_visible()
+def test_search_returns_results(page: Page):
+    """Typing in search and pressing Enter should return product results."""
+    page.goto(BASE)
+    search = page.get_by_role("textbox", name="Search")
+    search.fill("Pliers")
+    search.press("Enter")
+    page.wait_for_load_state("networkidle")
 
-def test_complete_todo_item(page: Page):
-    page.goto(DEMO_URL)
-    # Add an item
-    page.get_by_placeholder("What needs to be done?").fill("Buy groceries")
-    page.get_by_placeholder("What needs to be done?").press("Enter")
-    # Click the checkbox to mark complete
-    page.get_by_role("checkbox", name="Buy groceries").check()
-    # Verify it's marked as completed
-    completed = page.locator(".todo-list li.completed")
-    expect(completed).to_contain_text("Buy groceries")
+    cards = page.locator(".card")
+    assert cards.count() > 0, "Expected search results"
 
-def test_edit_todo_item(page: Page):
-    page.goto(DEMO_URL)
-    # Add item
-    new_todo = page.get_by_placeholder("What needs to be done?")
-    new_todo.fill("Old text")
-    new_todo.press("Enter")
-    # Double-click to edit
-    page.get_by_role("listitem").filter(has_text="Old text").dblclick()
-    # Clear and retype
-    edit_input = page.get_by_role("textbox", name="Old text")
-    edit_input.fill("New text")
-    edit_input.press("Enter")
-    expect(page.get_by_role("listitem")).to_contain_text("New text")
+def test_login_with_valid_credentials(page: Page):
+    """Valid credentials should navigate to the account page."""
+    page.goto(f"{BASE}/auth/login")
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+    page.get_by_role("button", name="Login").click()
+    expect(page).to_have_url(f"{BASE}/account")
 
-def test_delete_todo_item(page: Page):
-    page.goto(DEMO_URL)
-    new_todo = page.get_by_placeholder("What needs to be done?")
-    new_todo.fill("To be deleted")
-    new_todo.press("Enter")
-    # Hover to reveal delete button, then click it
-    item = page.get_by_role("listitem").filter(has_text="To be deleted")
-    item.hover()
-    item.get_by_role("button", name="Delete").click()
-    expect(item).not_to_be_visible()
+def test_login_with_wrong_password_shows_error(page: Page):
+    """Wrong password should show an error message — negative test pattern.
+
+    Negative tests verify that the system correctly rejects bad input.
+    The pattern here is: perform the bad action, then assert an error state exists.
+    We use a broad selector (.alert-danger, .error, [role='alert']) because
+    different UI frameworks use different class names for error messages —
+    at least one of these should match the site's error element.
+    """
+    page.goto(f"{BASE}/auth/login")
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("wrongpassword")
+    page.get_by_role("button", name="Login").click()
+    # An error/alert should appear — wait for it with expect() which retries
+    error = page.locator(".alert-danger, .error, [role='alert']")
+    expect(error).to_be_visible()
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Using the Playwright TodoMVC demo, write a test that adds 3 items, marks 2 as complete, then asserts the "2 items left" counter shows 1
-- [ ] Write a test that fills a text input using `fill()` and another that uses `type()` — observe the difference in speed
-- [ ] Use `page.screenshot(path="debug.png")` inside a failing test to capture what the page looked like at the point of failure
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Test the registration form with actions",
+    code: `# tests/test_registration_actions.py
+# Run with: pytest tests/test_registration_actions.py -v
+from playwright.sync_api import Page, expect
+import random
+import string
+
+REGISTER_URL = "https://practicesoftwaretesting.com/auth/register"
+
+def random_email():
+    """Generate a unique email to avoid duplicate registration errors."""
+    suffix = ''.join(random.choices(string.ascii_lowercase, k=6))
+    return f"test_{suffix}@example.com"
+
+def test_fill_registration_form(page: Page):
+    """All fields should be fillable and the form should submit."""
+    page.goto(REGISTER_URL)
+
+    # Fill in the form fields — open the page in a browser and inspect label text
+    page.get_by_label("First name").fill("Test")
+    page.get_by_label("Last name").fill("User")
+    page.get_by_label("Date of Birth").fill("1990-01-01")
+    page.get_by_label("Address").fill("123 Main St")
+    page.get_by_label("City").fill("Test City")
+    page.get_by_label("State").fill("CA")
+    # TODO (EN): Find the Postcode/Zip field label text by inspecting the registration page
+    # TODO (VI): Tìm label text của trường Postcode/Zip bằng cách inspect trang đăng ký
+    page.get_by_label("???").fill("12345")      # Hint: look for the Postcode/Zip field label
+
+    # Select a country from the dropdown
+    # TODO (EN): Find the select element's name attribute — inspect the dropdown
+    # TODO (VI): Tìm thuộc tính name của select element — inspect dropdown
+    page.select_option("select[name='???']", label="United States")
+
+    page.get_by_label("Phone").fill("555-1234")
+    page.get_by_label("Email").fill(random_email())
+    page.get_by_label("Password").fill("Test@1234!")
+
+    page.get_by_role("button", name="Register").click()
+
+    # After successful registration the site redirects to /auth/login
+    expect(page).to_have_url("https://practicesoftwaretesting.com/auth/login")
+
+def test_empty_form_shows_validation(page: Page):
+    """Submitting an empty form should show validation errors."""
+    page.goto(REGISTER_URL)
+    page.get_by_role("button", name="Register").click()
+    # Validation errors often have classes like .is-invalid or .alert-danger
+    errors = page.locator(".is-invalid, .alert-danger, [class*='error']")
+    assert errors.count() > 0, "Expected validation errors for empty form"`
+  }
+]}>
+
+<En>
+Open \`https://practicesoftwaretesting.com/auth/register\` in your browser and inspect the form field labels before filling in the \`???\` placeholders.
+
+**Expected output when both tests pass:**
+\`\`\`
+PASSED tests/test_registration_actions.py::test_fill_registration_form
+PASSED tests/test_registration_actions.py::test_empty_form_shows_validation
+2 passed in ~5s
+\`\`\`
+
+- [ ] Open the registration page in your browser and inspect the form field labels
+- [ ] Fill in all \`???\` with the actual label text and selector values from the live page
+- [ ] Run the tests — both should pass
+- [ ] Add a 3rd test: fill only the email field and click Register — assert a validation error appears
+</En>
+<Vi>
+Mở \`https://practicesoftwaretesting.com/auth/register\` trong trình duyệt và inspect label của form trước khi điền vào \`???\`.
+
+**Kết quả mong đợi khi cả hai test pass:**
+\`\`\`
+PASSED tests/test_registration_actions.py::test_fill_registration_form
+PASSED tests/test_registration_actions.py::test_empty_form_shows_validation
+2 passed in ~5s
+\`\`\`
+
+- [ ] Mở trang đăng ký trong trình duyệt và inspect label của các trường form
+- [ ] Điền tất cả \`???\` với label text và selector value thực từ trang
+- [ ] Chạy tests — cả hai phải pass
+- [ ] Thêm test thứ 3: chỉ điền email rồi click Register — kiểm tra lỗi validation xuất hiện
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "When should you use `locator.type()` instead of `locator.fill()`?",
+    q: "What is the difference between `fill()` and `type()` in Playwright?",
+    qVi: "Sự khác biệt giữa `fill()` và `type()` trong Playwright là gì?",
     choices: [
-      "type() is always preferred because it's faster",
-      "When the app needs real keypress events for features like autocomplete or real-time validation",
-      "type() is required for password fields",
-      "There is no difference between type() and fill()"
+      "fill() is for single-line inputs; type() is for textareas",
+      "fill() clears the field and sets the value directly; type() simulates individual keystrokes and triggers key events",
+      "They are identical — use either one",
+      "type() is deprecated; always use fill()"
+    ],
+    choicesVi: [
+      "fill() dùng cho input một dòng; type() dùng cho textarea",
+      "fill() xóa trường và đặt giá trị trực tiếp; type() giả lập từng phím bấm và kích hoạt key events",
+      "Chúng giống hệt nhau — dùng cái nào cũng được",
+      "type() đã bị deprecated; luôn dùng fill()"
     ],
     answer: 1,
-    explain: "fill() sets the value directly without firing key events — it's fast and sufficient for most inputs. type() simulates real keystrokes including keydown/keyup/keypress events, needed when the app reacts to individual keypresses."
+    explain: "fill() clears the existing value and sets a new one in a single operation — it's faster and sufficient for most tests. type() simulates each keystroke individually, triggering keydown/keyup events. Use type() when the app has key-event listeners (e.g., autocomplete that triggers on each key).",
+    explainVi: "fill() xóa giá trị hiện có và đặt giá trị mới trong một thao tác duy nhất — nhanh hơn và đủ dùng cho hầu hết test. type() giả lập từng phím bấm riêng lẻ, kích hoạt các sự kiện keydown/keyup. Dùng type() khi ứng dụng có key-event listener (ví dụ: autocomplete kích hoạt sau mỗi phím)."
   },
   {
-    q: "How do you select an option from a dropdown by its visible label text?",
+    q: "Before Playwright performs a click(), what does it verify automatically?",
+    qVi: "Trước khi Playwright thực hiện click(), nó tự động kiểm tra điều gì?",
     choices: [
-      "locator.click('Admin Role')",
-      "locator.select_option(label='Admin Role')",
-      "locator.fill('Admin Role')",
-      "locator.check('Admin Role')"
+      "That the page title matches",
+      "That the element is attached, visible, stable, enabled, and receives pointer events",
+      "That no network requests are pending",
+      "That the element has a click event listener attached"
+    ],
+    choicesVi: [
+      "Tiêu đề trang có khớp không",
+      "Phần tử được gắn vào DOM, hiển thị, ổn định, được bật và nhận được sự kiện con trỏ",
+      "Không có network request nào đang chờ",
+      "Phần tử có gắn click event listener hay không"
     ],
     answer: 1,
-    explain: "select_option() accepts value= (the HTML value attribute), label= (visible text), or index= (zero-based position). Using label= is the most readable option since it matches what the user sees."
+    explain: "Playwright's actionability checks run before every action: attached to DOM, visible, not animating, not disabled, and not covered by another element. This eliminates most flaky test failures caused by acting on elements that aren't ready.",
+    explainVi: "Kiểm tra actionability của Playwright chạy trước mỗi action: gắn vào DOM, hiển thị, không đang animate, không bị disabled và không bị phần tử khác che. Điều này loại bỏ hầu hết các lỗi test không ổn định do tương tác với phần tử chưa sẵn sàng."
+  },
+  {
+    q: "How do you select a dropdown option by its visible text (not value)?",
+    qVi: "Làm thế nào để chọn một option trong dropdown theo text hiển thị (không phải theo value)?",
+    choices: [
+      "page.select_option('select', 'visible text')",
+      "page.select_option('select', label='visible text')",
+      "page.locator('select').fill('visible text')",
+      "page.locator('option', has_text='visible text').click()"
+    ],
+    choicesVi: [
+      "page.select_option('select', 'visible text')",
+      "page.select_option('select', label='visible text')",
+      "page.locator('select').fill('visible text')",
+      "page.locator('option', has_text='visible text').click()"
+    ],
+    answer: 1,
+    explain: "select_option() accepts three ways to identify an option: by value (string/list), by label='visible text', or by index=0. Using label= is the most readable and resilient — it matches what the user sees.",
+    explainVi: "select_option() chấp nhận ba cách xác định option: theo value (chuỗi/danh sách), theo label='text hiển thị', hoặc theo index=0. Dùng label= dễ đọc và ổn định nhất — nó khớp với những gì người dùng nhìn thấy."
+  },
+  {
+    q: "What does `locator.hover()` do and when would you use it?",
+    qVi: "`locator.hover()` làm gì và khi nào bạn sẽ dùng nó?",
+    choices: [
+      "Clicks the element",
+      "Moves the mouse over the element, triggering CSS :hover styles — useful for revealing dropdown menus or tooltips",
+      "Scrolls to the element",
+      "Waits for the element to appear"
+    ],
+    choicesVi: [
+      "Nhấp vào phần tử",
+      "Di chuột qua phần tử, kích hoạt CSS :hover — hữu ích để hiện dropdown hoặc tooltip",
+      "Cuộn đến phần tử",
+      "Chờ phần tử xuất hiện"
+    ],
+    answer: 1,
+    explain: "hover() moves the mouse cursor over the element. Many UI patterns like navigation dropdowns, tooltips, and reveal-on-hover buttons require a hover action before the interactive element appears. Use hover() followed by the click on the revealed element.",
+    explainVi: "hover() di chuyển con trỏ chuột qua phần tử. Nhiều mẫu UI như dropdown điều hướng, tooltip và nút hiện khi hover cần thao tác hover trước khi phần tử tương tác xuất hiện. Dùng hover() rồi click vào phần tử vừa hiện ra."
+  },
+  {
+    q: "When should you use `click(force=True)`?",
+    qVi: "Khi nào nên dùng `click(force=True)`?",
+    choices: [
+      "Whenever you want clicks to be faster",
+      "As a last resort when an overlay (like a cookie banner) blocks the element — it skips actionability checks",
+      "For all buttons — it makes tests more reliable",
+      "When the element is inside an iframe"
+    ],
+    choicesVi: [
+      "Khi muốn click nhanh hơn",
+      "Là phương án cuối cùng khi overlay (như banner cookie) chặn phần tử — nó bỏ qua kiểm tra actionability",
+      "Cho tất cả button — giúp test ổn định hơn",
+      "Khi phần tử nằm trong iframe"
+    ],
+    answer: 1,
+    explain: "force=True skips Playwright's actionability checks and sends the click event directly. Use it only as a last resort when a legitimate overlay prevents the click. The correct fix is usually to dismiss the overlay first.",
+    explainVi: "force=True bỏ qua các kiểm tra actionability của Playwright và gửi sự kiện click trực tiếp. Chỉ dùng như phương án cuối cùng khi overlay hợp lệ ngăn chặn click. Cách sửa đúng thường là đóng overlay trước."
+  },
+  {
+    q: "How do you programmatically check (tick) a checkbox element?",
+    qVi: "Làm thế nào để đánh dấu (tick) một checkbox theo cách lập trình?",
+    choices: [
+      "locator.click()",
+      "locator.check()",
+      "locator.select(True)",
+      "locator.set_value(True)"
+    ],
+    choicesVi: [
+      "locator.click()",
+      "locator.check()",
+      "locator.select(True)",
+      "locator.set_value(True)"
+    ],
+    answer: 1,
+    explain: "locator.check() ensures the checkbox is checked — if it's already checked, it does nothing. locator.uncheck() ensures it's unchecked. locator.set_checked(True/False) sets it programmatically. Using check()/uncheck() is more expressive and readable than click(), which would toggle.",
+    explainVi: "locator.check() đảm bảo checkbox được đánh dấu — nếu đã được đánh dấu rồi thì không làm gì. locator.uncheck() đảm bảo không được đánh dấu. locator.set_checked(True/False) đặt theo cách lập trình. Dùng check()/uncheck() rõ ràng và dễ đọc hơn click() vì click() chỉ chuyển đổi trạng thái."
+  },
+  {
+    q: "How do you read the current value of a text input after filling it?",
+    qVi: "Làm thế nào để đọc giá trị hiện tại của một text input sau khi đã điền vào?",
+    choices: [
+      "locator.text_content()",
+      "locator.input_value()",
+      "locator.get_attribute('value')",
+      "locator.inner_text()"
+    ],
+    choicesVi: [
+      "locator.text_content()",
+      "locator.input_value()",
+      "locator.get_attribute('value')",
+      "locator.inner_text()"
+    ],
+    answer: 1,
+    explain: "input_value() returns the current value of an input, textarea, or select element. text_content() returns the text content of a node (doesn't work for inputs). get_attribute('value') returns the initial HTML attribute, not the current JavaScript value.",
+    explainVi: "input_value() trả về giá trị hiện tại của input, textarea hoặc select. text_content() trả về nội dung text của node (không dùng được cho input). get_attribute('value') trả về attribute HTML ban đầu, không phải giá trị JavaScript hiện tại."
+  },
+  {
+    q: "How do you press the keyboard shortcut Ctrl+A inside an input to select all text?",
+    qVi: "Làm thế nào để nhấn phím tắt Ctrl+A bên trong một input để chọn tất cả văn bản?",
+    choices: [
+      "locator.fill('Ctrl+A')",
+      "locator.press('Control+A')",
+      "locator.keyboard('ctrl', 'a')",
+      "page.keyboard.shortcut('ctrl+a')"
+    ],
+    choicesVi: [
+      "locator.fill('Ctrl+A')",
+      "locator.press('Control+A')",
+      "locator.keyboard('ctrl', 'a')",
+      "page.keyboard.shortcut('ctrl+a')"
+    ],
+    answer: 1,
+    explain: "locator.press('Control+A') sends a keyboard shortcut while the locator has focus. Key names follow the KeyboardEvent.key values: Control, Shift, Alt, Meta. Combinations use + as separator. page.keyboard.press() works when no specific element needs focus.",
+    explainVi: "locator.press('Control+A') gửi phím tắt trong khi locator đang được focus. Tên phím theo giá trị KeyboardEvent.key: Control, Shift, Alt, Meta. Kết hợp phím dùng dấu + làm phân cách. page.keyboard.press() dùng khi không có phần tử cụ thể nào cần focus."
+  },
+  {
+    q: "What is the key difference between `locator.is_visible()` and `expect(locator).to_be_visible()`?",
+    qVi: "Sự khác biệt chính giữa `locator.is_visible()` và `expect(locator).to_be_visible()` là gì?",
+    choices: [
+      "They are identical — both retry until the element is visible",
+      "is_visible() is a one-shot check that returns True/False immediately; to_be_visible() polls and retries until true or timeout",
+      "is_visible() only works in headed mode",
+      "to_be_visible() is only available in newer Playwright versions"
+    ],
+    choicesVi: [
+      "Chúng giống hệt nhau — cả hai đều retry cho đến khi phần tử hiển thị",
+      "is_visible() kiểm tra một lần và trả về True/False ngay lập tức; to_be_visible() thử lại cho đến khi đúng hoặc hết timeout",
+      "is_visible() chỉ hoạt động ở chế độ headed",
+      "to_be_visible() chỉ có trong các phiên bản Playwright mới hơn"
+    ],
+    answer: 1,
+    explain: "is_visible() queries the DOM once and returns a boolean immediately — it does not retry. If the element isn't ready yet, it returns False. expect(locator).to_be_visible() polls every ~100ms and retries for up to 5 seconds, making it reliable for async content.",
+    explainVi: "is_visible() truy vấn DOM một lần và trả về boolean ngay lập tức — không retry. Nếu phần tử chưa sẵn sàng, nó trả về False. expect(locator).to_be_visible() thử lại mỗi ~100ms và retry trong tối đa 5 giây, đáng tin cậy hơn cho nội dung bất đồng bộ."
+  },
+  {
+    q: "How do you trigger a file upload by setting the file path on an `<input type='file'>` element?",
+    qVi: "Làm thế nào để kích hoạt upload file bằng cách đặt đường dẫn file trên phần tử `<input type='file'>`?",
+    choices: [
+      "locator.fill('path/to/file.pdf')",
+      "locator.set_input_files('path/to/file.pdf')",
+      "locator.upload('path/to/file.pdf')",
+      "page.upload_file(locator, 'path/to/file.pdf')"
+    ],
+    choicesVi: [
+      "locator.fill('path/to/file.pdf')",
+      "locator.set_input_files('path/to/file.pdf')",
+      "locator.upload('path/to/file.pdf')",
+      "page.upload_file(locator, 'path/to/file.pdf')"
+    ],
+    answer: 1,
+    explain: "set_input_files() sets the files for a file input element. It accepts a single path string, a list of paths for multiple files, or special values to clear the selection. It bypasses the OS file picker dialog entirely — which cannot be interacted with using browser automation.",
+    explainVi: "set_input_files() đặt file cho phần tử input file. Nó chấp nhận một chuỗi đường dẫn đơn, danh sách đường dẫn cho nhiều file, hoặc giá trị đặc biệt để xóa lựa chọn. Nó bỏ qua hoàn toàn hộp thoại chọn file của OS — thứ không thể tương tác được bằng browser automation."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Actions Guide", url: "https://playwright.dev/python/docs/input" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "Playwright Python — Actions", url: "https://playwright.dev/python/docs/input" },
+  { title: "Playwright Python — Keyboard", url: "https://playwright.dev/python/docs/api/class-keyboard" },
+  { title: "Practice site for forms", url: "https://practicesoftwaretesting.com" }
 ]} />

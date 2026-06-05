@@ -1,200 +1,675 @@
 ---
 id: 28
-title: "Multiple pages & tabs"
+title: "Multiple pages & frames"
 phase: 3
-estMinutes: 60
-tags: ["playwright", "pages", "tabs"]
+estMinutes: 75
+tags: ["playwright", "advanced"]
 ---
 
 ## Intro
 
 <En>
-Real web applications often open new tabs or windows — clicking "Open in new tab", popup authentication flows, or external links. Playwright handles multiple pages in a single context elegantly. Today you learn how to manage multiple tabs, intercept new page events, and test flows that span more than one browser window.
+Real-world web apps are rarely single-page — they open new tabs, trigger popup dialogs, embed content in iframes, and expect you to handle all of them. If your test clicks a "Share" button that opens a new tab, your test needs to catch that new tab. If a payment widget is inside an iframe, you need to switch into it before you can type a card number.
+
+Playwright makes handling these complex scenarios surprisingly clean — but you need to know the right patterns. This session covers the three most common multi-context scenarios: new tabs, popups, and iframes.
 </En>
 <Vi>
-Các ứng dụng web thực thường mở tab hoặc cửa sổ mới — nhấp "Mở trong tab mới", luồng xác thực popup, hoặc link ngoài. Playwright xử lý nhiều trang trong một context một cách thanh lịch. Hôm nay bạn học cách quản lý nhiều tab, chặn sự kiện trang mới và kiểm thử các luồng trải dài trên nhiều cửa sổ trình duyệt.
+Ứng dụng web thực tế hiếm khi là một trang đơn — chúng mở tab mới, kích hoạt hộp thoại popup, nhúng nội dung trong iframe, và yêu cầu bạn xử lý tất cả chúng. Nếu test của bạn nhấp vào nút "Chia sẻ" mở tab mới, test của bạn cần bắt tab mới đó. Nếu widget thanh toán nằm trong iframe, bạn cần chuyển vào nó trước khi có thể gõ số thẻ.
+
+Playwright làm cho việc xử lý các tình huống phức tạp này trở nên rõ ràng đến ngạc nhiên — nhưng bạn cần biết các pattern đúng.
 </Vi>
 
 ## Concept
 
 <En>
-**Opening new pages programmatically:**
-```python
-new_page = context.new_page()
-new_page.goto("https://other-site.com")
-```
+**Handling new tabs:**
+When a click opens a new tab (`target="_blank"`), use `context.expect_page()` to capture it:
 
-**Capturing a page that opens via a user action (link/button click):**
 ```python
+# Pattern: wrap the click in expect_page to catch the new tab
 with context.expect_page() as new_page_info:
     page.get_by_role("link", name="Open in new tab").click()
-new_page = new_page_info.value
-new_page.wait_for_load_state()
+
+new_tab = new_page_info.value
+# Always wait for load state before interacting with the new tab.
+# 'load' waits for the load event; 'networkidle' waits until there
+# are no more than 0 network connections for 500ms.
+new_tab.wait_for_load_state()
+print(f"New tab URL: {new_tab.url}")
 ```
 
-**Working with multiple pages:**
+> **Note:** `wait_for_load_state()` defaults to `'load'`. For pages with heavy async data fetching, use `new_tab.wait_for_load_state('networkidle')` to ensure all XHR/fetch requests have settled before making assertions.
+
+**Handling popup dialogs:**
+JavaScript `alert()`, `confirm()`, and `prompt()` are all dialog events:
+
 ```python
-pages = context.pages  # list of all open pages
-first_page = pages[0]
-second_page = pages[1]
-# Switch focus — just use the page object directly
-second_page.bring_to_front()
+# Dismiss/accept a dialog before triggering it
+def handle_dialog(dialog):
+    print(f"Dialog type   : {dialog.type}")     # 'alert', 'confirm', or 'prompt'
+    print(f"Dialog message: {dialog.message}")
+    dialog.accept()     # click OK (or for prompt: dialog.accept("typed value"))
+    # dialog.dismiss()  # click Cancel
+
+page.on("dialog", handle_dialog)
+page.get_by_role("button", name="Delete").click()
+# If Delete triggers confirm("Are you sure?"), handle_dialog accepts it
 ```
 
-**Closing pages:**
+**When are iframes commonly used?**
+Iframes appear in production apps for sandboxing third-party content safely:
+- **Payment widgets** — Stripe, PayPal, Adyen embed card forms in iframes so the merchant's JS cannot access card numbers
+- **Embedded maps** — Google Maps, OpenStreetMap iframes on contact pages
+- **Social login** — some OAuth flows use popup-like iframes
+- **Rich text editors** — TinyMCE, Quill render their editable area in an iframe (which lets them control the document's CSS scope)
+- **CAPTCHA** — reCAPTCHA v2 checkbox is inside an iframe
+
+Whenever you see "element not found" in a test despite the element being visible, check whether it lives inside an iframe.
+
+**Handling iframes:**
+An iframe is a separate document embedded in the page. You must get a reference to the frame before interacting with elements inside it.
+
 ```python
-new_page.close()
+# Method 1: frame_locator() — recommended modern approach
+# Returns a FrameLocator — use it exactly like a page for chaining locators
+frame = page.frame_locator("iframe.payment-widget")
+frame.locator("#card-number").fill("4111111111111111")
+frame.get_by_label("CVV").fill("123")
+frame.get_by_role("button", name="Pay").click()
+
+# Method 2: content_frame() — older approach for when you have a Locator
+# Useful if you already have an element reference and need to enter it
+frame_element = page.locator("iframe.payment-widget")
+frame = frame_element.content_frame()  # converts Locator → Frame
+frame.locator("#card-number").fill("4111111111111111")
+
+# Method 3: page.frame() — for named iframes (less common)
+frame = page.frame("frame-name")       # by name attribute
+frame = page.frame(url="https://payment.example.com/widget")  # by URL pattern
 ```
 
-**Popup windows (`window.open()`):**
+**Difference between `frame_locator()` and `content_frame()`:**
+
+| | `page.frame_locator(selector)` | `locator.content_frame()` |
+|---|---|---|
+| Input | CSS/XPath selector string | An existing `Locator` object |
+| Returns | `FrameLocator` (locator-style) | `Frame` (frame-style) |
+| Auto-wait | Yes — like a regular locator | Yes |
+| Best for | When you know the iframe selector upfront | When you already hold a Locator reference |
+
+Both approaches work — `frame_locator()` is preferred for its cleaner chaining syntax.
+
+**Multiple pages in a context — full control:**
 ```python
-with page.expect_popup() as popup_info:
+# Get all open pages
+all_pages = context.pages
+print(f"Open tabs: {len(all_pages)}")
+
+# Switch to a specific page by index
+second_tab = context.pages[1]
+second_tab.bring_to_front()  # gives it visual focus in the browser
+
+# Even without bring_to_front(), you can still call page methods
+# (Playwright controls tabs programmatically, not via UI clicks)
+second_tab.get_by_role("button", name="Confirm").click()
+
+# Close a specific tab
+second_tab.close()
+assert len(context.pages) == 1  # verify only original tab remains
+```
+
+**Browser popup windows (not JavaScript dialogs):**
+Browser-level popups opened by `window.open()` are new pages in the context:
+
+```python
+with context.expect_page() as popup_info:
     page.get_by_role("button", name="Open popup").click()
+
 popup = popup_info.value
 popup.wait_for_load_state()
-expect(popup).to_have_title("Popup Title")
+# Interact with the popup
+popup.get_by_role("button", name="Confirm").click()
 popup.close()
-```
-
-**Dialogs (alert, confirm, prompt):**
-```python
-page.on("dialog", lambda dialog: dialog.accept())  # auto-accept all dialogs
-page.on("dialog", lambda dialog: dialog.dismiss())  # auto-dismiss
 ```
 </En>
 <Vi>
-**Mở trang mới theo chương trình:**
-```python
-new_page = context.new_page()
-new_page.goto("https://other-site.com")
-```
-
-**Chặn trang mở qua hành động người dùng:**
+**Xử lý tab mới:**
 ```python
 with context.expect_page() as new_page_info:
-    page.get_by_role("link", name="Open in new tab").click()
-new_page = new_page_info.value
-new_page.wait_for_load_state()
+    page.get_by_role("link", name="Mở tab mới").click()
+
+new_tab = new_page_info.value
+# Luôn đợi trang load xong trước khi tương tác
+new_tab.wait_for_load_state()
+print(f"URL tab mới: {new_tab.url}")
 ```
 
-**Popup window:**
+> **Lưu ý:** `wait_for_load_state()` mặc định là `'load'`. Với các trang fetch nhiều dữ liệu async, dùng `wait_for_load_state('networkidle')` để đảm bảo tất cả request đã hoàn thành.
+
+**Xử lý hộp thoại popup:**
 ```python
-with page.expect_popup() as popup_info:
-    page.get_by_role("button", name="Open popup").click()
-popup = popup_info.value
-popup.wait_for_load_state()
-popup.close()
+def handle_dialog(dialog):
+    print(f"Loại: {dialog.type}")      # 'alert', 'confirm', hoặc 'prompt'
+    print(f"Thông báo: {dialog.message}")
+    dialog.accept()
+
+page.on("dialog", handle_dialog)
+page.get_by_role("button", name="Xóa").click()
 ```
 
-**Dialog (alert, confirm, prompt):**
+**Khi nào iframe được dùng?**
+- Widget thanh toán (Stripe, PayPal)
+- Bản đồ nhúng (Google Maps)
+- Đăng nhập mạng xã hội
+- Trình soạn thảo văn bản phong phú (TinyMCE, Quill)
+- CAPTCHA (reCAPTCHA v2)
+
+**Xử lý iframe:**
 ```python
-page.on("dialog", lambda dialog: dialog.accept())  # tự động chấp nhận
-page.on("dialog", lambda dialog: dialog.dismiss()) # tự động từ chối
+# Phương pháp 1: frame_locator() — cách tiếp cận hiện đại được khuyến nghị
+frame = page.frame_locator("iframe.payment-widget")
+frame.locator("#card-number").fill("4111111111111111")
+frame.get_by_role("button", name="Pay").click()
+
+# Phương pháp 2: content_frame() — khi bạn đã có Locator
+frame_element = page.locator("iframe.payment-widget")
+frame = frame_element.content_frame()
+frame.locator("#card-number").fill("4111111111111111")
+```
+
+**Nhiều trang trong context:**
+```python
+all_pages = context.pages
+second_tab = context.pages[1]
+second_tab.bring_to_front()  # đưa tab vào tiêu điểm
+second_tab.close()
+assert len(context.pages) == 1  # xác nhận chỉ còn tab gốc
 ```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Opening and interacting with a new tab**
+
+</En>
+<Vi>
+
+**Phần 1 — Mở và tương tác với tab mới**
+
+</Vi>
+
 ```python
-# tests/test_multiple_pages.py
-from playwright.sync_api import Page, BrowserContext, expect
+# demo_new_tab.py
+# Run with: python demo_new_tab.py
+from playwright.sync_api import sync_playwright, expect
 
-def test_open_new_page_directly(context: BrowserContext):
-    # Open two pages in the same context (shared cookies)
-    page1 = context.new_page()
-    page2 = context.new_page()
-
-    page1.goto("https://example.com")
-    page2.goto("https://example.com")
-
-    expect(page1).to_have_title("Example Domain")
-    expect(page2).to_have_title("Example Domain")
-
-    assert len(context.pages) == 2
-    page2.close()
-    assert len(context.pages) == 1
-
-def test_capture_new_tab_from_link(context: BrowserContext):
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context()
     page = context.new_page()
-    page.goto("https://example.com")
 
-    # Intercept the tab that opens when clicking the external link
+    # Navigate to a page that has a link opening in a new tab
+    # Using practicesoftwaretesting.com — "Lab" opens in new tab
+    page.goto("https://practicesoftwaretesting.com")
+
+    print(f"Current pages open: {len(context.pages)}")  # Output: Current pages open: 1
+
+    # The Labs/Blog links open in new tabs — capture the new tab
+    # with expect_page() as a context manager.
+    #
+    # NOTE about the evaluate() approach below:
+    # window.open() via evaluate() simulates a new-tab open without needing
+    # a real target="_blank" link on the page. This is useful for demos and
+    # sites where you cannot easily find a link that opens a new tab.
+    # In production tests, prefer clicking the actual link that opens the tab
+    # so you are testing the real user flow:
+    #   page.get_by_role("link", name="GitHub").click()  # if it has target=_blank
     with context.expect_page() as new_page_info:
-        # target="_blank" links open in a new tab
-        page.locator("a").click()
+        # Simulates what a target="_blank" link does
+        page.evaluate("window.open('https://playwright.dev', '_blank')")
 
-    new_page = new_page_info.value
-    new_page.wait_for_load_state()
+    new_tab = new_page_info.value
+    new_tab.wait_for_load_state()
 
-    # The new tab should have navigated somewhere
-    assert new_page.url != ""
-    print(f"New tab URL: {new_page.url}")
-    new_page.close()
+    print(f"New tab URL: {new_tab.url}")          # Output: New tab URL: https://playwright.dev/
+    print(f"Total pages open: {len(context.pages)}")  # Output: Total pages open: 2
 
-def test_handle_dialog(page: Page):
+    # Interact with the new tab
+    expect(new_tab).to_have_url("https://playwright.dev/")
+    print(f"New tab title: {new_tab.title()}")    # Output: New tab title: Playwright
+
+    # Close the new tab and return to original
+    new_tab.close()
+    print(f"Pages after close: {len(context.pages)}")  # Output: Pages after close: 1
+    print(f"Back on: {page.url}")                      # Output: Back on: https://practicesoftwaretesting.com/
+
+    context.close()
+    browser.close()
+```
+
+<En>
+
+**Part 2 — Handling dialogs: alert, confirm, and prompt**
+
+</En>
+<Vi>
+
+**Phần 2 — Xử lý dialog: alert, confirm và prompt**
+
+</Vi>
+
+```python
+# demo_dialogs.py
+# Demonstrates handling alert(), confirm(), and prompt() dialogs
+from playwright.sync_api import sync_playwright, Dialog
+
+dialogs_seen = []
+
+def capture_dialog(dialog: Dialog):
+    """Handler called when any dialog appears."""
+    print(f"  Dialog type   : {dialog.type}")
+    print(f"  Dialog message: {dialog.message}")
+    dialogs_seen.append({"type": dialog.type, "message": dialog.message})
+
+    if dialog.type == "alert":
+        # alert() has one button: OK.
+        # accept() and dismiss() both close it — accept() is conventional.
+        dialog.accept()
+    elif dialog.type == "confirm":
+        # confirm() has two buttons: OK and Cancel.
+        # accept() → confirm() returns True in JavaScript.
+        # dismiss() → confirm() returns False in JavaScript.
+        dialog.accept()
+    elif dialog.type == "prompt":
+        # prompt() has a text input + OK/Cancel.
+        # accept("value") types the string and clicks OK.
+        # dismiss() clicks Cancel; the prompt returns null.
+        dialog.accept("My answer")
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+
+    # Register the dialog handler BEFORE triggering the dialog
+    page.on("dialog", capture_dialog)
+
     page.goto("https://example.com")
 
-    # Pre-register dialog handler before triggering it
-    dialogs_seen = []
-    def handle_dialog(dialog):
-        dialogs_seen.append(dialog.message)
-        dialog.accept()
+    # Trigger dialogs via JavaScript (simulating what a real app might do)
+    print("Triggering alert():")
+    page.evaluate("alert('Hello from alert!')")
+    # Expected output:
+    #   Dialog type   : alert
+    #   Dialog message: Hello from alert!
 
-    page.on("dialog", handle_dialog)
+    print("\nTriggering confirm():")
+    result = page.evaluate("confirm('Do you want to proceed?')")
+    print(f"  confirm() returned: {result}")
+    # Expected output:
+    #   Dialog type   : confirm
+    #   Dialog message: Do you want to proceed?
+    #   confirm() returned: True   ← True because we called dialog.accept()
 
-    # Trigger an alert via JavaScript (simulating app behavior)
-    page.evaluate("window.alert('Test alert message')")
-    assert "Test alert message" in dialogs_seen
+    print("\nTriggering prompt():")
+    answer = page.evaluate("prompt('What is your name?', 'default')")
+    print(f"  prompt() returned: {answer}")
+    # Expected output:
+    #   Dialog type   : prompt
+    #   Dialog message: What is your name?
+    #   prompt() returned: My answer   ← the string passed to dialog.accept()
 
-def test_multiple_page_titles(context: BrowserContext):
-    urls = [
-        ("https://example.com", "Example Domain"),
-    ]
-    for url, expected_title in urls:
-        p = context.new_page()
-        p.goto(url)
-        expect(p).to_have_title(expected_title)
-        p.close()
+    print(f"\nTotal dialogs handled: {len(dialogs_seen)}")
+    # Expected output: Total dialogs handled: 3
+    browser.close()
+```
+
+<En>
+
+**Part 3 — Interacting with iframes**
+
+</En>
+<Vi>
+
+**Phần 3 — Tương tác với iframe**
+
+</Vi>
+
+```python
+# demo_iframe.py
+# Uses a site with an embedded iframe (common in payment widgets)
+# For demo purposes, we'll use w3schools which has iframes
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+
+    # Navigate to a page with an iframe
+    # This site has a demo iframe with form elements
+    page.goto("https://the-internet.herokuapp.com/iframe")
+    page.wait_for_load_state("networkidle")
+
+    # Get a reference to the iframe using frame_locator().
+    # frame_locator() returns a FrameLocator — an object you use like a page
+    # to find elements INSIDE the iframe document.
+    iframe = page.frame_locator("#mce_0_ifr")
+
+    # Interact with content inside the iframe
+    body = iframe.locator("body")
+    body.click()  # click to give the iframe body keyboard focus
+
+    # Control+A selects ALL text currently inside the focused iframe body.
+    # This is equivalent to the user pressing Ctrl+A in the editor — it
+    # highlights everything so the next keyboard.type() replaces it entirely.
+    page.keyboard.press("Control+A")
+    page.keyboard.type("This text was typed inside an iframe!")
+
+    print(f"Iframe body text: {body.text_content()}")
+    # Expected output: Iframe body text: This text was typed inside an iframe!
+
+    browser.close()
+    print("Iframe interaction complete!")
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a test that opens two separate pages in the same context, logs into a simulated app in one, and verifies the other page (same context) would share the session cookie
-- [ ] Use `context.expect_page()` to capture a new tab opened by clicking a `target="_blank"` link — assert the new tab's URL starts with `https://`
-- [ ] Add a dialog handler that accepts all `confirm()` dialogs and write a test that triggers one via `page.evaluate()`
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Handle new tabs and dialogs",
+    code: `# tests/test_multi_page.py
+# Run with: pytest tests/test_multi_page.py -v
+from playwright.sync_api import Page, BrowserContext, expect, Dialog
+
+BASE = "https://practicesoftwaretesting.com"
+
+def test_new_tab_opens_from_link(page: Page, context: BrowserContext):
+    """When a new tab is opened, we should be able to interact with it."""
+    page.goto(BASE)
+
+    with context.expect_page() as new_page_info:
+        page.evaluate("window.open('https://practicesoftwaretesting.com/about', '_blank')")
+
+    new_tab = new_page_info.value
+    new_tab.wait_for_load_state()
+
+    # TODO: Assert that the new tab URL contains 'about'
+    # Hint: '*about*' glob pattern matches any URL containing 'about'
+    # TODO (EN): Use a glob pattern — "*about*" matches any URL containing "about"
+    # TODO (VI): Dùng glob pattern — "*about*" khớp với URL chứa "about"
+    expect(new_tab).to_have_url(???)
+
+    # TODO: Assert there are now 2 open pages
+    # TODO (EN): 2 — original tab + the new tab
+    # TODO (VI): 2 — tab gốc + tab mới
+    assert len(context.pages) == ???
+
+    new_tab.close()
+    assert len(context.pages) == 1
+
+def test_confirm_dialog_can_be_accepted(page: Page):
+    """A confirm dialog should be catchable and acceptable."""
+    accepted = []
+
+    def handle_dialog(dialog: Dialog):
+        accepted.append(dialog.message)
+        dialog.accept()
+
+    page.on("dialog", handle_dialog)
+    page.goto(BASE)
+
+    result = page.evaluate("confirm('Proceed with the action?')")
+
+    # TODO: Assert the dialog was accepted (confirm() returns True when accepted)
+    # TODO (EN): True — dialog.accept() makes confirm() return True
+    # TODO (VI): True — dialog.accept() khiến confirm() trả về True
+    assert result == ???
+
+    # TODO: Assert exactly one dialog was captured
+    # TODO (EN): 1 — we triggered exactly one dialog
+    # TODO (VI): 1 — chúng ta chỉ kích hoạt đúng một dialog
+    assert len(accepted) == ???
+    print(f"Dialog captured: {accepted[0]}")
+
+def test_alert_dialog_is_dismissed(page: Page):
+    """An alert dialog should be dismissable."""
+    messages = []
+
+    def handle_alert(dialog: Dialog):
+        messages.append(dialog.message)
+        # TODO: call the correct method to close the alert
+        # For alert(), both accept() and dismiss() close it
+        # TODO (EN): accept() — closes the alert and captures it
+        # TODO (VI): accept() — đóng alert và ghi nhận nó
+        dialog.???
+
+    page.on("dialog", handle_alert)
+    page.goto(BASE)
+    page.evaluate("alert('This is an alert!')")
+
+    assert "This is an alert!" in messages`
+  }
+]}>
+
+<En>
+Fill in each `???` — the comments above each one describe the expected value.
+
+- [ ] Fill in the `???` in `test_new_tab_opens_from_link` — the glob URL pattern and the page count
+- [ ] Fill in the `???` in `test_confirm_dialog_can_be_accepted` — True and 1
+- [ ] Fill in the dialog method call in `test_alert_dialog_is_dismissed`
+- [ ] Run `pytest tests/test_multi_page.py -v` — all 3 tests should pass
+</En>
+<Vi>
+Điền vào mỗi `???` — comment phía trên mỗi `???` mô tả giá trị mong đợi.
+
+- [ ] Điền `???` trong `test_new_tab_opens_from_link` — glob URL pattern và số trang
+- [ ] Điền `???` trong `test_confirm_dialog_can_be_accepted` — True và 1
+- [ ] Điền phương thức dialog trong `test_alert_dialog_is_dismissed`
+- [ ] Chạy `pytest tests/test_multi_page.py -v` — tất cả 3 test phải pass
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "Why is it important to use `context.expect_page()` instead of just calling `page.click()` when a button opens a new tab?",
+    q: "How do you capture a new tab that opens when a link is clicked?",
+    qVi: "Làm thế nào để bắt một tab mới mở ra khi nhấp vào link?",
     choices: [
-      "Playwright crashes if you click links that open new tabs",
-      "expect_page() captures the new page object; without it you have no reference to the new tab",
-      "The new tab opens in a different browser context",
-      "click() does not work on links"
+      "page.wait_for_new_tab() after the click",
+      "Use `with context.expect_page() as new_page_info:` around the click",
+      "page.switch_to_tab(1)",
+      "New tabs are captured automatically in page.new_tabs"
+    ],
+    choicesVi: [
+      "page.wait_for_new_tab() sau khi nhấp",
+      "Dùng `with context.expect_page() as new_page_info:` bao quanh lần nhấp",
+      "page.switch_to_tab(1)",
+      "Tab mới được bắt tự động trong page.new_tabs"
     ],
     answer: 1,
-    explain: "When a click opens a new tab, the new Page object is created asynchronously. expect_page() sets up a listener before the click, then gives you the new Page object after it opens. Without it, you'd have no way to reference the new tab."
+    explain: "context.expect_page() is a context manager that listens for a new page being created. Wrap the action that triggers the new tab inside the `with` block, then access new_page_info.value after the block to get the new Page object.",
+    explainVi: "context.expect_page() là một context manager lắng nghe sự kiện tạo trang mới. Đặt hành động kích hoạt tab mới bên trong khối `with`, sau đó truy cập new_page_info.value sau khối đó để lấy đối tượng Page mới."
   },
   {
-    q: "What does `page.on('dialog', lambda d: d.accept())` do?",
+    q: "When must you register a dialog handler with `page.on('dialog', handler)`?",
+    qVi: "Bạn phải đăng ký dialog handler bằng `page.on('dialog', handler)` khi nào?",
     choices: [
-      "It opens a new dialog",
-      "It registers a handler that automatically accepts any browser dialog (alert/confirm/prompt)",
-      "It blocks all dialogs from appearing",
-      "It saves the dialog text to a variable"
+      "After the dialog appears on screen",
+      "Before the action that triggers the dialog",
+      "Only when using Chrome",
+      "Inside the test function only — not in conftest.py"
+    ],
+    choicesVi: [
+      "Sau khi dialog xuất hiện trên màn hình",
+      "Trước hành động kích hoạt dialog",
+      "Chỉ khi dùng Chrome",
+      "Chỉ bên trong hàm test — không phải trong conftest.py"
     ],
     answer: 1,
-    explain: "page.on('dialog', handler) registers an event listener for browser dialogs. Without a handler, Playwright auto-dismisses them. With accept() in the handler, all dialogs are automatically confirmed — useful for tests that trigger window.confirm()."
+    explain: "The dialog handler must be registered before the action that triggers the dialog. If registered after, the dialog may appear and auto-dismiss before your handler is attached, causing unexpected behaviour.",
+    explainVi: "Dialog handler phải được đăng ký trước hành động kích hoạt dialog. Nếu đăng ký sau, dialog có thể xuất hiện và tự đóng trước khi handler của bạn được gắn vào, gây ra hành vi không mong muốn."
+  },
+  {
+    q: "What is the difference between `page.frame_locator()` and `page.frame()`?",
+    qVi: "Sự khác biệt giữa `page.frame_locator()` và `page.frame()` là gì?",
+    choices: [
+      "They are identical",
+      "frame_locator() returns a locator-style object for finding elements inside the iframe; frame() returns the raw Frame object by name or URL",
+      "frame() is for iframes; frame_locator() is for browser windows",
+      "frame_locator() is deprecated"
+    ],
+    choicesVi: [
+      "Chúng giống hệt nhau",
+      "frame_locator() trả về đối tượng kiểu locator để tìm element bên trong iframe; frame() trả về đối tượng Frame thô theo tên hoặc URL",
+      "frame() dùng cho iframe; frame_locator() dùng cho cửa sổ trình duyệt",
+      "frame_locator() đã bị deprecated"
+    ],
+    answer: 1,
+    explain: "frame_locator('iframe.payment') returns an object that lets you chain locator methods to find elements inside the iframe (e.g., frame_locator.locator('#card-number')). page.frame(name='payment') returns the raw Frame object by its name attribute or URL, which you then use like a page.",
+    explainVi: "frame_locator('iframe.payment') trả về đối tượng cho phép bạn nối chuỗi locator để tìm element bên trong iframe (ví dụ: frame_locator.locator('#card-number')). page.frame(name='payment') trả về đối tượng Frame thô theo thuộc tính name hoặc URL, sau đó bạn dùng nó như một page."
+  },
+  {
+    q: "How do you type a value into a JavaScript `prompt()` dialog and click OK?",
+    qVi: "Làm thế nào để nhập giá trị vào dialog `prompt()` JavaScript và nhấp OK?",
+    choices: [
+      "dialog.fill('my answer') then dialog.accept()",
+      "dialog.accept('my answer')",
+      "dialog.dismiss('my answer')",
+      "dialog.type('my answer')"
+    ],
+    choicesVi: [
+      "dialog.fill('my answer') rồi dialog.accept()",
+      "dialog.accept('my answer')",
+      "dialog.dismiss('my answer')",
+      "dialog.type('my answer')"
+    ],
+    answer: 1,
+    explain: "For a prompt dialog, dialog.accept('value') types the value into the prompt input and clicks OK. dialog.dismiss() clicks Cancel. dialog.accept() with no argument clicks OK with the default value.",
+    explainVi: "Với dialog prompt, dialog.accept('value') nhập giá trị vào ô nhập liệu của prompt và nhấp OK. dialog.dismiss() nhấp Cancel. dialog.accept() không có đối số nhấp OK với giá trị mặc định."
+  },
+  {
+    q: "How do you get a list of all currently open pages in a BrowserContext?",
+    qVi: "Làm thế nào để lấy danh sách tất cả các trang đang mở trong một BrowserContext?",
+    choices: [
+      "browser.pages()",
+      "context.pages",
+      "page.all_tabs()",
+      "playwright.pages"
+    ],
+    choicesVi: [
+      "browser.pages()",
+      "context.pages",
+      "page.all_tabs()",
+      "playwright.pages"
+    ],
+    answer: 1,
+    explain: "context.pages returns a list of all Page objects currently open in that BrowserContext. You can use len(context.pages) to count them, or context.pages[1] to access a specific one by index.",
+    explainVi: "context.pages trả về danh sách tất cả đối tượng Page đang mở trong BrowserContext đó. Bạn có thể dùng len(context.pages) để đếm, hoặc context.pages[1] để truy cập một trang cụ thể theo chỉ số."
+  },
+  {
+    q: "What types of JavaScript dialogs can Playwright handle with the `page.on('dialog', handler)` event?",
+    qVi: "Playwright có thể xử lý những loại dialog JavaScript nào qua sự kiện `page.on('dialog', handler)`?",
+    choices: [
+      "Only alert() dialogs",
+      "alert(), confirm(), and prompt() — all three native JavaScript dialog types",
+      "alert() and confirm() only — prompt() requires a separate handler",
+      "Custom modal dialogs created with HTML/CSS"
+    ],
+    choicesVi: [
+      "Chỉ dialog alert()",
+      "alert(), confirm() và prompt() — cả ba loại dialog JavaScript gốc",
+      "Chỉ alert() và confirm() — prompt() cần handler riêng",
+      "Modal dialog tùy chỉnh được tạo bằng HTML/CSS"
+    ],
+    answer: 1,
+    explain: "The 'dialog' event fires for all three native JavaScript dialog types: alert() (message + OK), confirm() (message + OK/Cancel), and prompt() (message + text input + OK/Cancel). Custom HTML modals are not dialogs — they are regular DOM elements you interact with using locators.",
+    explainVi: "Sự kiện 'dialog' kích hoạt cho cả ba loại dialog JavaScript gốc: alert() (thông báo + OK), confirm() (thông báo + OK/Cancel) và prompt() (thông báo + ô nhập liệu + OK/Cancel). Modal HTML tùy chỉnh không phải dialog — chúng là phần tử DOM thông thường mà bạn tương tác bằng locator."
+  },
+  {
+    q: "How do you switch focus to a specific open tab so you can interact with it?",
+    qVi: "Làm thế nào để chuyển focus sang một tab đang mở cụ thể để tương tác với nó?",
+    choices: [
+      "context.switch_to(page_index)",
+      "Access it via context.pages[index] and call page.bring_to_front()",
+      "page.focus() on the tab element",
+      "browser.activate_page(page)"
+    ],
+    choicesVi: [
+      "context.switch_to(page_index)",
+      "Truy cập qua context.pages[index] và gọi page.bring_to_front()",
+      "page.focus() trên phần tử tab",
+      "browser.activate_page(page)"
+    ],
+    answer: 1,
+    explain: "context.pages returns a list of all open Page objects. Access the one you want by index (context.pages[1] for the second tab) and call bring_to_front() to give it visual focus. You can then call any page method on it without bring_to_front() if you just need to interact programmatically.",
+    explainVi: "context.pages trả về danh sách tất cả đối tượng Page đang mở. Truy cập cái bạn muốn theo chỉ số (context.pages[1] cho tab thứ hai) và gọi bring_to_front() để đưa nó vào tiêu điểm trực quan. Sau đó bạn có thể gọi bất kỳ phương thức page nào mà không cần bring_to_front() nếu chỉ cần tương tác theo chương trình."
+  },
+  {
+    q: "What is the difference between `dialog.accept()` and `dialog.dismiss()` for a `confirm()` dialog?",
+    qVi: "Sự khác biệt giữa `dialog.accept()` và `dialog.dismiss()` với dialog `confirm()` là gì?",
+    choices: [
+      "They are identical — both close the dialog",
+      "accept() clicks the OK button (confirm() returns True); dismiss() clicks Cancel (confirm() returns False)",
+      "accept() is for alert(); dismiss() is for confirm()",
+      "dismiss() closes the dialog immediately without waiting"
+    ],
+    choicesVi: [
+      "Chúng giống hệt nhau — cả hai đều đóng dialog",
+      "accept() nhấp nút OK (confirm() trả về True); dismiss() nhấp Cancel (confirm() trả về False)",
+      "accept() dùng cho alert(); dismiss() dùng cho confirm()",
+      "dismiss() đóng dialog ngay lập tức mà không cần chờ"
+    ],
+    answer: 1,
+    explain: "For a confirm() dialog: accept() clicks OK and JavaScript receives true as the return value. dismiss() clicks Cancel and JavaScript receives false. For alert(): accept() clicks OK (dismiss() also works — there's only one button). For prompt(): accept('text') types the text and clicks OK.",
+    explainVi: "Với dialog confirm(): accept() nhấp OK và JavaScript nhận true làm giá trị trả về. dismiss() nhấp Cancel và JavaScript nhận false. Với alert(): accept() nhấp OK (dismiss() cũng hoạt động — chỉ có một nút). Với prompt(): accept('text') nhập text và nhấp OK."
+  },
+  {
+    q: "What does `context.expect_page()` need to work correctly?",
+    qVi: "`context.expect_page()` cần điều gì để hoạt động đúng?",
+    choices: [
+      "A URL pattern to match",
+      "The action that opens the new page must happen INSIDE the `with context.expect_page() as ...:` block",
+      "A timeout parameter in milliseconds",
+      "The new page must be explicitly opened with page.new_page()"
+    ],
+    choicesVi: [
+      "Một URL pattern để khớp",
+      "Hành động mở trang mới phải xảy ra BÊN TRONG khối `with context.expect_page() as ...:`",
+      "Tham số timeout tính bằng mili giây",
+      "Trang mới phải được mở rõ ràng bằng page.new_page()"
+    ],
+    answer: 1,
+    explain: "context.expect_page() is a context manager that listens for a new page event. The action that triggers the new page (e.g., clicking a link with target=_blank) must happen inside the `with` block. After the block, new_page_info.value gives you the new Page object — already created and ready.",
+    explainVi: "context.expect_page() là một context manager lắng nghe sự kiện trang mới. Hành động kích hoạt trang mới (ví dụ: nhấp vào link có target=_blank) phải xảy ra bên trong khối `with`. Sau khối đó, new_page_info.value cho bạn đối tượng Page mới — đã được tạo và sẵn sàng."
+  },
+  {
+    q: "After closing a tab that was captured from `context.expect_page()`, how can you verify only the original tab remains?",
+    qVi: "Sau khi đóng tab được bắt từ `context.expect_page()`, làm thế nào để xác minh chỉ còn tab gốc?",
+    choices: [
+      "assert page.is_single_tab()",
+      "assert len(context.pages) == 1",
+      "assert context.tab_count == 1",
+      "assert browser.pages == 1"
+    ],
+    choicesVi: [
+      "assert page.is_single_tab()",
+      "assert len(context.pages) == 1",
+      "assert context.tab_count == 1",
+      "assert browser.pages == 1"
+    ],
+    answer: 1,
+    explain: "context.pages is a list of all open pages. After new_tab.close(), context.pages should have only the original page. len(context.pages) == 1 verifies this. This is a common assertion in tests that verify new tabs open and close correctly.",
+    explainVi: "context.pages là danh sách tất cả các trang đang mở. Sau khi new_tab.close(), context.pages chỉ còn trang gốc. len(context.pages) == 1 xác minh điều này. Đây là assertion phổ biến trong các test kiểm tra tab mới mở và đóng đúng cách."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Pages and Frames", url: "https://playwright.dev/python/docs/pages" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "Playwright Python — Pages", url: "https://playwright.dev/python/docs/pages" },
+  { title: "Playwright Python — Frames", url: "https://playwright.dev/python/docs/frames" },
+  { title: "Playwright Python — Dialogs", url: "https://playwright.dev/python/docs/dialogs" }
 ]} />

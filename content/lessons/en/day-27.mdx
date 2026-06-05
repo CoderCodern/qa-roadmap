@@ -1,177 +1,577 @@
 ---
 id: 27
-title: "Screenshots & visual testing"
+title: "Screenshots & traces"
 phase: 3
 estMinutes: 60
-tags: ["playwright", "screenshots"]
+tags: ["playwright", "debugging"]
 ---
 
 ## Intro
 
 <En>
-Screenshots serve two purposes in test automation: debugging (capturing what the page looked like when a test failed) and visual regression testing (detecting unintended visual changes). Playwright has first-class support for both — you can capture screenshots on demand and use snapshot assertions to detect pixel-level changes.
+When a test fails in CI at 2am, you can't be there to watch what happened. **Screenshots** and **trace files** are the time machine that lets you reconstruct exactly what the browser saw at the moment of failure.
+
+Screenshots capture a single frame — what was on screen right when you called the method. Traces record everything: every action, every network request, every DOM snapshot, and every screenshot — in a single compressed file you can open in Playwright's interactive Trace Viewer. Together, these tools transform debugging from guesswork to forensics.
 </En>
 <Vi>
-Ảnh chụp màn hình phục vụ hai mục đích trong tự động hoá test: gỡ lỗi (chụp lại giao diện trang khi test thất bại) và kiểm thử hồi quy trực quan (phát hiện các thay đổi trực quan không mong muốn). Playwright có hỗ trợ hạng nhất cho cả hai — bạn có thể chụp ảnh theo nhu cầu và dùng snapshot assertion để phát hiện thay đổi ở mức pixel.
+Khi test thất bại trong CI lúc 2 giờ sáng, bạn không thể ở đó để xem điều gì đã xảy ra. **Screenshots** và **trace file** là cỗ máy thời gian cho phép bạn tái tạo chính xác những gì trình duyệt đã thấy tại thời điểm thất bại.
+
+Screenshot chụp một khung đơn — những gì hiển thị trên màn hình ngay khi bạn gọi phương thức. Trace ghi lại mọi thứ: mọi hành động, mọi network request, mọi DOM snapshot và mọi screenshot — trong một file nén duy nhất bạn có thể mở trong Trace Viewer tương tác của Playwright.
 </Vi>
 
 ## Concept
 
 <En>
-**Types of screenshots:**
+**Screenshots — three modes:**
 
-| Type | Code | Use for |
-|------|------|---------|
-| Full page | `page.screenshot(path="full.png", full_page=True)` | Capture entire scrollable page |
-| Viewport | `page.screenshot(path="view.png")` | Visible area only |
-| Element | `locator.screenshot(path="element.png")` | Single component |
-| Clip region | `page.screenshot(clip={"x":0,"y":0,"width":400,"height":300})` | Specific area |
-
-**Screenshot on test failure — conftest.py pattern:**
 ```python
-@pytest.fixture(autouse=True)
-def screenshot_on_failure(page: Page, request):
-    yield
+# 1. Full page screenshot (captures content below the fold too)
+page.screenshot(path="full_page.png", full_page=True)
+
+# 2. Visible viewport only (default)
+page.screenshot(path="viewport.png")
+
+# 3. Single element screenshot
+page.locator(".product-card").screenshot(path="card.png")
+
+# Useful options:
+page.screenshot(
+    path="screenshot.png",
+    full_page=True,
+    clip={"x": 0, "y": 0, "width": 800, "height": 400},  # crop region
+    type="jpeg",   # "png" (default) or "jpeg"
+    quality=80,    # JPEG quality 0-100
+    omit_background=True,  # transparent background (PNG only)
+)
+```
+
+**Videos — record the entire test:**
+```python
+context = browser.new_context(record_video_dir="videos/")
+# ... run your test ...
+context.close()  # video is saved on context.close()
+```
+
+**Traces — the most powerful debugging tool:**
+
+A trace file captures:
+- All Playwright actions with timestamps
+- Screenshots before and after each action
+- Network requests and responses
+- Console messages
+- DOM snapshots at every step
+
+```python
+# Start tracing before the test
+context.tracing.start(screenshots=True, snapshots=True, sources=True)
+
+# ... run your test ...
+
+# Stop and save the trace
+context.tracing.stop(path="trace.zip")
+
+# Open in Trace Viewer (run this in terminal, not in Python):
+# playwright show-trace trace.zip
+```
+
+**pytest-playwright automatic on-failure capture:**
+Add this to `conftest.py` to auto-capture screenshots and traces when a test fails:
+
+```python
+# conftest.py
+import pytest
+from playwright.sync_api import Page
+
+@pytest.fixture(scope="function", autouse=True)
+def capture_on_failure(request, page: Page):
+    yield  # test runs here
+    # This runs AFTER the test
     if request.node.rep_call.failed:
-        page.screenshot(path=f"screenshots/{request.node.name}.png")
+        test_name = request.node.name
+        page.screenshot(path=f"screenshots/{test_name}.png", full_page=True)
 ```
 
-**Visual snapshot testing:**
-```python
-# First run creates baseline PNG files
-expect(page).to_have_screenshot("homepage.png")
-
-# Subsequent runs compare against the baseline
-# Test fails if pixels differ beyond tolerance
-expect(page).to_have_screenshot("homepage.png", threshold=0.1)
-```
-
-**When to use visual testing:**
-- Critical UI components (login form, checkout, hero section)
-- After design changes — verify nothing else shifted
-- Cross-browser rendering differences
-
-**Updating baselines:** When the UI intentionally changes, update snapshots:
+**Or use pytest-playwright's built-in screenshot option:**
 ```bash
-pytest --update-snapshots
+# Take screenshot on failure automatically
+pytest tests/ --screenshot=only-on-failure --output=test-results
+
+# Always take screenshots
+pytest tests/ --screenshot=on
+
+# Record video
+pytest tests/ --video=retain-on-failure
+
+# Record trace
+pytest tests/ --tracing=retain-on-failure
 ```
 </En>
 <Vi>
-**Các loại ảnh chụp màn hình:**
+**Screenshots — ba chế độ:**
 
-| Loại | Code | Dùng cho |
-|------|------|---------|
-| Toàn trang | `page.screenshot(path="full.png", full_page=True)` | Chụp toàn bộ trang có thể cuộn |
-| Viewport | `page.screenshot(path="view.png")` | Chỉ vùng hiển thị |
-| Phần tử | `locator.screenshot(path="element.png")` | Một component đơn lẻ |
-
-**Chụp ảnh khi test thất bại — pattern conftest.py:**
 ```python
-@pytest.fixture(autouse=True)
-def screenshot_on_failure(page: Page, request):
-    yield
-    if request.node.rep_call.failed:
-        page.screenshot(path=f"screenshots/{request.node.name}.png")
+# Chụp toàn bộ trang (kể cả phần cuộn)
+page.screenshot(path="full_page.png", full_page=True)
+
+# Chỉ chụp viewport hiển thị (mặc định)
+page.screenshot(path="viewport.png")
+
+# Chụp một phần tử cụ thể
+page.locator(".product-card").screenshot(path="card.png")
 ```
 
-**Kiểm thử snapshot trực quan:**
+**Video — ghi lại toàn bộ test:**
 ```python
-# Lần chạy đầu tạo file PNG baseline
-expect(page).to_have_screenshot("homepage.png")
-# Các lần chạy tiếp theo so sánh với baseline
+context = browser.new_context(record_video_dir="videos/")
+# ... chạy test ...
+context.close()  # video được lưu khi đóng context
 ```
 
-**Cập nhật baseline khi UI thay đổi có chủ đích:**
+**Trace — công cụ debug mạnh nhất:**
+
+```python
+context.tracing.start(screenshots=True, snapshots=True, sources=True)
+# ... chạy test ...
+context.tracing.stop(path="trace.zip")
+
+# Mở trong Trace Viewer (chạy trong terminal):
+# playwright show-trace trace.zip
+```
+
+**pytest-playwright — tự động chụp khi thất bại:**
 ```bash
-pytest --update-snapshots
+pytest tests/ --screenshot=only-on-failure --output=test-results
+pytest tests/ --tracing=retain-on-failure
 ```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Screenshots: full page, element, and clipped**
+
+</En>
+<Vi>
+
+**Phần 1 — Screenshot: toàn trang, element và cắt xén**
+
+</Vi>
+
 ```python
-# tests/test_screenshots.py
+# demo_screenshots.py
+# Run with: python demo_screenshots.py
+# Creates: homepage.png, card.png, after_search.png
+from playwright.sync_api import sync_playwright
+import os
+
+os.makedirs("screenshots", exist_ok=True)
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page(viewport={"width": 1280, "height": 720})
+
+    # 1. Capture the homepage
+    page.goto("https://practicesoftwaretesting.com")
+    page.wait_for_load_state("networkidle")
+    page.screenshot(path="screenshots/homepage.png", full_page=True)
+    print("Saved: screenshots/homepage.png")
+
+    # 2. Capture a single element
+    first_card = page.locator(".card").first
+    first_card.screenshot(path="screenshots/first_product_card.png")
+    print("Saved: screenshots/first_product_card.png")
+
+    # 3. Capture after an action
+    search = page.get_by_role("textbox", name="Search")
+    search.fill("Hammer")
+    search.press("Enter")
+    page.wait_for_load_state("networkidle")
+    page.screenshot(path="screenshots/search_results.png")
+    print("Saved: screenshots/search_results.png")
+
+    browser.close()
+    print("\nAll screenshots saved to ./screenshots/")
+```
+
+<En>
+
+**Part 2 — Trace recording and Trace Viewer**
+
+</En>
+<Vi>
+
+**Phần 2 — Ghi trace và Trace Viewer**
+
+</Vi>
+
+```python
+# demo_trace.py
+# Run with: python demo_trace.py
+# Then open the trace with: playwright show-trace trace.zip
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context()
+
+    # Start recording everything
+    context.tracing.start(
+        screenshots=True,   # capture screenshot on each action
+        snapshots=True,     # capture DOM snapshot on each action
+        sources=True,       # include source files in the trace
+    )
+
+    page = context.new_page()
+
+    # Run the test scenario
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url("**/account")
+
+    # Stop and save the trace
+    context.tracing.stop(path="trace.zip")
+    context.close()
+    browser.close()
+
+print("Trace saved → trace.zip")
+print("Open it with: playwright show-trace trace.zip")
+print("\nIn the Trace Viewer you can:")
+print("  - Click any action to see before/after screenshots")
+print("  - Inspect network requests at each step")
+print("  - See the DOM state at any point in time")
+```
+
+<En>
+
+**Part 3 — conftest.py: automatic screenshot on failure**
+
+</En>
+<Vi>
+
+**Phần 3 — conftest.py: tự động chụp màn hình khi test thất bại**
+
+</Vi>
+
+```python
+# conftest.py — place at project root
+# Automatically saves screenshot + trace when any test fails
 import pytest
+import os
 from pathlib import Path
-from playwright.sync_api import Page, expect
 
-SCREENSHOTS_DIR = Path("screenshots")
-SCREENSHOTS_DIR.mkdir(exist_ok=True)
+@pytest.fixture(autouse=True)
+def trace_test(context, request):
+    """Start tracing before every test; save trace on failure."""
+    context.tracing.start(screenshots=True, snapshots=True)
+    yield
+    if request.node.rep_call and request.node.rep_call.failed:
+        test_name = request.node.name.replace("/", "_")
+        Path("test-artifacts").mkdir(exist_ok=True)
+        context.tracing.stop(path=f"test-artifacts/{test_name}-trace.zip")
+    else:
+        context.tracing.stop()  # discard trace on success
 
-def test_capture_full_page(page: Page):
-    page.goto("https://example.com")
-    screenshot_path = SCREENSHOTS_DIR / "full_page.png"
-    page.screenshot(path=str(screenshot_path), full_page=True)
-    assert screenshot_path.exists()
-    print(f"Saved full-page screenshot: {screenshot_path}")
-
-def test_capture_element(page: Page):
-    page.goto("https://example.com")
-    heading = page.locator("h1")
-    screenshot_path = SCREENSHOTS_DIR / "heading_element.png"
-    heading.screenshot(path=str(screenshot_path))
-    assert screenshot_path.exists()
-    print(f"Saved element screenshot: {screenshot_path}")
-
-def test_capture_on_assertion_failure(page: Page, request):
-    page.goto("https://example.com")
-    try:
-        # Intentionally wrong assertion to trigger screenshot
-        expect(page).to_have_title("This title does not exist", timeout=1000)
-    except AssertionError:
-        screenshot_path = SCREENSHOTS_DIR / f"failure_{request.node.name}.png"
-        page.screenshot(path=str(screenshot_path))
-        print(f"Failure screenshot saved: {screenshot_path}")
-        # Re-raise so pytest still marks the test as failed
-        raise
-
-# conftest.py addition — auto-capture on any test failure:
-# @pytest.fixture(autouse=True)
-# def capture_on_failure(page: Page, request):
-#     yield
-#     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
-#         Path("screenshots").mkdir(exist_ok=True)
-#         page.screenshot(path=f"screenshots/{request.node.name}.png")
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Attach test result to the request object for access in fixtures."""
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a test that captures a full-page screenshot before and after adding an item to the TodoMVC list, saving both with descriptive filenames
-- [ ] Add a `conftest.py` fixture with `autouse=True` that captures a screenshot whenever any test fails — verify it works by writing an intentionally failing test
-- [ ] Use `locator.screenshot()` to capture just the heading of a page and verify the file was created at the expected path
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Capture screenshots at multiple stages of a login journey",
+    code: `# tests/test_screenshot_journey.py
+# Run with: pytest tests/test_screenshot_journey.py -v -s
+import os
+from pathlib import Path
+from playwright.sync_api import Page, expect
+
+BASE = "https://practicesoftwaretesting.com"
+
+Path("journey_screenshots").mkdir(exist_ok=True)
+
+def test_login_journey_with_screenshots(page: Page):
+    """Capture screenshots at each step of the login flow."""
+
+    # Step 1: Homepage
+    page.goto(BASE)
+    page.wait_for_load_state("networkidle")
+    # TODO: Save a screenshot named "01_homepage.png" in journey_screenshots/
+    # TODO (EN): Save as "journey_screenshots/01_homepage.png"
+    # TODO (VI): Lưu thành "journey_screenshots/01_homepage.png"
+    page.screenshot(path="???")
+    print("Screenshot 1: homepage")
+
+    # Step 2: Navigate to login
+    page.goto(f"{BASE}/auth/login")
+    # TODO: Save screenshot "02_login_page.png"
+    # TODO (EN): Save as "journey_screenshots/02_login_page.png"
+    # TODO (VI): Lưu thành "journey_screenshots/02_login_page.png"
+    page.screenshot(path="???")
+    print("Screenshot 2: login page")
+
+    # Step 3: Fill the form
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+    # TODO: Save screenshot "03_form_filled.png"
+    # TODO (EN): Save as "journey_screenshots/03_form_filled.png"
+    # TODO (VI): Lưu thành "journey_screenshots/03_form_filled.png"
+    page.screenshot(path="???")
+    print("Screenshot 3: form filled")
+
+    # Step 4: Submit and wait for account page
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url("**/account")
+    # TODO: Save screenshot "04_account_page.png" (full_page=True)
+    # TODO (EN): Save as "journey_screenshots/04_account_page.png"
+    # TODO (VI): Lưu thành "journey_screenshots/04_account_page.png"
+    page.screenshot(path="???", full_page=True)
+    print("Screenshot 4: account page")
+
+    expect(page.get_by_role("heading", name="My account")).to_be_visible()
+    print(f"\\nAll screenshots saved to ./journey_screenshots/")
+
+def test_element_screenshot(page: Page):
+    """Capture a screenshot of a single product card."""
+    page.goto(BASE)
+    page.wait_for_load_state("networkidle")
+
+    # TODO: Find the first .card element and screenshot it
+    # TODO (EN): Use ".card" — the CSS selector for product cards
+    # TODO (VI): Dùng ".card" — CSS selector cho thẻ sản phẩm
+    first_card = page.locator("???").first
+    first_card.screenshot(path="journey_screenshots/05_first_card.png")
+
+    assert os.path.exists("journey_screenshots/05_first_card.png"), "Card screenshot not created!"
+    print("Element screenshot saved!")`
+  }
+]}>
+
+<En>
+Fill in all \`???\` — each path should follow the pattern \`"journey_screenshots/0N_description.png"\`.
+
+- [ ] Fill in the 4 screenshot paths in \`test_login_journey_with_screenshots\`
+- [ ] Fill in the \`"???"\` card locator in \`test_element_screenshot\`
+- [ ] Run \`pytest tests/test_screenshot_journey.py -v -s\` and check the \`journey_screenshots/\` folder
+- [ ] Open a trace (if you ran the trace demo) with \`playwright show-trace trace.zip\` and explore the Trace Viewer
+</En>
+<Vi>
+Điền vào tất cả \`???\` — mỗi đường dẫn theo mẫu \`"journey_screenshots/0N_description.png"\`.
+
+- [ ] Điền 4 đường dẫn screenshot trong \`test_login_journey_with_screenshots\`
+- [ ] Điền selector \`"???"\` cho card trong \`test_element_screenshot\`
+- [ ] Chạy \`pytest tests/test_screenshot_journey.py -v -s\` và kiểm tra thư mục \`journey_screenshots/\`
+- [ ] Mở trace (nếu đã chạy trace demo) với \`playwright show-trace trace.zip\` và khám phá Trace Viewer
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What does `full_page=True` do in `page.screenshot()`?",
+    q: "What does `page.screenshot(full_page=True)` capture?",
+    qVi: "`page.screenshot(full_page=True)` chụp gì?",
     choices: [
-      "Captures every page in the browser history",
-      "Captures the entire scrollable document, not just the visible viewport",
-      "Includes the browser chrome (URL bar) in the screenshot",
-      "Takes screenshots of all open tabs"
+      "Only the visible viewport area",
+      "The entire page including content below the fold (requires scrolling to see)",
+      "All open browser tabs",
+      "A video of the test"
+    ],
+    choicesVi: [
+      "Chỉ vùng viewport hiển thị",
+      "Toàn bộ trang bao gồm nội dung bên dưới phần gấp (phải cuộn mới thấy)",
+      "Tất cả tab trình duyệt đang mở",
+      "Một video của test"
     ],
     answer: 1,
-    explain: "By default, page.screenshot() captures only the visible viewport. With full_page=True it scrolls through the entire document and stitches a full-height image — useful for verifying long pages or content below the fold."
+    explain: "With full_page=True, Playwright scrolls the page and stitches together a screenshot of the entire document height — not just what's currently visible. Useful for capturing long pages in one image.",
+    explainVi: "Với full_page=True, Playwright cuộn trang và ghép lại screenshot của toàn bộ chiều cao tài liệu — không chỉ những gì đang hiển thị. Hữu ích để chụp các trang dài trong một ảnh duy nhất."
   },
   {
-    q: "What happens on the first run of `expect(page).to_have_screenshot('home.png')`?",
+    q: "What does a Playwright trace file contain?",
+    qVi: "Một trace file của Playwright chứa gì?",
     choices: [
-      "The test always passes on the first run",
-      "A baseline PNG file is created — subsequent runs compare against it",
-      "The test fails because no baseline exists",
-      "Playwright downloads a reference image from the internet"
+      "Only the final screenshot of the test",
+      "Every action, DOM snapshot, network request, and before/after screenshots for each step",
+      "The Python source code of your tests",
+      "A video of the entire test run"
+    ],
+    choicesVi: [
+      "Chỉ screenshot cuối cùng của test",
+      "Mọi action, DOM snapshot, network request và screenshot trước/sau cho mỗi bước",
+      "Mã nguồn Python của các test",
+      "Video của toàn bộ lần chạy test"
     ],
     answer: 1,
-    explain: "The first run creates the baseline snapshot file. From then on, each run compares the current screenshot against the baseline. If they differ (beyond the configured threshold), the test fails and a diff image is saved."
+    explain: "A trace file is a comprehensive recording. When you open it in Trace Viewer (playwright show-trace trace.zip), you can click any action and see the DOM snapshot and screenshots from before and after that specific action — like a time machine for your test.",
+    explainVi: "Trace file là một bản ghi toàn diện. Khi mở trong Trace Viewer (playwright show-trace trace.zip), bạn có thể click vào bất kỳ action nào và xem DOM snapshot cùng screenshot trước và sau action đó — như cỗ máy thời gian cho test của bạn."
+  },
+  {
+    q: "What command opens a Playwright trace file after saving it?",
+    qVi: "Lệnh nào mở một trace file của Playwright sau khi đã lưu?",
+    choices: [
+      "playwright open trace.zip",
+      "playwright show-trace trace.zip",
+      "playwright debug trace.zip",
+      "python -m playwright trace trace.zip"
+    ],
+    choicesVi: [
+      "playwright open trace.zip",
+      "playwright show-trace trace.zip",
+      "playwright debug trace.zip",
+      "python -m playwright trace trace.zip"
+    ],
+    answer: 1,
+    explain: "playwright show-trace trace.zip opens the Trace Viewer in your browser. It's a standalone web app that runs locally and lets you inspect the recording interactively.",
+    explainVi: "playwright show-trace trace.zip mở Trace Viewer trong trình duyệt của bạn. Đây là ứng dụng web độc lập chạy cục bộ, cho phép bạn kiểm tra bản ghi một cách tương tác."
+  },
+  {
+    q: "Which pytest-playwright CLI flag captures a screenshot only when a test fails?",
+    qVi: "Flag CLI nào của pytest-playwright chỉ chụp screenshot khi test thất bại?",
+    choices: [
+      "--screenshot=always",
+      "--screenshot=only-on-failure",
+      "--capture=failure",
+      "--save-screenshots"
+    ],
+    choicesVi: [
+      "--screenshot=always",
+      "--screenshot=only-on-failure",
+      "--capture=failure",
+      "--save-screenshots"
+    ],
+    answer: 1,
+    explain: "--screenshot=only-on-failure tells pytest-playwright to take a screenshot only when a test fails. Combined with --output=test-results, the screenshots are saved in the test-results directory alongside the HTML report.",
+    explainVi: "--screenshot=only-on-failure yêu cầu pytest-playwright chỉ chụp screenshot khi test thất bại. Kết hợp với --output=test-results, các screenshot được lưu trong thư mục test-results cùng với HTML report."
+  },
+  {
+    q: "How do you capture a screenshot of a single element rather than the whole page?",
+    qVi: "Làm thế nào để chụp screenshot của một phần tử đơn thay vì toàn bộ trang?",
+    choices: [
+      "page.screenshot(element=locator)",
+      "locator.screenshot(path='element.png')",
+      "page.screenshot(clip=locator)",
+      "You must use full_page=True and crop it manually"
+    ],
+    choicesVi: [
+      "page.screenshot(element=locator)",
+      "locator.screenshot(path='element.png')",
+      "page.screenshot(clip=locator)",
+      "Phải dùng full_page=True rồi cắt thủ công"
+    ],
+    answer: 1,
+    explain: "Any locator has a .screenshot() method that captures just that element — its bounding box. This is useful for visual comparison of individual components like cards, buttons, or charts.",
+    explainVi: "Mọi locator đều có phương thức .screenshot() chụp đúng phần tử đó — bounding box của nó. Điều này hữu ích để so sánh trực quan các component riêng lẻ như card, button hoặc biểu đồ."
+  },
+  {
+    q: "How do you enable video recording for all tests in pytest-playwright?",
+    qVi: "Làm thế nào để bật ghi video cho tất cả test trong pytest-playwright?",
+    choices: [
+      "Pass --video=on to the pytest command",
+      "Set record_video=True in the test function",
+      "Add video=True to the page fixture",
+      "Videos are recorded automatically — no configuration needed"
+    ],
+    choicesVi: [
+      "Truyền --video=on vào lệnh pytest",
+      "Đặt record_video=True trong hàm test",
+      "Thêm video=True vào fixture page",
+      "Video được ghi tự động — không cần cấu hình"
+    ],
+    answer: 0,
+    explain: "Pass --video=on (or --video=retain-on-failure) to the pytest command, or set it in playwright.config section of pyproject.toml. pytest-playwright saves the video next to the test artifacts. 'retain-on-failure' is often preferred: it records all tests but only keeps videos when a test fails.",
+    explainVi: "Truyền --video=on (hoặc --video=retain-on-failure) vào lệnh pytest, hoặc đặt trong section playwright.config của pyproject.toml. pytest-playwright lưu video cùng với các artifact test. 'retain-on-failure' thường được ưa thích: nó ghi lại tất cả test nhưng chỉ giữ video khi test thất bại."
+  },
+  {
+    q: "Which tracing option records a trace only when a test fails on its first retry?",
+    qVi: "Tùy chọn tracing nào ghi trace chỉ khi test thất bại ở lần retry đầu tiên?",
+    choices: [
+      "tracing='on'",
+      "tracing='on-first-retry'",
+      "tracing='retain-on-failure'",
+      "tracing='off'"
+    ],
+    choicesVi: [
+      "tracing='on'",
+      "tracing='on-first-retry'",
+      "tracing='retain-on-failure'",
+      "tracing='off'"
+    ],
+    answer: 1,
+    explain: "'on-first-retry' starts tracing automatically when a test is retried for the first time, keeping the trace only for flaky failures. 'on' always records (expensive), 'retain-on-failure' records all tests but deletes the trace if the test passes.",
+    explainVi: "'on-first-retry' tự động bắt đầu trace khi test được retry lần đầu tiên, chỉ giữ trace cho các lỗi flaky. 'on' luôn ghi (tốn kém), 'retain-on-failure' ghi tất cả test nhưng xóa trace nếu test pass."
+  },
+  {
+    q: "By default, where does pytest-playwright save screenshots taken with --screenshot=on?",
+    qVi: "Theo mặc định, pytest-playwright lưu screenshot chụp bằng --screenshot=on ở đâu?",
+    choices: [
+      "In the current working directory",
+      "In a 'screenshots/' folder at the project root",
+      "In the 'test-results/' folder (configurable with --output)",
+      "In a temp folder that is deleted after the run"
+    ],
+    choicesVi: [
+      "Trong thư mục làm việc hiện tại",
+      "Trong thư mục 'screenshots/' ở gốc dự án",
+      "Trong thư mục 'test-results/' (có thể cấu hình bằng --output)",
+      "Trong thư mục tạm bị xóa sau khi chạy"
+    ],
+    answer: 2,
+    explain: "pytest-playwright saves screenshots, videos, and traces in the output directory, which defaults to 'test-results/' and is configurable with --output=<dir>. Each test gets its own subdirectory named after the test.",
+    explainVi: "pytest-playwright lưu screenshot, video và trace trong thư mục output, mặc định là 'test-results/' và có thể cấu hình bằng --output=<dir>. Mỗi test có thư mục con riêng được đặt tên theo test đó."
+  },
+  {
+    q: "What does `context.tracing.start(screenshots=True, snapshots=True)` do that a plain screenshot does NOT do?",
+    qVi: "`context.tracing.start(screenshots=True, snapshots=True)` làm gì mà screenshot thông thường KHÔNG làm được?",
+    choices: [
+      "Takes screenshots at a higher resolution",
+      "Records DOM snapshots at every action so you can inspect the page state at any point in the trace",
+      "Compresses screenshots into a ZIP archive automatically",
+      "Automatically compares screenshots to baseline images"
+    ],
+    choicesVi: [
+      "Chụp screenshot với độ phân giải cao hơn",
+      "Ghi DOM snapshot tại mỗi action để bạn có thể xem trạng thái trang tại bất kỳ điểm nào trong trace",
+      "Tự động nén screenshot thành tệp ZIP",
+      "Tự động so sánh screenshot với ảnh baseline"
+    ],
+    answer: 1,
+    explain: "snapshots=True records the full DOM state at each step, not just a pixel image. In Trace Viewer you can inspect the actual HTML tree and computed styles at any action — far more useful for debugging than a screenshot alone.",
+    explainVi: "snapshots=True ghi lại trạng thái DOM đầy đủ tại mỗi bước, không chỉ là ảnh pixel. Trong Trace Viewer bạn có thể kiểm tra cây HTML thực tế và computed styles tại bất kỳ action nào — hữu ích hơn nhiều so với chỉ screenshot khi debug."
+  },
+  {
+    q: "What is the correct way to take a screenshot in PNG format with a specific quality in Playwright Python?",
+    qVi: "Cách đúng để chụp screenshot định dạng PNG với chất lượng cụ thể trong Playwright Python là gì?",
+    choices: [
+      "page.screenshot(path='shot.png', quality=80)",
+      "page.screenshot(path='shot.png', type='jpeg', quality=80)",
+      "page.screenshot(path='shot.png', format='png', quality=80)",
+      "page.screenshot(path='shot.png', compression=80)"
+    ],
+    choicesVi: [
+      "page.screenshot(path='shot.png', quality=80)",
+      "page.screenshot(path='shot.png', type='jpeg', quality=80)",
+      "page.screenshot(path='shot.png', format='png', quality=80)",
+      "page.screenshot(path='shot.png', compression=80)"
+    ],
+    answer: 1,
+    explain: "The 'quality' option only applies to JPEG format (lossy compression). PNG is lossless and ignores the quality parameter. To use quality, you must set type='jpeg' and save as .jpg. For PNG, just omit quality entirely.",
+    explainVi: "Tùy chọn 'quality' chỉ áp dụng cho định dạng JPEG (nén có mất dữ liệu). PNG là lossless và bỏ qua tham số quality. Để dùng quality, bạn phải đặt type='jpeg' và lưu dưới dạng .jpg. Với PNG, chỉ cần bỏ quality hoàn toàn."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Screenshots Guide", url: "https://playwright.dev/python/docs/screenshots" },
-  { title: "Playwright Visual Comparisons", url: "https://playwright.dev/python/docs/test-snapshots" }
+  { title: "Playwright Python — Screenshots", url: "https://playwright.dev/python/docs/screenshots" },
+  { title: "Playwright Python — Trace Viewer", url: "https://playwright.dev/python/docs/trace-viewer" },
+  { title: "Playwright Python — Videos", url: "https://playwright.dev/python/docs/videos" }
 ]} />

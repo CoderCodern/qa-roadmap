@@ -1,141 +1,577 @@
 ---
 id: 22
-title: "Browser automation intro"
+title: "Browser automation overview"
 phase: 3
 estMinutes: 60
-tags: ["playwright", "intro"]
+tags: ["playwright", "setup"]
 ---
 
 ## Intro
 
 <En>
-Browser automation means writing code that controls a real web browser — clicking buttons, filling forms, navigating pages — the same actions a human would take, but executed by a script. Playwright is the modern industry standard for this. It is fast, reliable, cross-browser, and has first-class Python support.
+Browser automation means writing code that controls a real web browser — clicking buttons, filling forms, navigating pages — exactly what a human tester does, but executed by a script in milliseconds. This is the foundation of modern UI test automation.
+
+Playwright is the industry-leading browser automation library. Released by Microsoft in 2020, it has quickly become the preferred choice over older tools like Selenium because it is faster, more reliable, and handles modern web apps (SPAs, dynamic content) far better. Today you install it and run your very first automated browser script.
 </En>
 <Vi>
-Tự động hoá trình duyệt có nghĩa là viết code điều khiển trình duyệt web thực — nhấp nút, điền form, điều hướng trang — những hành động giống như con người thực hiện, nhưng được thực thi bởi script. Playwright là tiêu chuẩn công nghiệp hiện đại cho việc này. Nó nhanh, đáng tin cậy, đa trình duyệt và có hỗ trợ Python hạng nhất.
+Tự động hoá trình duyệt có nghĩa là viết code điều khiển trình duyệt web thực — nhấp nút, điền form, điều hướng trang — chính xác những gì người kiểm thử làm, nhưng được thực thi bởi script trong mili giây. Đây là nền tảng của kiểm thử UI tự động hiện đại.
+
+Playwright là thư viện tự động hoá trình duyệt hàng đầu trong ngành. Được Microsoft phát hành năm 2020, nó nhanh chóng trở thành lựa chọn ưa thích hơn các công cụ cũ như Selenium vì nhanh hơn, đáng tin cậy hơn và xử lý các ứng dụng web hiện đại (SPA, nội dung động) tốt hơn nhiều. Hôm nay bạn cài đặt và chạy script trình duyệt tự động đầu tiên.
 </Vi>
 
 ## Concept
 
 <En>
-**What Playwright does:**
-Playwright launches a real browser (Chromium, Firefox, or WebKit), navigates to pages, interacts with elements, and lets you assert on the page state. Unlike older tools like Selenium, Playwright:
-- Auto-waits for elements to be ready before interacting
-- Runs headless (no visible window) or headed (with visible window)
-- Supports multiple browser contexts (isolated sessions) in one test run
-- Has a codegen tool that records your actions and generates test code
+**Why Playwright over Selenium?**
 
-**Key concepts:**
+| Feature | Playwright | Selenium |
+|---------|-----------|---------|
+| Auto-wait | ✅ Built-in — waits for elements automatically | ❌ Manual waits required |
+| Speed | Fast — uses CDP protocol directly | Slower — extra WebDriver layer |
+| Modern browsers | Chromium, Firefox, WebKit (Safari engine) | Same, but less stable WebKit |
+| Network interception | ✅ Built-in (`page.route()`) | ❌ Needs third-party proxy |
+| Multiple contexts | ✅ Parallel isolated sessions in one process | ❌ One session per driver |
+| Python support | First-class (`playwright.sync_api`) | First-class |
 
-| Concept | Description |
-|---------|-------------|
-| **Browser** | The browser instance (Chromium, Firefox, WebKit) |
-| **Context** | An isolated browser session — like a private window. Separate cookies, storage |
-| **Page** | A single browser tab |
-| **Locator** | A smart element finder that auto-waits |
-| **Assertion** | `expect(locator).to_be_visible()` — Playwright's built-in assertions |
+**Speed difference explained:** Selenium routes every command through a separate WebDriver process — an extra network hop per action. Playwright communicates directly with the browser via the Chrome DevTools Protocol (CDP) in a single hop. For a 100-step test, this difference adds up fast: Playwright avoids 100 round-trips through an intermediary.
 
-**Install Playwright for Python:**
-```bash
-pip install playwright
-playwright install chromium
+**The four core objects — how they relate:**
+
+```
+Playwright
+  └── Browser  (one browser binary: Chromium, Firefox, or WebKit)
+        └── BrowserContext  (isolated session: own cookies, storage, auth)
+              └── Page  (one browser tab)
 ```
 
-**Headless vs headed:** Headless runs without a visible window (faster, used in CI). Headed shows the browser (useful for debugging). Toggle with `headless=False` in `launch()`.
+- **Playwright** — the entry point. Manages browser binaries.
+- **Browser** — one running browser instance. Shared across contexts.
+- **BrowserContext** — like a private window. Each context has completely separate cookies, `localStorage`, and session state. Great for testing "logged-in user" and "guest" simultaneously. When you create a new context, it starts completely fresh — no cookies, no localStorage, no session data whatsoever.
+- **Page** — one tab. This is what you interact with most.
+
+**Installation — two separate commands (both required):**
+```bash
+pip install playwright          # installs the Python library, bindings, and CLI tool
+playwright install chromium    # downloads the Chromium browser binary (~150 MB)
+```
+
+These are separate steps for a reason: `pip install playwright` gives you the Python API but no browser. `playwright install chromium` downloads the actual browser binary that Playwright controls. You must run both before you can automate anything.
+
+To install all three browsers (Chromium, Firefox, WebKit) at once:
+```bash
+playwright install  # installs all three browsers
+```
+
+To install only a specific browser:
+```bash
+playwright install chromium   # ~150 MB — recommended for most use cases
+playwright install firefox    # ~80 MB
+playwright install webkit     # ~60 MB
+```
+
+**Two API styles — choose based on your context:**
+```python
+# Synchronous (simpler — use this for tests, scripts, and CLI tools)
+from playwright.sync_api import sync_playwright
+
+# Asynchronous (required when integrating with async frameworks)
+from playwright.async_api import async_playwright
+```
+
+Use the **sync API** unless you are integrating Playwright into an async Python application (e.g., a FastAPI server that runs browser automation on demand). For all pytest-based tests, use the sync API — pytest itself is synchronous and the `pytest-playwright` plugin is built on top of `sync_playwright`.
+
+**Headless vs Headed:**
+- **Headless** (default): browser runs without a visible window — faster, used in CI pipelines.
+- **Headed**: browser window is visible — use `headless=False` when debugging failing tests.
+- **slow_mo**: add `slow_mo=600` (ms) to insert a delay after every single action (click, fill, navigate, keyboard). This lets you watch the browser work in slow motion in a headed window and see each step clearly.
 </En>
 <Vi>
-**Playwright làm gì:**
-Playwright khởi chạy trình duyệt thực (Chromium, Firefox hoặc WebKit), điều hướng đến các trang, tương tác với các phần tử và cho phép bạn assert về trạng thái trang. Khác với các công cụ cũ như Selenium, Playwright:
-- Tự động chờ phần tử sẵn sàng trước khi tương tác
-- Chạy headless (không có cửa sổ hiển thị) hoặc headed (có cửa sổ hiển thị)
-- Hỗ trợ nhiều browser context (phiên riêng biệt) trong một lần chạy test
-- Có công cụ codegen ghi lại hành động của bạn và tạo code test
+**Tại sao dùng Playwright thay vì Selenium?**
 
-**Các khái niệm quan trọng:**
+| Tính năng | Playwright | Selenium |
+|---------|-----------|---------|
+| Auto-wait | ✅ Tích hợp sẵn — tự động chờ phần tử | ❌ Phải chờ thủ công |
+| Tốc độ | Nhanh — dùng giao thức CDP trực tiếp | Chậm hơn — có thêm lớp WebDriver |
+| Trình duyệt hiện đại | Chromium, Firefox, WebKit | Giống nhau nhưng WebKit kém ổn định hơn |
+| Chặn network | ✅ Tích hợp sẵn (`page.route()`) | ❌ Cần proxy bên thứ ba |
+| Nhiều context | ✅ Phiên song song trong một tiến trình | ❌ Một phiên mỗi driver |
 
-| Khái niệm | Mô tả |
-|---------|-------------|
-| **Browser** | Instance trình duyệt (Chromium, Firefox, WebKit) |
-| **Context** | Phiên trình duyệt độc lập — như cửa sổ riêng tư |
-| **Page** | Một tab trình duyệt |
-| **Locator** | Bộ tìm phần tử thông minh tự động chờ |
-| **Assertion** | `expect(locator).to_be_visible()` |
+**Sự khác biệt về tốc độ:** Selenium định tuyến mỗi lệnh qua một tiến trình WebDriver riêng — thêm một lần network hop cho mỗi hành động. Playwright giao tiếp trực tiếp với trình duyệt qua Chrome DevTools Protocol (CDP) trong một lần. Với test 100 bước, Playwright tránh được 100 round-trip qua intermediary.
 
-**Cài đặt Playwright cho Python:**
-```bash
-pip install playwright
-playwright install chromium
+**Bốn đối tượng cốt lõi:**
+
 ```
+Playwright
+  └── Browser  (một trình duyệt: Chromium, Firefox, hoặc WebKit)
+        └── BrowserContext  (phiên độc lập: cookie, storage, xác thực riêng)
+              └── Page  (một tab trình duyệt)
+```
+
+- **Browser** — một instance trình duyệt đang chạy.
+- **BrowserContext** — như cửa sổ ẩn danh — cookie, localStorage và trạng thái phiên hoàn toàn riêng biệt. Mỗi context mới bắt đầu hoàn toàn trống — không có cookie, không có localStorage, không có dữ liệu phiên nào cả.
+- **Page** — một tab trình duyệt. Đây là đối tượng bạn tương tác nhiều nhất.
+
+**Cài đặt — hai lệnh riêng biệt (cả hai đều cần thiết):**
+```bash
+pip install playwright          # cài thư viện Python, bindings và CLI tool
+playwright install chromium     # tải binary trình duyệt Chromium (~150 MB)
+```
+
+`pip install playwright` cho bạn Python API nhưng không có trình duyệt. `playwright install chromium` tải binary trình duyệt thực sự mà Playwright điều khiển. Phải chạy cả hai trước khi tự động hoá bất cứ thứ gì.
+
+**Hai kiểu API — chọn dựa trên ngữ cảnh:**
+```python
+# Đồng bộ (đơn giản hơn — dùng cho test, script, và CLI)
+from playwright.sync_api import sync_playwright
+
+# Bất đồng bộ (cần khi tích hợp với framework async)
+from playwright.async_api import async_playwright
+```
+
+Dùng **sync API** trừ khi bạn tích hợp Playwright vào ứng dụng Python async (ví dụ: FastAPI server chạy tự động hoá trình duyệt theo yêu cầu). Với tất cả test dựa trên pytest, dùng sync API.
+
+**Headless vs Headed:**
+- **Headless** (mặc định): trình duyệt chạy không có cửa sổ hiển thị — nhanh hơn, dùng trong CI.
+- **Headed**: cửa sổ trình duyệt hiển thị — dùng `headless=False` khi debug.
+- **slow_mo**: thêm `slow_mo=600` (ms) để chèn độ trễ sau mỗi hành động (click, fill, navigate). Cho phép bạn xem trình duyệt làm việc trong chế độ chậm và nhìn rõ từng bước.
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Basic script: navigate, assert, screenshot**
+
+</En>
+<Vi>
+
+**Phần 1 — Script cơ bản: điều hướng, kiểm tra, chụp màn hình**
+
+</Vi>
+
 ```python
-# First Playwright script — run with: python demo.py
+# demo_basic.py
+# Run with: python demo_basic.py
 from playwright.sync_api import sync_playwright
 
+# The `with` block guarantees cleanup: when the block exits (normally or
+# via exception), sync_playwright.__exit__() stops browser processes,
+# closes file handles, and frees memory. Without this, orphaned browser
+# processes accumulate and consume system resources.
 with sync_playwright() as p:
-    # Launch a browser
+    # 1. Launch a browser (headless=True = no visible window)
     browser = p.chromium.launch(headless=True)
 
-    # Create an isolated context
+    # 2. Create an isolated session (like a private/incognito window)
+    #    Each new_context() starts with empty cookies and empty localStorage.
     context = browser.new_context()
 
-    # Open a new page (tab)
+    # 3. Open a tab
     page = context.new_page()
 
-    # Navigate
+    # 4. Navigate to a URL
     page.goto("https://example.com")
 
-    # Assert on page content
+    # 5. Read page metadata
+    print(f"Title : {page.title()}")
+    print(f"URL   : {page.url}")
+
+    # 6. Find an element and read its text
     heading = page.locator("h1")
-    assert heading.text_content() == "Example Domain"
-    print(f"Page title: {page.title()}")
-    print(f"Heading: {heading.text_content()}")
+    print(f"H1    : {heading.text_content()}")
 
-    # Take a screenshot
-    page.screenshot(path="example_screenshot.png")
-    print("Screenshot saved!")
+    # 7. Count all links on the page
+    link_count = page.locator("a").count()
+    print(f"Links : {link_count}")
 
-    # Cleanup
+    # 8. Save a screenshot
+    page.screenshot(path="screenshot.png")
+    print("Screenshot saved → screenshot.png")
+
+    # 9. Clean up — always close context before browser.
+    #    context.close() releases cookies, storage, and network state for this session.
+    #    browser.close() shuts down the browser process entirely.
+    #    The `with` block also handles this automatically if you forget.
     context.close()
     browser.close()
 
-print("Browser automation complete!")
+# Expected output:
+# Title : Example Domain
+# URL   : https://example.com/
+# H1    : Example Domain
+# Links : 1
+# Screenshot saved → screenshot.png
+```
+
+<En>
+
+**Part 2 — Headed mode with slow_mo: watch the browser in real time**
+
+</En>
+<Vi>
+
+**Phần 2 — Chế độ headed với slow_mo: xem trình duyệt hoạt động trực tiếp**
+
+</Vi>
+
+```python
+# demo_headed.py
+# Run with: python demo_headed.py
+# A real Chrome window will open — watch it navigate!
+from playwright.sync_api import sync_playwright
+import time
+
+with sync_playwright() as p:
+    # headless=False → shows the browser window so you can watch
+    # slow_mo=800   → inserts an 800ms pause after EVERY action
+    #                 (click, fill, navigate, keyboard press — all of them)
+    #                 This makes each step clearly visible in the window.
+    browser = p.chromium.launch(headless=False, slow_mo=800)
+    page = browser.new_page()
+
+    page.goto("https://example.com")
+    print(f"Opened: {page.url}")
+
+    time.sleep(1)  # extra pause to see the loaded page before clicking
+
+    # Click the "More information..." link
+    # With slow_mo=800, you can clearly see the click happen and the
+    # page navigate before the next action runs.
+    page.locator("a").click()
+    time.sleep(1)
+
+    print(f"After click: {page.url}")
+    browser.close()
+```
+
+<En>
+
+**Part 3 — Two isolated contexts: simulate two users simultaneously**
+
+</En>
+<Vi>
+
+**Phần 3 — Hai context độc lập: mô phỏng hai người dùng đồng thời**
+
+</Vi>
+
+```python
+# demo_contexts.py
+# Demonstrates that BrowserContexts are completely isolated.
+# This is the key mechanism for testing multiple users simultaneously.
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+
+    # --- User A (e.g., logged-in admin) ---
+    ctx_a = browser.new_context()
+    page_a = ctx_a.new_page()
+    page_a.goto("https://example.com")
+    # Store a value in localStorage for User A's session
+    page_a.evaluate("localStorage.setItem('user', 'Alice')")
+    alice_value = page_a.evaluate("localStorage.getItem('user')")
+
+    # --- User B (e.g., anonymous guest) ---
+    # ctx_b is a completely separate session — new context = blank slate.
+    # User B's localStorage has nothing — ctx_a's setItem never touched it.
+    ctx_b = browser.new_context()
+    page_b = ctx_b.new_page()
+    page_b.goto("https://example.com")
+    # User B's localStorage is completely separate — nothing was set here
+    bob_value = page_b.evaluate("localStorage.getItem('user')")
+
+    print(f"User A localStorage['user']: {alice_value}")  # Alice
+    # bob_value is None — proves the two contexts are fully isolated.
+    # If contexts shared state, this would incorrectly return 'Alice'.
+    print(f"User B localStorage['user']: {bob_value}")    # None
+
+    ctx_a.close()
+    ctx_b.close()
+    browser.close()
+
+# Expected output:
+# User A localStorage['user']: Alice
+# User B localStorage['user']: None
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Install Playwright and Chromium following the install commands above, then run the demo script — verify the screenshot was created
-- [ ] Modify the script to also print the page URL and the number of links on the page (use `page.locator("a").count()`)
-- [ ] Run the script with `headless=False` and watch it happen in the browser window
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Automate a visit to the Playwright homepage",
+    code: `# exercise_day22.py
+# Goal: automate a visit to the Playwright homepage
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context()
+    page = context.new_page()
+
+    # Task 1: Navigate to https://playwright.dev
+    # TODO (EN): Fill in the URL — "https://playwright.dev"
+    # TODO (VI): Điền URL — "https://playwright.dev"
+    page.goto("???")
+    # Expected: browser navigates to the Playwright docs homepage
+
+    # Task 2: Print the page title
+    # TODO (EN): Call page.title() to get the page title (with parentheses)
+    # TODO (VI): Gọi page.title() để lấy tiêu đề trang (có dấu ngoặc)
+    print(f"Title: {???}")
+    # Expected: Title contains "Playwright" somewhere in the string
+
+    # Task 3: Print the current URL
+    # TODO (EN): Use page.url — it's a property, no parentheses needed
+    # TODO (VI): Dùng page.url — đây là thuộc tính, không cần dấu ngoặc
+    print(f"URL: {???}")
+    # Expected: URL: https://playwright.dev/
+
+    # Task 4: Count all <a> links on the page and print the count
+    # TODO (EN): Use "a" — the CSS selector for all anchor elements
+    # TODO (VI): Dùng "a" — CSS selector cho tất cả thẻ anchor
+    link_count = page.locator("???").count()
+    print(f"Links found: {link_count}")
+    # Expected: Links found: (some number > 10)
+
+    # Task 5: Save a screenshot named "playwright_homepage.png"
+    # TODO (EN): Pass the filename "playwright_homepage.png"
+    # TODO (VI): Truyền tên file "playwright_homepage.png"
+    page.screenshot(path="???")
+    print("Screenshot saved!")
+    # Expected: a file named playwright_homepage.png appears in your folder
+
+    context.close()
+    browser.close()
+
+# Bonus: After it works, re-run with headless=False and slow_mo=500
+# to watch the browser navigate to the Playwright homepage live.`
+  }
+]}>
+
+<En>
+Fill in each \`???\` and run the script locally with \`python exercise_day22.py\`.
+
+**Hints:**
+- \`page.goto(url)\` takes a URL string — include the full URL with https://
+- \`page.title()\` returns the full page title string (call it like a function with parentheses)
+- \`page.url\` is a property, not a function — no parentheses needed
+- \`page.locator("a").count()\` — \`"a"\` is the CSS selector for anchor elements
+- \`page.screenshot(path="filename.png")\` saves a PNG in your working directory
+
+- [ ] Fill in all \`???\` and run — you should see title, URL, and link count printed
+- [ ] Confirm \`playwright_homepage.png\` was created in your folder
+- [ ] Re-run with \`headless=False, slow_mo=500\` to watch it in a real browser
+</En>
+<Vi>
+Điền vào mỗi \`???\` và chạy script với \`python exercise_day22.py\`.
+
+**Gợi ý:**
+- \`page.goto(url)\` nhận chuỗi URL — bao gồm đầy đủ với https://
+- \`page.title()\` trả về chuỗi tiêu đề trang đầy đủ (gọi như hàm với dấu ngoặc)
+- \`page.url\` là thuộc tính, không phải hàm — không cần dấu ngoặc
+- \`page.locator("a").count()\` — \`"a"\` là CSS selector cho thẻ anchor
+- \`page.screenshot(path="filename.png")\` lưu file PNG vào thư mục hiện tại
+
+- [ ] Điền tất cả \`???\` và chạy — bạn sẽ thấy tiêu đề, URL và số link được in ra
+- [ ] Xác nhận \`playwright_homepage.png\` đã được tạo trong thư mục của bạn
+- [ ] Chạy lại với \`headless=False, slow_mo=500\` để xem trên trình duyệt thật
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What is a Playwright 'context'?",
+    q: "What is a Playwright BrowserContext?",
+    qVi: "Playwright BrowserContext là gì?",
     choices: [
-      "The Python script that controls the browser",
-      "An isolated browser session with its own cookies and storage — like a private window",
-      "The headless mode setting",
-      "The assertion library"
+      "The Python script file that contains your tests",
+      "An isolated browser session with its own cookies, localStorage, and auth state",
+      "The headless/headed mode configuration",
+      "A single browser tab"
+    ],
+    choicesVi: [
+      "File script Python chứa các test của bạn",
+      "Phiên trình duyệt độc lập với cookie, localStorage và trạng thái xác thực riêng",
+      "Cấu hình chế độ headless/headed",
+      "Một tab trình duyệt đơn lẻ"
     ],
     answer: 1,
-    explain: "A browser context is an isolated environment — separate cookies, local storage, and session state. You can run multiple contexts in parallel (e.g., logged-in user and guest user) without them interfering."
+    explain: "A BrowserContext is like a private/incognito window — completely isolated cookies, localStorage, and session data. You can run multiple contexts in parallel to simulate multiple users without them interfering with each other.",
+    explainVi: "BrowserContext giống như cửa sổ riêng tư/ẩn danh — cookie, localStorage và dữ liệu phiên hoàn toàn độc lập. Bạn có thể chạy nhiều context song song để mô phỏng nhiều người dùng mà không ảnh hưởng lẫn nhau."
   },
   {
-    q: "What does Playwright's auto-wait feature do?",
+    q: "What does Playwright's auto-wait feature eliminate?",
+    qVi: "Tính năng auto-wait của Playwright giúp loại bỏ điều gì?",
     choices: [
-      "Adds a fixed time.sleep() before every action",
-      "Automatically waits for elements to be ready (visible, enabled, stable) before interacting",
-      "Waits for the browser to close",
-      "Waits for all network requests to complete before each assertion"
+      "The need to install browser binaries",
+      "Manual time.sleep() calls before interacting with elements",
+      "The need for a test runner like pytest",
+      "The need to write assertions"
+    ],
+    choicesVi: [
+      "Nhu cầu cài đặt binary trình duyệt",
+      "Các lệnh time.sleep() thủ công trước khi tương tác với phần tử",
+      "Nhu cầu dùng test runner như pytest",
+      "Nhu cầu viết assertion"
     ],
     answer: 1,
-    explain: "Playwright's auto-wait eliminates the need for manual sleep() calls. Before clicking or filling, it checks that the element is attached, visible, stable, and enabled — preventing most flaky test issues."
+    explain: "Playwright's auto-wait checks that elements are attached, visible, stable, and enabled before interacting. This eliminates the most common cause of flaky tests — manual sleep() delays that are either too short (causing failures) or too long (slowing the suite).",
+    explainVi: "Auto-wait của Playwright kiểm tra rằng phần tử đã gắn kết, hiển thị, ổn định và được bật trước khi tương tác. Điều này loại bỏ nguyên nhân phổ biến nhất gây test không ổn định — các lệnh sleep() thủ công quá ngắn (gây lỗi) hoặc quá dài (làm chậm bộ test)."
+  },
+  {
+    q: "Which command downloads the actual browser binary that Playwright uses?",
+    qVi: "Lệnh nào tải về binary trình duyệt thực sự mà Playwright sử dụng?",
+    choices: [
+      "pip install playwright",
+      "playwright install chromium",
+      "pip install chromium",
+      "playwright download browser"
+    ],
+    choicesVi: [
+      "pip install playwright",
+      "playwright install chromium",
+      "pip install chromium",
+      "playwright download browser"
+    ],
+    answer: 1,
+    explain: "`pip install playwright` installs only the Python library. `playwright install chromium` downloads the actual browser binary. You need both commands before you can run any browser automation.",
+    explainVi: "`pip install playwright` chỉ cài thư viện Python. `playwright install chromium` tải binary trình duyệt thực sự. Bạn cần cả hai lệnh trước khi có thể chạy bất kỳ tự động hoá trình duyệt nào."
+  },
+  {
+    q: "What does headless=False do when launching a browser?",
+    qVi: "headless=False có tác dụng gì khi khởi chạy trình duyệt?",
+    choices: [
+      "Runs the browser without network access",
+      "Makes the browser run faster",
+      "Shows a visible browser window — useful for debugging",
+      "Disables screenshots"
+    ],
+    choicesVi: [
+      "Chạy trình duyệt không có kết nối mạng",
+      "Làm trình duyệt chạy nhanh hơn",
+      "Hiển thị cửa sổ trình duyệt — hữu ích khi debug",
+      "Vô hiệu hoá chụp màn hình"
+    ],
+    answer: 2,
+    explain: "headless=False tells Playwright to show a real browser window instead of running invisibly in the background. This is invaluable for debugging failing tests — you can see exactly what the browser sees.",
+    explainVi: "headless=False yêu cầu Playwright hiển thị cửa sổ trình duyệt thực thay vì chạy ngầm trong nền. Điều này vô cùng hữu ích khi debug test thất bại — bạn có thể thấy chính xác những gì trình duyệt đang nhìn thấy."
+  },
+  {
+    q: "In Playwright's object hierarchy, what does a Page represent?",
+    qVi: "Trong hệ thống phân cấp đối tượng của Playwright, Page đại diện cho điều gì?",
+    choices: [
+      "The entire browser binary",
+      "An isolated session with its own cookies",
+      "A single browser tab",
+      "The Playwright entry-point object"
+    ],
+    choicesVi: [
+      "Toàn bộ binary trình duyệt",
+      "Phiên độc lập với cookie riêng",
+      "Một tab trình duyệt đơn lẻ",
+      "Đối tượng điểm vào của Playwright"
+    ],
+    answer: 2,
+    explain: "The hierarchy is: Playwright → Browser → BrowserContext → Page. A Page represents one browser tab. It is the object you use most often — calling page.goto(), page.locator(), page.fill(), page.click(), etc.",
+    explainVi: "Hệ thống phân cấp là: Playwright → Browser → BrowserContext → Page. Page đại diện cho một tab trình duyệt. Đây là đối tượng bạn dùng thường xuyên nhất — gọi page.goto(), page.locator(), page.fill(), page.click(), v.v."
+  },
+  {
+    q: "What is the first command needed to install the Playwright Python library itself?",
+    qVi: "Lệnh đầu tiên cần chạy để cài đặt thư viện Python Playwright là gì?",
+    choices: [
+      "playwright install chromium",
+      "pip install playwright",
+      "npm install playwright",
+      "python -m playwright setup"
+    ],
+    choicesVi: [
+      "playwright install chromium",
+      "pip install playwright",
+      "npm install playwright",
+      "python -m playwright setup"
+    ],
+    answer: 1,
+    explain: "pip install playwright installs the Python library, bindings, and CLI tool. It does NOT download any browser binary — that requires a separate `playwright install chromium` command. You need both commands before you can run any browser automation.",
+    explainVi: "pip install playwright cài đặt thư viện Python, bindings và CLI tool. Nó KHÔNG tải binary trình duyệt — cần lệnh riêng `playwright install chromium` cho việc đó. Bạn cần cả hai lệnh trước khi chạy bất kỳ tự động hoá trình duyệt nào."
+  },
+  {
+    q: "What happens to cookies and localStorage when you create a brand new BrowserContext?",
+    qVi: "Điều gì xảy ra với cookie và localStorage khi bạn tạo một BrowserContext mới?",
+    choices: [
+      "They are copied from the previous context automatically",
+      "They start completely fresh — no cookies, no localStorage, no session data",
+      "They are inherited from the Browser instance",
+      "They are loaded from disk if a prior session exists"
+    ],
+    choicesVi: [
+      "Chúng được sao chép từ context trước đó tự động",
+      "Chúng bắt đầu hoàn toàn trống — không có cookie, không có localStorage, không có dữ liệu phiên",
+      "Chúng được kế thừa từ instance Browser",
+      "Chúng được tải từ ổ đĩa nếu có phiên trước"
+    ],
+    answer: 1,
+    explain: "Each new BrowserContext is completely isolated — empty cookies, empty localStorage, no session data. This is exactly why contexts are used to simulate different users: User A in ctx_a cannot see or affect User B's state in ctx_b.",
+    explainVi: "Mỗi BrowserContext mới hoàn toàn độc lập — cookie trống, localStorage trống, không có dữ liệu phiên. Đây chính xác là lý do context được dùng để mô phỏng các người dùng khác nhau: Người dùng A trong ctx_a không thể nhìn thấy hoặc ảnh hưởng đến trạng thái của Người dùng B trong ctx_b."
+  },
+  {
+    q: "What technical advantage makes Playwright faster than Selenium for most operations?",
+    qVi: "Ưu thế kỹ thuật nào giúp Playwright nhanh hơn Selenium trong hầu hết các thao tác?",
+    choices: [
+      "Playwright is written in Rust while Selenium uses Java",
+      "Playwright uses the CDP (Chrome DevTools Protocol) directly, eliminating the extra WebDriver intermediary layer",
+      "Playwright skips DOM parsing to run faster",
+      "Playwright runs only in headless mode which is faster"
+    ],
+    choicesVi: [
+      "Playwright được viết bằng Rust trong khi Selenium dùng Java",
+      "Playwright sử dụng CDP (Chrome DevTools Protocol) trực tiếp, loại bỏ lớp trung gian WebDriver",
+      "Playwright bỏ qua phân tích DOM để chạy nhanh hơn",
+      "Playwright chỉ chạy ở chế độ headless vốn nhanh hơn"
+    ],
+    answer: 1,
+    explain: "Selenium routes every command through a separate WebDriver process (an extra network hop per action). Playwright communicates directly with the browser via CDP in one hop. This difference accumulates: for a 100-step test, Playwright avoids 100 round-trips through an intermediary.",
+    explainVi: "Selenium định tuyến mỗi lệnh qua một tiến trình WebDriver riêng (thêm một lần network hop cho mỗi hành động). Playwright giao tiếp trực tiếp với trình duyệt qua CDP trong một lần. Sự khác biệt này tích lũy: với test 100 bước, Playwright tránh được 100 round-trip qua intermediary."
+  },
+  {
+    q: "What does the `with sync_playwright() as p:` context manager guarantee when the block exits?",
+    qVi: "Context manager `with sync_playwright() as p:` đảm bảo điều gì khi khối lệnh kết thúc?",
+    choices: [
+      "All screenshots are saved automatically to disk",
+      "The Playwright process is properly cleaned up and all browser resources are released — even if an exception occurs",
+      "All test assertions are evaluated and reported",
+      "An HTML test report is automatically generated"
+    ],
+    choicesVi: [
+      "Tất cả ảnh chụp màn hình được lưu tự động vào ổ đĩa",
+      "Tiến trình Playwright được dọn dẹp đúng cách và tất cả tài nguyên trình duyệt được giải phóng — dù có ngoại lệ xảy ra",
+      "Tất cả assertion test được đánh giá và báo cáo",
+      "Báo cáo test HTML được tạo tự động"
+    ],
+    answer: 1,
+    explain: "The `with` statement calls __exit__ when the block ends (normally or via exception), which stops browser processes, closes file handles, and frees memory. Without this cleanup, orphaned browser processes can accumulate and consume system resources.",
+    explainVi: "Lệnh `with` gọi __exit__ khi khối kết thúc (bình thường hoặc do ngoại lệ), dừng các tiến trình trình duyệt, đóng file handle và giải phóng bộ nhớ. Không có bước dọn dẹp này, các tiến trình trình duyệt bị bỏ rơi có thể tích lũy và tiêu thụ tài nguyên hệ thống."
+  },
+  {
+    q: "How do you add a 600ms delay between each Playwright action for visual debugging?",
+    qVi: "Làm thế nào để thêm độ trễ 600ms giữa mỗi hành động Playwright khi debug trực quan?",
+    choices: [
+      "page.set_default_timeout(600)",
+      "browser = p.chromium.launch(slow_mo=600)",
+      "playwright.slow_mode = 600",
+      "page.wait_for_timeout(600) before every action"
+    ],
+    choicesVi: [
+      "page.set_default_timeout(600)",
+      "browser = p.chromium.launch(slow_mo=600)",
+      "playwright.slow_mode = 600",
+      "page.wait_for_timeout(600) trước mỗi hành động"
+    ],
+    answer: 1,
+    explain: "slow_mo is a browser launch option that inserts a fixed delay (in ms) after every action — click, fill, navigate, keyboard, etc. With slow_mo=600, you can watch the browser work in slow motion and clearly see each step in the headed window.",
+    explainVi: "slow_mo là tuỳ chọn khởi chạy trình duyệt chèn độ trễ cố định (tính bằng ms) sau mỗi hành động — click, fill, navigate, keyboard, v.v. Với slow_mo=600, bạn có thể xem trình duyệt làm việc theo chế độ chậm và nhìn rõ từng bước trong cửa sổ headed."
   }
 ]} />
 
@@ -143,5 +579,6 @@ print("Browser automation complete!")
 
 <ResourceList resources={[
   { title: "Playwright Python Docs", url: "https://playwright.dev/python/" },
-  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+  { title: "Playwright — Why Playwright?", url: "https://playwright.dev/python/docs/why-playwright" },
+  { title: "Playwright — Browser Contexts", url: "https://playwright.dev/python/docs/browser-contexts" }
 ]} />

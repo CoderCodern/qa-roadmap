@@ -1,194 +1,593 @@
 ---
 id: 31
-title: "Fixtures & parametrize"
+title: "Pytest fixtures & hooks"
 phase: 3
-estMinutes: 60
-tags: ["playwright", "pytest", "fixtures"]
+estMinutes: 75
+tags: ["pytest", "fixtures"]
 ---
 
 ## Intro
 
 <En>
-pytest fixtures and parametrize are the two features that make test suites scalable. Fixtures handle setup and teardown cleanly; parametrize lets you run the same test with many inputs without repeating yourself. Combined with Playwright's browser fixtures, these tools let you build compact, data-driven test suites.
+Every test has setup and teardown needs: open a browser, log in, create test data — then after the test, clean up. Without a structured way to handle these, you end up copying and pasting setup code into every test. pytest **fixtures** are the solution.
+
+A fixture is a function that prepares something a test needs and cleans it up after. Once defined, any test function can request a fixture simply by naming it as a parameter. pytest injects it automatically — no import, no explicit call.
+
+Fixtures can also have **scope**: function (fresh each test), module (shared across a file), session (shared across the entire run). Choosing the right scope is the difference between a fast test suite and a slow one.
 </En>
 <Vi>
-Fixture và parametrize của pytest là hai tính năng làm cho bộ test có thể mở rộng. Fixture xử lý setup và teardown gọn gàng; parametrize cho phép bạn chạy cùng một test với nhiều đầu vào mà không lặp lại. Kết hợp với browser fixture của Playwright, các công cụ này cho phép bạn xây dựng bộ test gọn gàng, hướng dữ liệu.
+Mỗi test đều có nhu cầu setup và teardown: mở trình duyệt, đăng nhập, tạo dữ liệu test — sau đó dọn dẹp sau khi test. Nếu không có cách có cấu trúc để xử lý những điều này, bạn sẽ phải sao chép và dán code setup vào mỗi test. **Fixture** của pytest là giải pháp.
+
+Fixture là hàm chuẩn bị thứ gì đó mà test cần và dọn dẹp sau đó. Một khi đã định nghĩa, bất kỳ hàm test nào cũng có thể yêu cầu fixture chỉ bằng cách đặt tên nó làm tham số. pytest tự động inject nó — không cần import, không cần gọi tường minh.
+
+Fixture cũng có **scope**: function (mới mỗi test), module (dùng chung trong file), session (dùng chung toàn bộ lần chạy). Chọn đúng scope là sự khác biệt giữa bộ test nhanh và bộ test chậm.
 </Vi>
 
 ## Concept
 
 <En>
-**pytest fixtures:**
-A fixture is a function decorated with `@pytest.fixture`. When a test declares it as a parameter, pytest calls the fixture, passes the result to the test, then runs any teardown code after `yield`.
+**Basic fixture anatomy:**
 
+```python
+import pytest
+
+@pytest.fixture
+def my_fixture():
+    # SETUP: runs before the test
+    value = {"key": "value"}
+    yield value          # ← the test receives this
+    # TEARDOWN: runs after the test (even on failure)
+    print("Cleaning up!")
+```
+
+Any test that declares `my_fixture` as a parameter gets the yielded value:
+
+```python
+def test_something(my_fixture):
+    assert my_fixture["key"] == "value"  # passes
+```
+
+**Fixture scope — controls how often setup/teardown runs:**
+
+| Scope | Runs | Use when |
+|-------|------|---------|
+| `"function"` | Every test (default) | Resource must be fresh per test |
+| `"class"` | Once per test class | Class-level shared setup |
+| `"module"` | Once per `.py` file | Expensive setup shared across a file |
+| `"session"` | Once per entire run | Very expensive setup (DB connection, auth token) |
+
+```python
+@pytest.fixture(scope="session")
+def browser_instance():
+    """Launch browser once for all tests — much faster."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        yield browser
+        browser.close()
+```
+
+**conftest.py — shared fixtures available to all tests:**
+Any fixture defined in `conftest.py` is automatically available to all test files in the same directory and subdirectories — no import needed.
+
+```
+project/
+├── conftest.py           ← fixtures here are globally available
+├── tests/
+│   ├── conftest.py       ← fixtures here are available to tests/ only
+│   └── test_example.py
+```
+
+**Built-in pytest-playwright fixtures:**
+pytest-playwright registers these for you:
+
+```python
+# These are all available out of the box:
+def test_example(playwright, browser, context, page):
+    pass  # each is injected automatically
+
+# Override them in conftest.py to customise defaults:
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    return {**browser_context_args, "viewport": {"width": 1440, "height": 900}}
+```
+
+**Fixture composition — fixtures can use other fixtures:**
 ```python
 @pytest.fixture
-def authenticated_page(page: Page) -> Page:
-    page.goto("https://example.com/login")
-    page.fill("[name=email]", "admin@example.com")
-    page.fill("[name=password]", "password")
-    page.click("[type=submit]")
-    yield page               # test runs here
-    # teardown: logout, clear cookies, etc.
-    page.goto("https://example.com/logout")
+def authenticated_page(page):
+    """Uses the built-in `page` fixture, adds login."""
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url("**/account")
+    yield page
+    # teardown: nothing needed — browser context is cleaned up by playwright fixture
 ```
 
-**Fixture scopes:**
-- `scope="function"` (default) — fresh fixture for each test
-- `scope="module"` — one fixture for all tests in the file
-- `scope="session"` — one fixture for the entire test run
-
-**`@pytest.mark.parametrize`:**
+**autouse fixtures — run automatically for every test:**
 ```python
-@pytest.mark.parametrize("email,password,expected", [
-    ("valid@example.com", "ValidPass1", True),
-    ("valid@example.com", "wrongpass", False),
-    ("notanemail", "ValidPass1", False),
-])
-def test_login(page: Page, email, password, expected):
-    # runs 3 times — once per row
-    ...
+@pytest.fixture(autouse=True)
+def log_test_name(request):
+    """Print test name before/after every test."""
+    print(f"\n▶ Starting: {request.node.name}")
+    yield
+    print(f"✓ Finished: {request.node.name}")
 ```
 
-**`pytest.fixture` + `params`** — parametrize at the fixture level:
+**Hooks — plugin-style callbacks in conftest.py:**
 ```python
-@pytest.fixture(params=["chromium", "firefox"])
-def browser_name(request):
-    return request.param
+# conftest.py
+def pytest_runtest_setup(item):
+    """Called before each test setup."""
+    print(f"\nSetting up: {item.name}")
+
+def pytest_runtest_teardown(item, nextitem):
+    """Called after each test teardown."""
+    print(f"Tearing down: {item.name}")
+
+# Mark failed tests for screenshot capture
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
 ```
 </En>
 <Vi>
-**pytest fixture:**
-Fixture là hàm được decorate bằng `@pytest.fixture`. Khi test khai báo nó như tham số, pytest gọi fixture, truyền kết quả vào test, sau đó chạy code teardown sau `yield`.
+**Cấu trúc fixture cơ bản:**
 
 ```python
+import pytest
+
 @pytest.fixture
-def authenticated_page(page: Page) -> Page:
-    page.goto("https://example.com/login")
-    # ... setup ...
-    yield page               # test chạy ở đây
-    page.goto("https://example.com/logout")  # teardown
+def my_fixture():
+    # SETUP: chạy trước test
+    value = {"key": "value"}
+    yield value          # ← test nhận giá trị này
+    # TEARDOWN: chạy sau test (kể cả khi thất bại)
+    print("Dọn dẹp!")
 ```
 
 **Scope của fixture:**
-- `scope="function"` (mặc định) — fixture mới cho mỗi test
-- `scope="module"` — một fixture cho tất cả test trong file
-- `scope="session"` — một fixture cho toàn bộ lần chạy test
 
-**`@pytest.mark.parametrize`:**
+| Scope | Chạy | Dùng khi |
+|-------|------|---------|
+| `"function"` | Mỗi test (mặc định) | Tài nguyên phải mới mỗi test |
+| `"class"` | Một lần mỗi class | Setup dùng chung trong class |
+| `"module"` | Một lần mỗi file .py | Setup tốn kém dùng chung trong file |
+| `"session"` | Một lần toàn bộ lần chạy | Setup rất tốn kém (kết nối DB, token auth) |
+
+**conftest.py — fixture dùng chung:**
+Fixture trong `conftest.py` tự động có sẵn cho tất cả file test trong cùng thư mục và thư mục con — không cần import.
+
+**Composition fixture:**
 ```python
-@pytest.mark.parametrize("email,password,expected", [
-    ("valid@example.com", "ValidPass1", True),
-    ("valid@example.com", "wrongpass", False),
-])
-def test_login(page: Page, email, password, expected):
-    # chạy 2 lần — một lần cho mỗi hàng
-    ...
+@pytest.fixture
+def authenticated_page(page):
+    """Dùng fixture `page` tích hợp sẵn, thêm bước đăng nhập."""
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url("**/account")
+    yield page
 ```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Function-scope fixtures for login and test data**
+
+</En>
+<Vi>
+
+**Phần 1 — Fixture function-scope cho đăng nhập và dữ liệu test**
+
+</Vi>
+
 ```python
-# tests/conftest.py (additions)
+# conftest.py
 import pytest
 from playwright.sync_api import Page
 
-@pytest.fixture
-def todo_page_ready(page: Page):
-    """Navigate to TodoMVC and yield a page ready for testing."""
-    page.goto("https://demo.playwright.dev/todomvc")
-    yield page
-    # Teardown: no persistent state to clean — each test gets a fresh browser context
+BASE_URL = "https://practicesoftwaretesting.com"
+VALID_CREDS = {
+    "email": "customer@practicesoftwaretesting.com",
+    "password": "welcome01",
+}
 
 @pytest.fixture
-def todo_with_items(todo_page_ready: Page):
-    """Pre-populate the todo list with 3 items."""
-    inp = todo_page_ready.get_by_placeholder("What needs to be done?")
-    for text in ["Item A", "Item B", "Item C"]:
-        inp.fill(text)
-        inp.press("Enter")
-    return todo_page_ready
+def authenticated_page(page: Page) -> Page:
+    """
+    Provides an already-logged-in page.
+    Scope: function (fresh login for each test — safest default).
+    """
+    page.goto(f"{BASE_URL}/auth/login")
+    page.get_by_label("Email").fill(VALID_CREDS["email"])
+    page.get_by_label("Password").fill(VALID_CREDS["password"])
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url("**/account")
+    yield page
+    # No teardown needed — pytest-playwright cleans up the context
+
+@pytest.fixture
+def test_credentials() -> dict:
+    """Provides test credentials as a dict."""
+    return VALID_CREDS.copy()
 ```
 
+<En>
+
+**Part 2 — Module-scope browser fixture for speed**
+
+</En>
+<Vi>
+
+**Phần 2 — Fixture browser module-scope để tăng tốc**
+
+</Vi>
+
 ```python
-# tests/test_fixtures_and_params.py
-import pytest
+# conftest.py additions
+# For expensive shared resources, use module or session scope
+
+@pytest.fixture(scope="module")
+def browser_context_args(browser_context_args):
+    """Override default viewport for all tests in this module."""
+    return {
+        **browser_context_args,
+        "viewport": {"width": 1280, "height": 720},
+        "locale": "en-US",
+    }
+```
+
+<En>
+
+**Part 3 — Tests using both fixtures**
+
+</En>
+<Vi>
+
+**Phần 3 — Test dùng cả hai fixture**
+
+</Vi>
+
+```python
+# tests/test_fixtures_demo.py
+# Run with: pytest tests/test_fixtures_demo.py -v
 from playwright.sync_api import Page, expect
 
-# Using a shared fixture
-def test_starts_empty(todo_page_ready: Page):
-    items = todo_page_ready.get_by_role("listitem")
-    assert items.count() == 0
+BASE = "https://practicesoftwaretesting.com"
 
-def test_pre_populated(todo_with_items: Page):
-    items = todo_with_items.get_by_role("listitem")
-    assert items.count() == 3
+def test_login_manually(page: Page, test_credentials: dict):
+    """Uses test_credentials fixture — no hard-coded passwords in test."""
+    page.goto(f"{BASE}/auth/login")
+    page.get_by_label("Email").fill(test_credentials["email"])
+    page.get_by_label("Password").fill(test_credentials["password"])
+    page.get_by_role("button", name="Login").click()
+    expect(page).to_have_url(f"{BASE}/account")
 
-# Parametrize: one test, many inputs
-@pytest.mark.parametrize("todo_text", [
-    "Buy groceries",
-    "Call the dentist",
-    "Write Playwright tests",
-    "Review pull requests",
-])
-def test_add_various_items(todo_page_ready: Page, todo_text: str):
-    inp = todo_page_ready.get_by_placeholder("What needs to be done?")
-    inp.fill(todo_text)
-    inp.press("Enter")
-    item = todo_page_ready.get_by_role("listitem").filter(has_text=todo_text)
-    expect(item).to_be_visible()
+def test_account_page_heading(authenticated_page: Page):
+    """Uses authenticated_page — login is already done."""
+    heading = authenticated_page.get_by_role("heading", name="My account")
+    expect(heading).to_be_visible()
 
-# Parametrize with multiple arguments
-@pytest.mark.parametrize("text,expected_count", [
-    ("Single item", 1),
-    ("Another one", 1),
-])
-def test_count_after_add(todo_page_ready: Page, text: str, expected_count: int):
-    inp = todo_page_ready.get_by_placeholder("What needs to be done?")
-    inp.fill(text)
-    inp.press("Enter")
-    assert todo_page_ready.get_by_role("listitem").count() == expected_count
+def test_profile_section_visible(authenticated_page: Page):
+    """Another test using authenticated_page — independent login."""
+    profile = authenticated_page.get_by_role("link", name="Profile")
+    expect(profile).to_be_visible()
+
+def test_sign_out_works(authenticated_page: Page):
+    """Sign out should redirect back to home or login."""
+    sign_out = authenticated_page.get_by_role("link", name="Sign out")
+    sign_out.click()
+    # After logout, should not be on account page
+    assert "/account" not in authenticated_page.url
+
+# Run: pytest tests/test_fixtures_demo.py -v
+# All three *_account tests will each perform their own login
+# (function scope) but the page is already ready for them.
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Create a `conftest.py` fixture that navigates to a demo page and yields it — use `scope="module"` and observe that the browser only opens once for all tests in that file
-- [ ] Write a parametrized test with at least 5 input rows that tests adding different todo items and verifying each appears correctly
-- [ ] Create a fixture that adds 3 items before the test and verify in the test that the count starts at 3 (not 0) — demonstrate teardown by adding a `print` statement after `yield`
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Part 1 — Implement the conftest.py fixtures",
+    code: `# tests/conftest.py
+import pytest
+from playwright.sync_api import Page
+
+@pytest.fixture
+def authenticated_page(page: Page) -> Page:
+    """
+    TODO: implement a fixture that:
+    1. Navigates to the login page
+    2. Fills email = "customer@practicesoftwaretesting.com"
+    3. Fills password = "welcome01"
+    4. Clicks the Login button
+    5. Waits for URL to contain /account
+    6. Yields the page
+    """
+    # TODO: implement steps 1-6
+    # TODO (EN): Add page.goto, get_by_label fills, button click, wait_for_url("**/account")
+    # TODO (VI): Thêm page.goto, điền label, click button, wait_for_url("**/account")
+    ???
+    yield page
+
+@pytest.fixture(scope="session")
+def base_url() -> str:
+    """TODO: return the base URL string."""
+    # TODO (EN): Return "https://practicesoftwaretesting.com"
+    # TODO (VI): Trả về "https://practicesoftwaretesting.com"
+    return "???"
+
+@pytest.fixture
+def search_term() -> str:
+    """TODO: return any search term to use in tests."""
+    # TODO (EN): Return any valid search term, e.g. "Hammer"
+    # TODO (VI): Trả về bất kỳ từ tìm kiếm nào, ví dụ "Hammer"
+    return "???"`
+  },
+  {
+    title: "Part 2 — Complete the test file using fixtures",
+    code: `# tests/test_with_fixtures.py
+# Run with: pytest tests/test_with_fixtures.py -v
+import re
+from playwright.sync_api import Page, expect
+
+def test_homepage_title(page: Page, base_url: str):
+    """Page title should contain 'Practice Software Testing'."""
+    page.goto(base_url)
+    # TODO (EN): re.compile(r"Practice Software Testing") for partial match
+    # TODO (VI): re.compile(r"Practice Software Testing") để khớp một phần
+    expect(page).to_have_title(???)   # use re.compile for partial match
+
+def test_search_with_fixture(page: Page, base_url: str, search_term: str):
+    """Search should return results for the given term."""
+    page.goto(base_url)
+    page.get_by_role("textbox", name="Search").fill(search_term)
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+    cards = page.locator(".card")
+    assert cards.count() > 0
+
+def test_authenticated_user_sees_account(authenticated_page: Page):
+    """The authenticated page should be on /account."""
+    # TODO (EN): The account page URL pattern — re.compile(r".*/account")
+    # TODO (VI): Pattern URL trang account — re.compile(r".*/account")
+    expect(authenticated_page).to_have_url(???)
+
+def test_authenticated_user_has_sign_out(authenticated_page: Page):
+    """The Sign out link should be visible when logged in."""
+    # TODO (EN): The exact sign out link text — inspect the navigation
+    # TODO (VI): Text link đăng xuất chính xác — inspect navigation
+    sign_out = authenticated_page.get_by_role("link", name="???")
+    expect(sign_out).to_be_visible()`
+  }
+]}>
+
+<En>
+Run `pytest tests/test_with_fixtures.py -v` after implementing both files.
+
+- [ ] Implement `authenticated_page`, `base_url`, and `search_term` fixtures in conftest.py
+- [ ] Fill in all `???` in the test file
+- [ ] Run `pytest tests/test_with_fixtures.py -v` — all 4 tests should pass
+- [ ] Add an `autouse=True` fixture that prints the test name before each test runs
+</En>
+<Vi>
+Chạy `pytest tests/test_with_fixtures.py -v` sau khi implement cả hai file.
+
+- [ ] Implement fixture `authenticated_page`, `base_url` và `search_term` trong conftest.py
+- [ ] Điền tất cả `???` trong file test
+- [ ] Chạy `pytest tests/test_with_fixtures.py -v` — tất cả 4 test phải pass
+- [ ] Thêm fixture `autouse=True` in ra tên test trước mỗi lần chạy
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What happens to code written after `yield` in a pytest fixture?",
+    q: "What is the difference between `return` and `yield` in a pytest fixture?",
+    qVi: "Sự khác biệt giữa `return` và `yield` trong pytest fixture là gì?",
     choices: [
-      "It runs before the test",
-      "It never runs",
-      "It runs after the test completes — this is the teardown code",
-      "It runs only if the test passes"
+      "They are interchangeable — use either one",
+      "yield splits the fixture into setup (before yield) and teardown (after yield); return only provides setup",
+      "return is for function-scope; yield is for session-scope",
+      "yield is required when the fixture returns a Page object"
     ],
-    answer: 2,
-    explain: "Code before yield is setup (runs before the test). Code after yield is teardown (runs after the test, even if it fails). This is how pytest fixtures implement context-manager-style setup/teardown."
+    choicesVi: [
+      "Chúng có thể hoán đổi cho nhau — dùng cái nào cũng được",
+      "yield chia fixture thành setup (trước yield) và teardown (sau yield); return chỉ cung cấp setup",
+      "return dùng cho function-scope; yield dùng cho session-scope",
+      "yield bắt buộc khi fixture trả về đối tượng Page"
+    ],
+    answer: 1,
+    explain: "With yield, everything before the yield is setup (runs before the test) and everything after is teardown (runs after the test, even on failure). With return, there is no teardown. Use yield whenever you need cleanup — closing files, revoking tokens, deleting test data.",
+    explainVi: "Với yield, mọi thứ trước yield là setup (chạy trước test) và mọi thứ sau là teardown (chạy sau test, kể cả khi thất bại). Với return, không có teardown. Dùng yield khi bạn cần dọn dẹp — đóng file, thu hồi token, xóa dữ liệu test."
   },
   {
-    q: "What does `@pytest.mark.parametrize` allow you to do?",
+    q: "A fixture with `scope='session'` runs its setup code how many times in a full test run?",
+    qVi: "Fixture có `scope='session'` chạy code setup bao nhiêu lần trong toàn bộ test run?",
     choices: [
-      "Run a test multiple times with different input values",
-      "Mark a test as expected to fail",
-      "Skip a test on specific operating systems",
-      "Run tests in parallel"
+      "Once per test",
+      "Once per test file",
+      "Once for the entire test session, shared across all tests",
+      "It depends on how many tests use it"
+    ],
+    choicesVi: [
+      "Một lần mỗi test",
+      "Một lần mỗi file test",
+      "Một lần cho toàn bộ session, dùng chung cho tất cả test",
+      "Tùy thuộc vào số test sử dụng nó"
+    ],
+    answer: 2,
+    explain: "A session-scoped fixture runs setup exactly once at the start of the test session and teardown once at the end. All tests that request it get the same object. This is ideal for expensive resources like a browser instance or a database connection.",
+    explainVi: "Fixture có scope session chạy setup đúng một lần khi bắt đầu session và teardown một lần khi kết thúc. Tất cả test yêu cầu nó đều nhận cùng một đối tượng. Lý tưởng cho tài nguyên tốn kém như browser instance hoặc kết nối database."
+  },
+  {
+    q: "Where must a fixture be defined to be available to all test files without importing it?",
+    qVi: "Fixture phải được định nghĩa ở đâu để có thể dùng cho tất cả file test mà không cần import?",
+    choices: [
+      "In each test file that needs it",
+      "In conftest.py at the project root (or any parent directory of the tests)",
+      "In a file named fixtures.py",
+      "In pytest.ini"
+    ],
+    choicesVi: [
+      "Trong mỗi file test cần dùng nó",
+      "Trong conftest.py ở thư mục gốc dự án (hoặc bất kỳ thư mục cha nào của tests)",
+      "Trong file có tên fixtures.py",
+      "Trong pytest.ini"
+    ],
+    answer: 1,
+    explain: "conftest.py is pytest's special shared-fixture file. Any fixture defined there is automatically available to all tests in the same directory and all subdirectories — without any import statement. You can have multiple conftest.py files at different directory levels.",
+    explainVi: "conftest.py là file fixture dùng chung đặc biệt của pytest. Bất kỳ fixture nào được định nghĩa ở đó đều tự động có sẵn cho tất cả test trong cùng thư mục và các thư mục con — không cần câu lệnh import. Bạn có thể có nhiều conftest.py ở các cấp thư mục khác nhau."
+  },
+  {
+    q: "How do you make a fixture run automatically for every test without tests declaring it?",
+    qVi: "Làm thế nào để fixture tự động chạy cho mọi test mà không cần test khai báo nó?",
+    choices: [
+      "scope='all'",
+      "autouse=True in the @pytest.fixture decorator",
+      "Register it in pytest.ini",
+      "Name it conftest_fixture"
+    ],
+    choicesVi: [
+      "scope='all'",
+      "autouse=True trong decorator @pytest.fixture",
+      "Đăng ký nó trong pytest.ini",
+      "Đặt tên là conftest_fixture"
+    ],
+    answer: 1,
+    explain: "Adding autouse=True to a fixture makes pytest inject it into every test in its scope — even tests that don't declare it as a parameter. Useful for logging, resetting state, or enforcing preconditions across all tests.",
+    explainVi: "Thêm autouse=True vào fixture khiến pytest inject nó vào mọi test trong phạm vi của nó — kể cả test không khai báo nó làm tham số. Hữu ích cho việc ghi log, reset trạng thái hoặc áp dụng điều kiện tiên quyết cho tất cả test."
+  },
+  {
+    q: "A fixture with `scope='function'` (the default) is used by 5 tests. How many times does its setup code run?",
+    qVi: "Fixture có `scope='function'` (mặc định) được dùng bởi 5 test. Code setup chạy bao nhiêu lần?",
+    choices: [
+      "1 time — the first time any test requests it",
+      "5 times — once for each test",
+      "It depends on whether the tests are in the same file",
+      "Pytest decides based on available memory"
+    ],
+    choicesVi: [
+      "1 lần — lần đầu tiên bất kỳ test nào yêu cầu nó",
+      "5 lần — một lần cho mỗi test",
+      "Tùy thuộc vào việc các test có cùng file hay không",
+      "Pytest quyết định dựa trên bộ nhớ khả dụng"
+    ],
+    answer: 1,
+    explain: "Function scope means a fresh fixture instance for every test. Setup runs before each test, teardown runs after. This is the safest default — tests are isolated. The trade-off is speed: if setup is expensive (like browser launch), consider module or session scope.",
+    explainVi: "Function scope có nghĩa là một fixture instance mới cho mỗi test. Setup chạy trước mỗi test, teardown chạy sau. Đây là mặc định an toàn nhất — các test được cô lập. Đánh đổi là tốc độ: nếu setup tốn kém (như khởi động browser), hãy cân nhắc module hoặc session scope."
+  },
+  {
+    q: "What is the difference between `scope='module'` and `scope='session'` in a pytest fixture?",
+    qVi: "Sự khác biệt giữa `scope='module'` và `scope='session'` trong fixture pytest là gì?",
+    choices: [
+      "module runs setup once per file; session runs setup once for the entire test run",
+      "module scope is faster than session scope",
+      "session scope only works with browser fixtures; module works with any fixture",
+      "There is no functional difference — both run once per test"
+    ],
+    choicesVi: [
+      "module chạy setup một lần cho mỗi file; session chạy setup một lần cho toàn bộ lần chạy test",
+      "Module scope nhanh hơn session scope",
+      "Session scope chỉ hoạt động với browser fixture; module hoạt động với bất kỳ fixture nào",
+      "Không có sự khác biệt — cả hai đều chạy một lần mỗi test"
     ],
     answer: 0,
-    explain: "parametrize runs the same test function once per row of data you provide. Each row becomes a separate test case — named, counted, and reported individually. This replaces writing the same test multiple times with different hardcoded values."
+    explain: "scope='module' means setup runs once at the start of a test file and teardown runs after all tests in that file finish. scope='session' means setup runs exactly once for the entire pytest session regardless of how many files run. Session scope is ideal for expensive shared resources like a logged-in browser.",
+    explainVi: "scope='module' nghĩa là setup chạy một lần khi bắt đầu file test và teardown chạy sau khi tất cả test trong file đó hoàn thành. scope='session' nghĩa là setup chạy đúng một lần cho toàn bộ session pytest bất kể có bao nhiêu file chạy. Session scope lý tưởng cho các tài nguyên dùng chung tốn kém như browser đã đăng nhập."
+  },
+  {
+    q: "How can you apply a fixture to a test without listing it as a parameter?",
+    qVi: "Làm thế nào để áp dụng fixture cho test mà không liệt kê nó như tham số?",
+    choices: [
+      "Add autouse=True to the fixture definition",
+      "Use the @pytest.mark.usefixtures('fixture_name') decorator on the test",
+      "Both A and B are valid ways",
+      "You cannot — fixtures must always be listed as parameters"
+    ],
+    choicesVi: [
+      "Thêm autouse=True vào định nghĩa fixture",
+      "Dùng decorator @pytest.mark.usefixtures('fixture_name') trên test",
+      "Cả A và B đều là cách hợp lệ",
+      "Không thể — fixture luôn phải được liệt kê dưới dạng tham số"
+    ],
+    answer: 2,
+    explain: "Both work. autouse=True on the fixture definition automatically injects it into every test in scope. @pytest.mark.usefixtures('name') on a test or class applies specific fixtures without listing them as parameters — useful when you need the side effect (e.g., set up DB) but don't use the return value.",
+    explainVi: "Cả hai đều hoạt động. autouse=True trên định nghĩa fixture tự động inject nó vào mọi test trong phạm vi. @pytest.mark.usefixtures('name') trên test hoặc class áp dụng fixture cụ thể mà không liệt kê chúng dưới dạng tham số — hữu ích khi bạn cần side effect (ví dụ: thiết lập DB) nhưng không dùng giá trị trả về."
+  },
+  {
+    q: "What happens if a fixture with `scope='session'` raises an exception during setup?",
+    qVi: "Điều gì xảy ra nếu fixture với `scope='session'` gây ra ngoại lệ trong setup?",
+    choices: [
+      "Only the first test that uses the fixture fails; others get a fresh setup attempt",
+      "All tests that depend on the fixture are marked as ERROR and skipped",
+      "pytest retries the fixture setup up to 3 times automatically",
+      "The fixture falls back to function scope for the failing test"
+    ],
+    choicesVi: [
+      "Chỉ test đầu tiên dùng fixture thất bại; các test khác có lần thử setup mới",
+      "Tất cả test phụ thuộc vào fixture đều được đánh dấu ERROR và bỏ qua",
+      "pytest tự động thử lại setup fixture tối đa 3 lần",
+      "Fixture chuyển sang function scope cho test thất bại"
+    ],
+    answer: 1,
+    explain: "If a session-scoped fixture fails during setup, pytest marks every test that depends on it as ERROR (not FAILED). Since setup runs only once, there's nothing to retry — all dependent tests are considered broken. This is why session-scoped setups should be robust and their failures clearly logged.",
+    explainVi: "Nếu fixture session scope thất bại trong setup, pytest đánh dấu mọi test phụ thuộc vào nó là ERROR (không phải FAILED). Vì setup chỉ chạy một lần, không có gì để retry — tất cả test phụ thuộc được coi là hỏng. Đây là lý do tại sao setup session scope nên robust và lỗi của chúng phải được log rõ ràng."
+  },
+  {
+    q: "You have a `conftest.py` in `tests/` and another in `tests/e2e/`. Which fixtures are available to tests inside `tests/e2e/`?",
+    qVi: "Bạn có `conftest.py` trong `tests/` và một cái khác trong `tests/e2e/`. Fixture nào có sẵn cho test trong `tests/e2e/`?",
+    choices: [
+      "Only fixtures from `tests/e2e/conftest.py`",
+      "Only fixtures from `tests/conftest.py`",
+      "Fixtures from both — inner conftest.py can override outer fixtures",
+      "Neither — conftest.py only applies to the directory it is in, not subdirectories"
+    ],
+    choicesVi: [
+      "Chỉ fixture từ `tests/e2e/conftest.py`",
+      "Chỉ fixture từ `tests/conftest.py`",
+      "Fixture từ cả hai — conftest.py bên trong có thể override fixture bên ngoài",
+      "Không cái nào — conftest.py chỉ áp dụng cho thư mục nó nằm trong, không áp dụng thư mục con"
+    ],
+    answer: 2,
+    explain: "pytest merges conftest.py files from all parent directories down to the test file. Tests in tests/e2e/ have access to fixtures from both tests/conftest.py and tests/e2e/conftest.py. If both define a fixture with the same name, the inner (closer) conftest.py wins.",
+    explainVi: "pytest hợp nhất các file conftest.py từ tất cả thư mục cha xuống đến file test. Test trong tests/e2e/ có quyền truy cập fixture từ cả tests/conftest.py và tests/e2e/conftest.py. Nếu cả hai định nghĩa fixture cùng tên, conftest.py bên trong (gần hơn) sẽ thắng."
+  },
+  {
+    q: "What does `request.addfinalizer(fn)` do inside a fixture?",
+    qVi: "`request.addfinalizer(fn)` làm gì bên trong fixture?",
+    choices: [
+      "Registers `fn` to run before the test starts",
+      "Registers `fn` as a teardown callback that runs after the test, even if the test fails",
+      "Adds `fn` as a pytest hook that runs at session end",
+      "Calls `fn` immediately as an inline assertion"
+    ],
+    choicesVi: [
+      "Đăng ký `fn` để chạy trước khi test bắt đầu",
+      "Đăng ký `fn` là callback teardown chạy sau test, kể cả khi test thất bại",
+      "Thêm `fn` như pytest hook chạy khi kết thúc session",
+      "Gọi `fn` ngay lập tức như assertion inline"
+    ],
+    answer: 1,
+    explain: "request.addfinalizer(fn) is an alternative to yield-based teardown. It registers a cleanup function that pytest calls after the test completes, regardless of whether the test passed or failed. Multiple finalizers can be registered and they run in LIFO order (last registered, first called).",
+    explainVi: "request.addfinalizer(fn) là cách thay thế cho teardown dựa trên yield. Nó đăng ký hàm dọn dẹp mà pytest gọi sau khi test hoàn thành, bất kể test pass hay fail. Có thể đăng ký nhiều finalizer và chúng chạy theo thứ tự LIFO (đăng ký cuối, gọi đầu tiên)."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "pytest Fixtures Guide", url: "https://docs.pytest.org/en/stable/reference/fixtures.html" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "pytest — Fixtures", url: "https://docs.pytest.org/en/stable/how-to/fixtures.html" },
+  { title: "pytest — conftest.py", url: "https://docs.pytest.org/en/stable/reference/fixtures.html#conftest-py-sharing-fixtures-across-files" },
+  { title: "Playwright Python — pytest integration", url: "https://playwright.dev/python/docs/test-runners" }
 ]} />

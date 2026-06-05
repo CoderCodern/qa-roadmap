@@ -18,102 +18,222 @@ Thực hiện các cuộc gọi HTTP với `requests` hữu ích để khám ph�
 ## Concept
 
 <En>
-**Project structure:**
+**Project structure — organise by resource, not by test type:**
 ```
 api_tests/
 ├── api/
 │   ├── __init__.py
-│   └── client.py         # API client class wrapping requests.Session
+│   └── client.py         # ApiClient class wrapping requests.Session
 ├── tests/
 │   ├── __init__.py
-│   ├── conftest.py       # shared fixtures (session, base_url)
-│   ├── test_posts.py
-│   └── test_users.py
-├── pytest.ini
-└── requirements.txt
+│   ├── conftest.py       # shared fixtures — api client, base_url
+│   ├── test_posts.py     # all tests for the /posts resource
+│   └── test_users.py     # all tests for the /users resource
+├── pytest.ini            # pytest configuration
+└── requirements.txt      # requests, pytest
 ```
+
+Separating by resource mirrors how REST APIs are structured. When the `/posts` endpoint breaks, you look in `test_posts.py` — not across five files mixed by test type.
 
 **API client class — wrap `requests.Session`:**
+
 ```python
 class ApiClient:
-    def __init__(self, base_url: str, token: str | None = None):
-        self.session = requests.Session()
-        self.session.base_url = base_url
-        if token:
-            self.session.headers["Authorization"] = f"Bearer {token}"
-
-    def get(self, path: str, **kwargs) -> requests.Response:
-        return self.session.get(f"{self.base_url}{path}", **kwargs)
-    # ...
-```
-
-**Fixtures for shared API state:**
-```python
-@pytest.fixture(scope="session")
-def api(base_url: str) -> ApiClient:
-    return ApiClient(base_url)
-```
-
-**What to test in API tests:**
-1. Happy path — valid request gets expected response
-2. Status codes — correct code for each scenario
-3. Field presence — all required fields exist
-4. Field types — correct Python types
-5. Business rules — email format, positive ids, valid roles
-6. Error cases — invalid input gets 4xx, not 5xx
-7. Edge cases — empty lists, null fields, boundary values
-</En>
-<Vi>
-**Cấu trúc dự án:**
-```
-api_tests/
-├── api/
-│   ├── __init__.py
-│   └── client.py         # API client class bọc requests.Session
-├── tests/
-│   ├── conftest.py       # fixture dùng chung
-│   ├── test_posts.py
-│   └── test_users.py
-├── pytest.ini
-└── requirements.txt
-```
-
-**Class API client — bọc `requests.Session`:**
-```python
-class ApiClient:
-    def __init__(self, base_url: str, token: str | None = None):
-        self.session = requests.Session()
-        self.base_url = base_url
-        if token:
-            self.session.headers["Authorization"] = f"Bearer {token}"
-```
-
-**Những gì cần kiểm thử trong API test:**
-1. Happy path — request hợp lệ nhận response mong đợi
-2. Status code — mã đúng cho từng kịch bản
-3. Sự hiện diện trường — tất cả trường bắt buộc tồn tại
-4. Kiểu trường — kiểu Python đúng
-5. Quy tắc nghiệp vụ — định dạng email, id dương, role hợp lệ
-6. Trường hợp lỗi — đầu vào không hợp lệ nhận 4xx
-</Vi>
-
-## Code / Demo
-
-```python
-# api/client.py
-import requests
-
-class ApiClient:
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, token: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
+        if token:
+            self.session.headers["Authorization"] = f"Bearer {token}"
 
     def get(self, path: str, **kwargs) -> requests.Response:
         return self.session.get(f"{self.base_url}{path}", **kwargs)
 
     def post(self, path: str, **kwargs) -> requests.Response:
         return self.session.post(f"{self.base_url}{path}", **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self.session.delete(f"{self.base_url}{path}", **kwargs)
+```
+
+The `ApiClient` is the test equivalent of the Page Object Model from Phase 3. It centralises the base URL and auth headers — change the target server in one place, not across every test file.
+
+**conftest.py — shared fixtures visible to all test files:**
+
+conftest.py is a special pytest file that is automatically discovered. Any fixture defined in it is available to all test files in the same directory and below — without any import.
+
+```python
+# tests/conftest.py
+import pytest
+from api.client import ApiClient
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+@pytest.fixture(scope="session")
+def api() -> ApiClient:
+    return ApiClient(BASE_URL)
+```
+
+Any test function that declares `api` as a parameter receives this fixture automatically.
+
+**Fixture scopes — choosing the right one:**
+
+| Scope | Created | Destroyed | Use when |
+|-------|---------|-----------|----------|
+| `function` (default) | Before each test | After each test | Test modifies state (creates/deletes) |
+| `module` | Once per test file | After all tests in file | Moderate sharing, file-level setup |
+| `session` | Once per entire run | After all tests | Stateless client, expensive setup |
+
+For a `requests.Session`-based ApiClient that carries no mutable state between tests, `scope='session'` is the right choice — one TCP connection pool for the whole run.
+
+**@pytest.fixture — what it does:**
+
+The `@pytest.fixture` decorator converts a plain function into a factory that pytest manages. pytest:
+1. Calls the fixture function when a test requests it
+2. Passes the return value to the test
+3. Runs any teardown code after `yield` (if present) when the test finishes
+
+```python
+@pytest.fixture
+def temp_user(api):
+    # Setup — create a user before the test
+    user = api.post("/users", json={"name": "Temp", "email": "t@t.com"}).json()
+    yield user
+    # Teardown — delete the user after the test
+    api.delete(f"/users/{user['id']}")
+```
+
+**What to test in API tests — a systematic checklist:**
+
+1. **Happy path** — valid request → expected 2xx response with correct body
+2. **Status codes** — correct code for each scenario (200, 201, 404, 400, 422)
+3. **Field presence** — all required fields exist in the response
+4. **Field types** — correct Python types (`isinstance(post["id"], int)`)
+5. **Business rules** — email contains "@", id is positive, role is in a valid set
+6. **Error cases** — invalid input gets 4xx (not 500), error body is informative
+7. **Edge cases** — empty list when no results, null fields handled, boundary ids
+
+**@pytest.mark.parametrize — test multiple inputs with one test function:**
+
+```python
+@pytest.mark.parametrize("post_id", [1, 5, 10, 50, 100])
+def test_get_valid_post_ids(api, post_id):
+    response = api.get(f"/posts/{post_id}")
+    assert response.status_code == 200
+    assert response.json()["id"] == post_id
+```
+
+This runs 5 tests from one function. Parametrize is ideal for boundary values and happy-path coverage across multiple valid inputs.
+
+**pytest.ini — configure pytest behaviour:**
+
+```ini
+[pytest]
+addopts = -v --tb=short
+log_cli = true
+log_cli_level = INFO
+```
+
+- `-v` — verbose: shows each test name and result
+- `--tb=short` — shorter tracebacks for API failures (no stack noise)
+- `log_cli = true` — stream log output to the terminal during the run
+</En>
+<Vi>
+**Cấu trúc dự án — tổ chức theo resource, không theo loại test:**
+```
+api_tests/
+├── api/
+│   ├── __init__.py
+│   └── client.py         # class ApiClient bọc requests.Session
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py       # fixture dùng chung — api client, base_url
+│   ├── test_posts.py     # tất cả test cho resource /posts
+│   └── test_users.py     # tất cả test cho resource /users
+├── pytest.ini            # cấu hình pytest
+└── requirements.txt      # requests, pytest
+```
+
+Tách theo resource phản ánh cách REST API được cấu trúc. Khi endpoint `/posts` bị hỏng, bạn tìm trong `test_posts.py` — không phải qua năm file trộn lẫn theo loại test.
+
+**Class API client — bọc `requests.Session`:**
+
+`ApiClient` là tương đương test của Page Object Model từ Phase 3. Nó tập trung base URL và auth header — thay đổi server mục tiêu ở một nơi, không phải qua mọi file test.
+
+**conftest.py — fixture dùng chung cho tất cả file test:**
+
+conftest.py là file pytest đặc biệt được tự động khám phá. Bất kỳ fixture nào được định nghĩa trong nó đều có sẵn cho tất cả file test trong cùng thư mục và bên dưới — không cần import nào.
+
+**Phạm vi fixture — chọn cái đúng:**
+
+| Phạm vi | Được tạo | Bị hủy | Dùng khi |
+|-------|---------|-----------|----------|
+| `function` (mặc định) | Trước mỗi test | Sau mỗi test | Test sửa đổi trạng thái (tạo/xóa) |
+| `module` | Một lần mỗi file test | Sau tất cả test trong file | Chia sẻ vừa phải, setup cấp file |
+| `session` | Một lần cho toàn bộ run | Sau tất cả test | Client không trạng thái, setup tốn kém |
+
+Với ApiClient dựa trên `requests.Session` không mang trạng thái có thể thay đổi giữa các test, `scope='session'` là lựa chọn đúng.
+
+**@pytest.fixture — nó làm gì:**
+
+Decorator `@pytest.fixture` chuyển đổi hàm thông thường thành factory mà pytest quản lý. pytest gọi hàm fixture khi test yêu cầu nó, truyền giá trị trả về cho test, và chạy code teardown sau `yield` khi test kết thúc.
+
+**Những gì cần kiểm thử trong API test — checklist có hệ thống:**
+
+1. **Happy path** — request hợp lệ → response 2xx mong đợi với body đúng
+2. **Status code** — mã đúng cho từng kịch bản (200, 201, 404, 400, 422)
+3. **Sự hiện diện trường** — tất cả trường bắt buộc tồn tại trong response
+4. **Kiểu trường** — kiểu Python đúng (`isinstance(post["id"], int)`)
+5. **Quy tắc nghiệp vụ** — email chứa "@", id dương, role trong tập hợp hợp lệ
+6. **Trường hợp lỗi** — đầu vào không hợp lệ nhận 4xx (không phải 500)
+7. **Trường hợp biên** — list rỗng khi không có kết quả, trường null được xử lý
+
+**@pytest.mark.parametrize — kiểm thử nhiều đầu vào với một hàm test:**
+
+```python
+@pytest.mark.parametrize("post_id", [1, 5, 10, 50, 100])
+def test_get_valid_post_ids(api, post_id):
+    response = api.get(f"/posts/{post_id}")
+    assert response.status_code == 200
+    assert response.json()["id"] == post_id
+```
+
+Cái này chạy 5 test từ một hàm. Parametrize lý tưởng cho giá trị biên và độ bao phủ happy-path trên nhiều đầu vào hợp lệ.
+</Vi>
+
+## Code / Demo
+
+<En>
+
+**Part 1 — ApiClient and conftest.py**
+
+</En>
+<Vi>
+
+**Phần 1 — ApiClient và conftest.py**
+
+</Vi>
+
+```python
+# api/client.py
+import requests
+
+class ApiClient:
+    def __init__(self, base_url: str, token: str | None = None) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.session = requests.Session()
+        self.session.headers.update({"Content-Type": "application/json"})
+        if token:
+            self.session.headers["Authorization"] = f"Bearer {token}"
+
+    def get(self, path: str, **kwargs) -> requests.Response:
+        return self.session.get(f"{self.base_url}{path}", **kwargs)
+
+    def post(self, path: str, **kwargs) -> requests.Response:
+        return self.session.post(f"{self.base_url}{path}", **kwargs)
+
+    def put(self, path: str, **kwargs) -> requests.Response:
+        return self.session.put(f"{self.base_url}{path}", **kwargs)
 
     def delete(self, path: str, **kwargs) -> requests.Response:
         return self.session.delete(f"{self.base_url}{path}", **kwargs)
@@ -128,8 +248,21 @@ BASE_URL = "https://jsonplaceholder.typicode.com"
 
 @pytest.fixture(scope="session")
 def api() -> ApiClient:
+    # One shared client for the entire test run
+    # scope='session' means the Session's TCP connection pool is reused
     return ApiClient(BASE_URL)
 ```
+
+<En>
+
+**Part 2 — test_posts.py: happy path, field assertions, parametrize**
+
+</En>
+<Vi>
+
+**Phần 2 — test_posts.py: happy path, kiểm tra trường, parametrize**
+
+</Vi>
 
 ```python
 # tests/test_posts.py
@@ -140,16 +273,24 @@ def test_get_post_by_id(api: ApiClient):
     response = api.get("/posts/1")
     assert response.status_code == 200
     post = response.json()
-    assert post["id"] == 1
+    # Field presence
+    assert "id" in post
+    assert "title" in post
+    assert "body" in post
+    assert "userId" in post
+    # Field types
+    assert isinstance(post["id"], int)
     assert isinstance(post["title"], str)
     assert len(post["title"]) > 0
+    # Value assertions
+    assert post["id"] == 1
 
 def test_get_posts_list(api: ApiClient):
     response = api.get("/posts")
     assert response.status_code == 200
     posts = response.json()
     assert isinstance(posts, list)
-    assert len(posts) == 100  # JSONPlaceholder returns 100 posts
+    assert len(posts) == 100  # JSONPlaceholder always returns 100
 
 def test_create_post(api: ApiClient):
     payload = {"title": "Test Post", "body": "Test body", "userId": 1}
@@ -158,6 +299,7 @@ def test_create_post(api: ApiClient):
     created = response.json()
     assert "id" in created
     assert created["title"] == "Test Post"
+    assert created["userId"] == 1
 
 @pytest.mark.parametrize("post_id", [1, 5, 10, 50, 100])
 def test_get_valid_post_ids(api: ApiClient, post_id: int):
@@ -178,38 +320,349 @@ def test_post_has_required_fields(api: ApiClient):
     assert not missing, f"Missing fields: {missing}"
 ```
 
+<En>
+
+**Part 3 — pytest.ini and running the suite**
+
+</En>
+<Vi>
+
+**Phần 3 — pytest.ini và chạy bộ test**
+
+</Vi>
+
+```ini
+# pytest.ini
+[pytest]
+addopts = -v --tb=short
+log_cli = true
+log_cli_level = INFO
+```
+
+```bash
+# Run the full suite
+pytest
+
+# Run a single file
+pytest tests/test_posts.py
+
+# Run a single test function
+pytest tests/test_posts.py::test_get_post_by_id
+
+# Run tests matching a keyword
+pytest -k "create or delete"
+
+# Run with extra verbosity to see parametrize breakdown
+pytest -v tests/test_posts.py::test_get_valid_post_ids
+```
+
+```
+# Example output with -v
+PASSED tests/test_posts.py::test_get_post_by_id
+PASSED tests/test_posts.py::test_get_posts_list
+PASSED tests/test_posts.py::test_create_post
+PASSED tests/test_posts.py::test_get_valid_post_ids[1]
+PASSED tests/test_posts.py::test_get_valid_post_ids[5]
+PASSED tests/test_posts.py::test_get_valid_post_ids[10]
+PASSED tests/test_posts.py::test_get_nonexistent_post
+PASSED tests/test_posts.py::test_post_has_required_fields
+```
+
 ## Exercise
 
-<ExerciseBox>
-- [ ] Set up the `api_tests/` project structure, implement the `ApiClient` class, and run all the tests — they should all pass against JSONPlaceholder
-- [ ] Add `tests/test_users.py` with at least 4 tests: get all users (verify count is 10), get a specific user by id, verify each user has an `email` with "@", and verify `website` is a non-empty string
-- [ ] Add a `pytest.ini` file and configure `addopts = -v` and a `log_cli = true` setting so you see request logs during test runs
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Set up the project and run the suite",
+    code: `# api/client.py — complete the ApiClient implementation
+import requests
+
+class ApiClient:
+    def __init__(self, base_url: str) -> None:
+        # TODO (EN): Store base_url (strip trailing slash) and create a Session
+        #            with Content-Type: application/json header
+        # TODO (VI): Lưu base_url (bỏ dấu / cuối) và tạo Session
+        #            với header Content-Type: application/json
+        self.base_url = ???
+        self.session = ???
+        self.session.headers.update({???})
+
+    def get(self, path: str, **kwargs) -> requests.Response:
+        # TODO (EN): Call self.session.get with the full URL (base_url + path)
+        # TODO (VI): Gọi self.session.get với URL đầy đủ (base_url + path)
+        return self.session.get(???, **kwargs)
+
+    def post(self, path: str, **kwargs) -> requests.Response:
+        return self.session.post(f"{self.base_url}{path}", **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self.session.delete(f"{self.base_url}{path}", **kwargs)
+
+
+# tests/conftest.py
+import pytest
+# from api.client import ApiClient  # uncomment in your project
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+@pytest.fixture(scope="???")  # TODO: choose the right scope for a shared client
+def api():
+    return ApiClient(BASE_URL)
+`
+  },
+  {
+    title: "Exercise 2 — test_users.py with 4 tests",
+    code: `# tests/test_users.py
+# TODO (EN): Implement all four test functions below
+# TODO (VI): Implement tất cả bốn hàm test bên dưới
+import pytest
+from api.client import ApiClient
+
+def test_get_all_users(api: ApiClient):
+    response = api.get("/users")
+    assert response.status_code == 200
+    users = response.json()
+    # TODO (EN): assert it's a list with exactly 10 items
+    # TODO (VI): khẳng định đây là list có đúng 10 phần tử
+    assert isinstance(users, ???)
+    assert len(users) == ???
+
+def test_get_user_by_id(api: ApiClient):
+    # TODO (EN): GET /users/3, assert 200, assert id is 3
+    # TODO (VI): GET /users/3, kiểm tra 200, kiểm tra id là 3
+    response = api.get(???)
+    assert response.status_code == ???
+    user = response.json()
+    assert user["id"] == ???
+
+def test_each_user_has_valid_email(api: ApiClient):
+    response = api.get("/users")
+    users = response.json()
+    for user in users:
+        # TODO (EN): assert "email" is in user and "@" is in the email value
+        # TODO (VI): khẳng định "email" trong user và "@" có trong giá trị email
+        assert ??? in user
+        assert ??? in user["email"]
+
+def test_each_user_has_non_empty_website(api: ApiClient):
+    response = api.get("/users")
+    users = response.json()
+    for user in users:
+        # TODO (EN): assert "website" is in user and is a non-empty string
+        # TODO (VI): khẳng định "website" trong user và là chuỗi không rỗng
+        assert "website" in user
+        assert isinstance(user["website"], ???)
+        assert len(user["website"]) > ???
+`
+  },
+  {
+    title: "Exercise 3 — pytest.ini and parametrize",
+    code: `# pytest.ini — create this file at the root of api_tests/
+# TODO (EN): Add addopts with -v and --tb=short, enable log_cli with level INFO
+# TODO (VI): Thêm addopts với -v và --tb=short, bật log_cli với cấp INFO
+[pytest]
+addopts = ???
+log_cli = ???
+log_cli_level = ???
+
+
+# tests/test_posts.py — add a parametrize test for multiple user IDs
+import pytest
+from api.client import ApiClient
+
+@pytest.mark.parametrize("user_id", [1, 2, 3, 4, 5])
+def test_get_users_by_id_parametrize(api: ApiClient, user_id: int):
+    # TODO (EN): GET /users/{user_id}, assert 200, assert response id matches user_id
+    # TODO (VI): GET /users/{user_id}, kiểm tra 200, kiểm tra id response khớp user_id
+    response = api.get(???)
+    assert response.status_code == ???
+    user = response.json()
+    assert user["id"] == ???
+
+# Run with: pytest tests/ -v
+# Expected: 5 parametrized PASSED lines for test_get_users_by_id_parametrize
+`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Create the `api_tests/` directory structure with `api/client.py`, `tests/conftest.py`, `tests/test_posts.py`, and `pytest.ini`
+- [ ] For Exercise 1: implement the `ApiClient` and fill in the `conftest.py` fixture — choose `scope='session'` and explain why
+- [ ] For Exercise 2: create `tests/test_users.py` with all four test functions — fill in every `???` placeholder
+- [ ] For Exercise 3: create `pytest.ini` with `-v --tb=short` and `log_cli = true`, then add a parametrize test covering user ids 1 through 5
+- [ ] Run `pytest -v` and confirm all tests pass
+
+> Note: This code makes real HTTP requests to `jsonplaceholder.typicode.com`. Copy and run this in your local Python environment with `pip install requests pytest`.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Tạo cấu trúc thư mục `api_tests/` với `api/client.py`, `tests/conftest.py`, `tests/test_posts.py` và `pytest.ini`
+- [ ] Bài 1: implement `ApiClient` và điền fixture `conftest.py` — chọn `scope='session'` và giải thích tại sao
+- [ ] Bài 2: tạo `tests/test_users.py` với cả bốn hàm test — điền mọi chỗ `???`
+- [ ] Bài 3: tạo `pytest.ini` với `-v --tb=short` và `log_cli = true`, sau đó thêm parametrize test cho user id từ 1 đến 5
+- [ ] Chạy `pytest -v` và xác nhận tất cả test pass
+
+> Lưu ý: Code này tạo HTTP request thực đến `jsonplaceholder.typicode.com`. Sao chép và chạy trong môi trường Python cục bộ với `pip install requests pytest`.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Why use an `ApiClient` class instead of calling `requests.get()` directly in each test?",
+    qVi: "Tại sao dùng class `ApiClient` thay vì gọi `requests.get()` trực tiếp trong mỗi test?",
     choices: [
       "requests.get() doesn't work in pytest",
       "The ApiClient centralises base URL and headers — changing the target URL updates all tests at once",
       "Classes are required for API testing",
       "It makes requests faster"
     ],
+    choicesVi: [
+      "requests.get() không hoạt động trong pytest",
+      "ApiClient tập trung base URL và header — thay đổi URL mục tiêu cập nhật tất cả test cùng lúc",
+      "Class bắt buộc trong kiểm thử API",
+      "Nó làm request nhanh hơn"
+    ],
     answer: 1,
-    explain: "An ApiClient wraps a requests.Session and stores the base_url and common headers (auth, content-type). This mirrors the POM pattern from Phase 3 — changes to the API target or auth scheme are made in one place, not scattered across test files."
+    explain: "An ApiClient wraps a requests.Session and stores the base_url and common headers (auth, content-type). This mirrors the POM pattern from Phase 3 — changes to the API target or auth scheme are made in one place, not scattered across test files.",
+    explainVi: "ApiClient bọc requests.Session và lưu base_url và header chung (auth, content-type). Điều này phản ánh pattern POM từ Phase 3 — thay đổi đến API mục tiêu hoặc scheme xác thực được thực hiện ở một nơi, không phải rải rác qua các file test."
   },
   {
     q: "What fixture scope should a shared `ApiClient` fixture use, and why?",
+    qVi: "Phạm vi fixture nào nên dùng cho fixture `ApiClient` dùng chung, và tại sao?",
     choices: [
       "scope='function' — creates a fresh client for each test",
       "scope='session' — creates one client for the entire test run, reusing the HTTP connection pool",
       "scope='module' — one client per file",
-      "No scope needed — Pytest infers it"
+      "No scope needed — pytest infers it"
+    ],
+    choicesVi: [
+      "scope='function' — tạo client mới cho mỗi test",
+      "scope='session' — tạo một client cho toàn bộ test run, tái sử dụng connection pool HTTP",
+      "scope='module' — một client mỗi file",
+      "Không cần phạm vi — pytest tự suy luận"
     ],
     answer: 1,
-    explain: "scope='session' creates one ApiClient for the entire pytest run. This is more efficient — the underlying requests.Session reuses HTTP connections. For stateless API clients (no auth state carried between tests), session scope is safe and fast."
+    explain: "scope='session' creates one ApiClient for the entire pytest run. This is more efficient — the underlying requests.Session reuses HTTP connections. For stateless API clients (no auth state carried between tests), session scope is safe and fast.",
+    explainVi: "scope='session' tạo một ApiClient cho toàn bộ pytest run. Điều này hiệu quả hơn — requests.Session bên dưới tái sử dụng kết nối HTTP. Với API client không trạng thái (không mang trạng thái auth giữa các test), session scope an toàn và nhanh."
+  },
+  {
+    q: "What is `conftest.py` used for in pytest?",
+    qVi: "`conftest.py` dùng để làm gì trong pytest?",
+    choices: [
+      "It configures pytest command-line options",
+      "It defines shared fixtures that are automatically available to all test files in the same directory and below — no import needed",
+      "It stores test configuration like base URLs and API keys",
+      "It is the entry point for running pytest"
+    ],
+    choicesVi: [
+      "Nó cấu hình tùy chọn dòng lệnh pytest",
+      "Nó định nghĩa fixture dùng chung tự động có sẵn cho tất cả file test trong cùng thư mục và bên dưới — không cần import",
+      "Nó lưu cấu hình test như base URL và API key",
+      "Nó là điểm vào để chạy pytest"
+    ],
+    answer: 1,
+    explain: "conftest.py is a special file automatically loaded by pytest. Fixtures defined in it are shared without any import statement — pytest discovers them by convention. A conftest.py at the tests/ level applies to all test files inside tests/.",
+    explainVi: "conftest.py là file đặc biệt được pytest tự động load. Các fixture được định nghĩa trong nó được chia sẻ mà không cần câu lệnh import — pytest khám phá chúng theo quy ước. conftest.py ở cấp tests/ áp dụng cho tất cả file test bên trong tests/."
+  },
+  {
+    q: "How do you run only the tests in `tests/test_posts.py` using pytest?",
+    qVi: "Làm thế nào để chỉ chạy các test trong `tests/test_posts.py` bằng pytest?",
+    choices: [
+      "pytest --file=tests/test_posts.py",
+      "pytest tests/test_posts.py",
+      "pytest -m test_posts",
+      "pytest --only tests/test_posts.py"
+    ],
+    choicesVi: [
+      "pytest --file=tests/test_posts.py",
+      "pytest tests/test_posts.py",
+      "pytest -m test_posts",
+      "pytest --only tests/test_posts.py"
+    ],
+    answer: 1,
+    explain: "pytest accepts a file path as a positional argument. `pytest tests/test_posts.py` collects and runs only the tests in that file. To run a single test function: `pytest tests/test_posts.py::test_get_post_by_id`.",
+    explainVi: "pytest chấp nhận đường dẫn file như tham số vị trí. `pytest tests/test_posts.py` thu thập và chạy chỉ các test trong file đó. Để chạy một hàm test duy nhất: `pytest tests/test_posts.py::test_get_post_by_id`."
+  },
+  {
+    q: "What does the `@pytest.fixture` decorator do to a function?",
+    qVi: "Decorator `@pytest.fixture` làm gì với một hàm?",
+    choices: [
+      "It marks the function as a test to be discovered by pytest",
+      "It converts the function into a managed factory — pytest calls it automatically when a test declares the fixture name as a parameter",
+      "It skips the function during test collection",
+      "It runs the function before and after every test"
+    ],
+    choicesVi: [
+      "Nó đánh dấu hàm là test để pytest khám phá",
+      "Nó chuyển đổi hàm thành factory được quản lý — pytest gọi nó tự động khi test khai báo tên fixture như tham số",
+      "Nó bỏ qua hàm trong quá trình thu thập test",
+      "Nó chạy hàm trước và sau mỗi test"
+    ],
+    answer: 1,
+    explain: "@pytest.fixture marks a function as a fixture factory. When a test function lists the fixture name in its parameters, pytest calls the fixture function, passes its return value (or yields value) to the test, and handles cleanup after yield automatically.",
+    explainVi: "@pytest.fixture đánh dấu hàm là fixture factory. Khi hàm test liệt kê tên fixture trong tham số của nó, pytest gọi hàm fixture, truyền giá trị trả về (hoặc giá trị yield) cho test, và xử lý cleanup sau yield tự động."
+  },
+  {
+    q: "What is the difference between `assert response.status_code == 404` and `pytest.raises()`?",
+    qVi: "Sự khác biệt giữa `assert response.status_code == 404` và `pytest.raises()` là gì?",
+    choices: [
+      "They are identical — both check for a 404 response",
+      "assert checks a value condition; pytest.raises() is used to assert that a specific Python exception is raised during a block of code",
+      "pytest.raises() only works with network errors",
+      "assert is for unit tests; pytest.raises() is for integration tests"
+    ],
+    choicesVi: [
+      "Chúng giống nhau — cả hai đều kiểm tra response 404",
+      "assert kiểm tra điều kiện giá trị; pytest.raises() dùng để khẳng định rằng exception Python cụ thể được raise trong khối code",
+      "pytest.raises() chỉ hoạt động với lỗi mạng",
+      "assert dùng cho unit test; pytest.raises() dùng cho integration test"
+    ],
+    answer: 1,
+    explain: "`assert response.status_code == 404` checks the HTTP status code integer. `pytest.raises(ValueError)` is a context manager that passes only if the code inside raises a ValueError — useful for testing functions that raise exceptions on bad input, like `raise_for_status()`.",
+    explainVi: "`assert response.status_code == 404` kiểm tra số nguyên mã trạng thái HTTP. `pytest.raises(ValueError)` là context manager chỉ pass nếu code bên trong raise ValueError — hữu ích để kiểm thử hàm raise exception khi nhận đầu vào xấu, như `raise_for_status()`."
+  },
+  {
+    q: "Why separate tests into `test_posts.py` and `test_users.py` instead of one `test_api.py`?",
+    qVi: "Tại sao tách test thành `test_posts.py` và `test_users.py` thay vì một `test_api.py`?",
+    choices: [
+      "pytest requires one file per endpoint",
+      "Separating by resource mirrors the API structure — when /posts breaks, you find the failure immediately in test_posts.py without scanning an unrelated file",
+      "It makes tests run faster in parallel",
+      "Only one test file can be active at a time in pytest"
+    ],
+    choicesVi: [
+      "pytest yêu cầu một file cho mỗi endpoint",
+      "Tách theo resource phản ánh cấu trúc API — khi /posts bị hỏng, bạn tìm ngay thất bại trong test_posts.py mà không cần quét file không liên quan",
+      "Nó làm test chạy nhanh hơn song song",
+      "Chỉ có thể có một file test hoạt động tại một thời điểm trong pytest"
+    ],
+    answer: 1,
+    explain: "Separating test files by resource is the API equivalent of the Page Object Model — each file owns one resource's test suite. When a CI job fails, the file name alone tells you which part of the API is broken. It also makes code review easier: a PR touching /users only changes test_users.py.",
+    explainVi: "Tách file test theo resource là tương đương API của Page Object Model — mỗi file sở hữu bộ test của một resource. Khi CI job thất bại, tên file một mình cho bạn biết phần nào của API bị hỏng. Nó cũng làm code review dễ hơn: PR chạm vào /users chỉ thay đổi test_users.py."
+  },
+  {
+    q: "What does `pytest -v` output differently compared to running plain `pytest`?",
+    qVi: "`pytest -v` xuất ra gì khác so với chạy `pytest` thông thường?",
+    choices: [
+      "It runs tests twice to check for flakiness",
+      "It shows each individual test name and its PASSED/FAILED result on a separate line, instead of just dots",
+      "It enables verbose logging from the requests library",
+      "It increases the test timeout to allow slower responses"
+    ],
+    choicesVi: [
+      "Nó chạy test hai lần để kiểm tra tính không ổn định",
+      "Nó hiển thị từng tên test riêng lẻ và kết quả PASSED/FAILED trên một dòng riêng, thay vì chỉ các dấu chấm",
+      "Nó bật verbose logging từ thư viện requests",
+      "Nó tăng timeout test để cho phép response chậm hơn"
+    ],
+    answer: 1,
+    explain: "Without -v, pytest prints a single dot (.) for each passing test and F for each failing test — compact but hard to read when there are many tests. With -v, each test prints its full name (module::class::function) and PASSED or FAILED — essential when debugging parametrized tests where each parameter set is a separate line.",
+    explainVi: "Không có -v, pytest in một dấu chấm (.) cho mỗi test pass và F cho mỗi test fail — ngắn gọn nhưng khó đọc khi có nhiều test. Với -v, mỗi test in tên đầy đủ (module::class::function) và PASSED hoặc FAILED — cần thiết khi debug test có tham số hóa nơi mỗi bộ tham số là một dòng riêng."
   }
 ]} />
 

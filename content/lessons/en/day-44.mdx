@@ -27,13 +27,18 @@ Hầu hết người mới bắt đầu QA chỉ kiểm tra happy path — các 
 - Empty string where content required
 
 **2. Missing required fields:**
-- Omit each required field, one at a time
-- Expect 400 or 422 with a meaningful error message
+- Omit each required field, one at a time — this isolates which validation message appears
+- Expect 400 or 422 with a meaningful error message pointing to the specific missing field
+- Never omit all fields at once: that tests only one scenario and hides individual validation gaps
 
-**3. Boundary values (BVA applied to APIs):**
-- Min length string: one character
-- Max length string: exactly at limit, then one over
-- Numeric: 0, -1, max allowed, max+1
+**3. Boundary Value Analysis (BVA) applied to APIs:**
+Boundary Value Analysis is a technique where you test the exact edges of valid input ranges, because bugs most commonly appear at boundaries:
+- Min-1, Min, Max, Max+1
+- Example for a username that accepts 3–20 characters:
+  - Length 2 → expect 422 (below minimum)
+  - Length 3 → expect 201 (minimum valid)
+  - Length 20 → expect 201 (maximum valid)
+  - Length 21 → expect 422 (above maximum)
 
 **4. Security edge cases:**
 - SQL injection in string fields: `'; DROP TABLE users; --`
@@ -53,40 +58,80 @@ Hầu hết người mới bắt đầu QA chỉ kiểm tra happy path — các 
 ```
 
 **What to assert in negative tests:**
-- Status code is 4xx (not 5xx — 500 means the server crashed)
+- Status code is 4xx — not 5xx (500 means the server crashed on your input, which is a bug)
 - Response body contains an `error` or `message` field
 - Error message describes the problem without leaking internals
-- No stack traces, database names, or SQL in the response
+- No stack traces, database names, table names, or raw SQL in the response
+
+**400 vs 422:**
+- 400 Bad Request — request is syntactically malformed (e.g. invalid JSON, missing Content-Type)
+- 422 Unprocessable Entity — request is well-formed but fails semantic validation (e.g. email field present but not a valid email)
+Both are acceptable for validation failures; the important thing is consistency across your API.
 </En>
 <Vi>
 **4 chiều của kiểm thử API tiêu cực:**
 
 **1. Giá trị đầu vào không hợp lệ:**
 - Sai kiểu dữ liệu (chuỗi ở nơi mong đợi int)
-- Giá trị ngoài phạm vi được phép
+- Giá trị ngoài phạm vi được phép (age = -5, age = 999)
 - Định dạng không hợp lệ (email không có @)
 - Chuỗi rỗng ở nơi yêu cầu nội dung
 
 **2. Thiếu trường bắt buộc:**
-- Bỏ qua từng trường bắt buộc, một lần một cái
-- Mong đợi 400 hoặc 422 với thông báo lỗi có ý nghĩa
+- Bỏ qua từng trường bắt buộc, một lần một cái — điều này cô lập thông báo xác thực nào xuất hiện
+- Mong đợi 400 hoặc 422 với thông báo lỗi có ý nghĩa chỉ đến trường cụ thể bị thiếu
+- Không bao giờ bỏ qua tất cả trường cùng một lúc: điều đó chỉ kiểm thử một kịch bản và ẩn các khoảng trống xác thực riêng lẻ
 
-**3. Giá trị biên (BVA áp dụng cho API):**
-- Chuỗi độ dài tối thiểu: một ký tự
-- Chuỗi độ dài tối đa: đúng ở giới hạn, sau đó hơn một
+**3. Phân tích giá trị biên (BVA) áp dụng cho API:**
+Phân tích giá trị biên là kỹ thuật kiểm thử các cạnh chính xác của phạm vi đầu vào hợp lệ, vì lỗi thường xuất hiện nhất tại các biên:
+- Min-1, Min, Max, Max+1
+- Ví dụ cho username chấp nhận 3–20 ký tự:
+  - Độ dài 2 → mong đợi 422 (dưới tối thiểu)
+  - Độ dài 3 → mong đợi 201 (tối thiểu hợp lệ)
+  - Độ dài 20 → mong đợi 201 (tối đa hợp lệ)
+  - Độ dài 21 → mong đợi 422 (trên tối đa)
 
 **4. Edge case bảo mật:**
-- SQL injection trong trường chuỗi
-- XSS payload trong trường văn bản
-- Chuỗi cực dài
+- SQL injection trong trường chuỗi: `'; DROP TABLE users; --`
+- XSS payload trong trường văn bản: `<script>alert(1)</script>`
+- Chuỗi cực dài (thử tràn bộ đệm)
+- Content type không mong đợi (gửi XML đến endpoint JSON)
 
 **Response lỗi tốt trông như thế nào:**
-- Status code là 4xx (không phải 5xx)
+```json
+{
+  "error": "Validation failed",
+  "details": [
+    {"field": "email", "message": "Must be a valid email address"},
+    {"field": "age", "message": "Must be between 0 and 150"}
+  ]
+}
+```
+
+**Những gì cần assert trong negative test:**
+- Status code là 4xx — không phải 5xx (500 nghĩa là server crash với đầu vào của bạn, đó là bug)
 - Body chứa trường `error` hoặc `message`
 - Thông báo lỗi mô tả vấn đề mà không lộ nội bộ
+- Không có stack trace, tên database, tên table, hay SQL thô trong response
+
+**400 vs 422:**
+- 400 Bad Request — request sai cú pháp (ví dụ JSON không hợp lệ, thiếu Content-Type)
+- 422 Unprocessable Entity — request được định dạng tốt nhưng thất bại xác thực ngữ nghĩa (ví dụ trường email có nhưng không phải email hợp lệ)
+Cả hai đều chấp nhận được cho lỗi xác thực; điều quan trọng là tính nhất quán trên toàn bộ API của bạn.
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — Test invalid IDs and type mismatches**
+
+</En>
+<Vi>
+
+**Phần 1 — Kiểm thử ID không hợp lệ và sai kiểu dữ liệu**
+
+</Vi>
 
 ```python
 import requests
@@ -95,7 +140,8 @@ import pytest
 BASE_URL = "https://jsonplaceholder.typicode.com"
 
 # Note: JSONPlaceholder is lenient (it accepts almost anything),
-# so we use it to demonstrate the pattern with adjusted expectations
+# so we use it to demonstrate patterns with adjusted expectations.
+# In a real API with strict validation, the status code assertions change to 400/422.
 
 def test_get_nonexistent_resource():
     """404 for a resource that does not exist."""
@@ -109,79 +155,404 @@ def test_invalid_resource_id_type():
         f"Expected 400 or 404 for invalid ID, got {response.status_code}"
 
 @pytest.mark.parametrize("field,value,description", [
-    ("email",    "notanemail",       "invalid email format"),
-    ("age",      -1,                 "negative age"),
-    ("username", "",                 "empty username"),
-    ("role",     "superadmin",       "invalid role value"),
+    ("email",    "notanemail",   "invalid email format"),
+    ("age",      -1,             "negative age"),
+    ("username", "",             "empty username"),
+    ("role",     "superadmin",   "invalid role value"),
 ])
 def test_invalid_field_values(field, value, description):
-    """400 or 422 for invalid field values."""
-    # In a real API with validation, this would return 400/422
-    # JSONPlaceholder accepts everything, so we simulate the assertion pattern:
+    """400 or 422 for invalid field values in a real validated API."""
     payload = {field: value}
     response = requests.post(f"{BASE_URL}/posts", json=payload)
-    # JSONPlaceholder returns 201 for everything — in real life, assert 400/422
+    # JSONPlaceholder returns 201 for everything.
+    # In a real API: assert response.status_code in (400, 422)
     print(f"  {description}: sent {field}={value!r}, got {response.status_code}")
-    assert response.status_code in (200, 201, 400, 422), \
-        f"Unexpected status {response.status_code} for {description}"
+    assert response.status_code != 500, "Server must not crash on invalid input"
+```
 
+<En>
+
+**Part 2 — Test missing required fields one at a time**
+
+</En>
+<Vi>
+
+**Phần 2 — Kiểm thử thiếu từng trường bắt buộc một**
+
+</Vi>
+
+```python
 @pytest.mark.parametrize("payload,missing_field", [
     ({"body": "content", "userId": 1}, "title"),
-    ({"title": "Test",  "userId": 1},  "body"),
+    ({"title": "Test",   "userId": 1}, "body"),
+    ({"title": "Test",   "body": "x"}, "userId"),
 ])
 def test_missing_required_field(payload, missing_field):
-    """API with validation should return 400/422 for missing required fields."""
+    """
+    Test each required field missing separately.
+    This is important: testing all missing at once only tells you
+    'the API rejected it' — not which field caused the failure.
+    """
     response = requests.post(f"{BASE_URL}/posts", json=payload)
     print(f"  Missing '{missing_field}': status {response.status_code}")
-    # In real API: assert response.status_code in (400, 422)
+    # In a real validated API:
+    # assert response.status_code in (400, 422)
+    # assert missing_field in response.json().get("details", [{}])[0].get("field", "")
 
 def test_empty_body():
-    """POST with no body."""
+    """POST with completely empty body should not cause a 500."""
     response = requests.post(f"{BASE_URL}/posts", json={})
+    assert response.status_code != 500, "Server must handle empty body gracefully"
     print(f"Empty body response: {response.status_code}")
+```
+
+<En>
+
+**Part 3 — Boundary Value Analysis and security edge cases**
+
+</En>
+<Vi>
+
+**Phần 3 — Phân tích giá trị biên và edge case bảo mật**
+
+</Vi>
+
+```python
+@pytest.mark.parametrize("length,expected_status", [
+    (2,  422),   # below minimum (min is 3)
+    (3,  201),   # at minimum — valid
+    (20, 201),   # at maximum — valid
+    (21, 422),   # above maximum (max is 20)
+])
+def test_username_boundary_values(length, expected_status):
+    """BVA: test the edges of the accepted username length range (3-20 chars)."""
+    username = "a" * length
+    response = requests.post(f"{BASE_URL}/users",
+                             json={"username": username, "email": "x@example.com"})
+    # JSONPlaceholder doesn't enforce this — in a real API:
+    # assert response.status_code == expected_status, \
+    #     f"username length={length}: expected {expected_status}, got {response.status_code}"
+    print(f"  username length={length}: status={response.status_code} (expected {expected_status})")
+
+def test_sql_injection_payload():
+    """SQL injection input must not cause a 500 or return DB error text."""
+    sql_payload = "'; DROP TABLE users; --"
+    response = requests.post(f"{BASE_URL}/posts",
+                             json={"title": sql_payload, "body": "x", "userId": 1})
+    assert response.status_code != 500, "Server must not crash on SQL injection input"
+    body_text = response.text.lower()
+    for leak in ("syntax error", "sqlite", "mysql", "postgresql", "pg_"):
+        assert leak not in body_text, f"Response leaks DB error text: '{leak}'"
+    print(f"SQL injection: status {response.status_code} — no DB error text leaked")
 
 def test_very_long_string():
-    """Field value at extreme length."""
-    long_title = "A" * 10000
+    """Extremely long field value must not crash the server."""
+    long_title = "A" * 10_000
     response = requests.post(f"{BASE_URL}/posts",
                              json={"title": long_title, "body": "x", "userId": 1})
+    assert response.status_code != 500, "Server must not crash on 10k-char input"
     print(f"Very long title: status {response.status_code}")
-    # In real API with length validation: assert response.status_code == 422
-    assert response.status_code != 500, "Server must not crash on long input"
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] For a hypothetical `/users` endpoint with required fields `email`, `password`, and `role`, write one test per missing field — each should expect a 422 status with an error message about the missing field
-- [ ] Write a test that sends a SQL injection string (`' OR '1'='1`) as a value and asserts: the status is NOT 500 (server must not crash), and the response body does not contain SQL error text like "syntax error" or "SQLITE"
-- [ ] Apply BVA to a `username` field that accepts 3–20 characters: write tests for length 2, 3, 20, and 21 with expected results
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Test one missing required field at a time",
+    code: `import requests
+
+# Hypothetical endpoint: POST /users
+# Required fields: email, password, role
+# Expected behavior: 422 with an error mentioning the missing field name
+
+BASE_URL = "https://jsonplaceholder.typicode.com"  # replace with your API
+
+# TODO (EN): Write three separate test functions, each omitting ONE required field:
+# 1. test_missing_email()     → payload has password and role but no email
+# 2. test_missing_password()  → payload has email and role but no password
+# 3. test_missing_role()      → payload has email and password but no role
+# Each function should:
+#   - POST to /users with the incomplete payload
+#   - assert status_code in (400, 422)
+#   - assert the missing field name appears in the response body
+#
+# TODO (VI): Viết ba hàm test riêng biệt, mỗi cái bỏ qua MỘT trường bắt buộc:
+# 1. test_missing_email()     → payload có password và role nhưng không có email
+# 2. test_missing_password()  → payload có email và role nhưng không có password
+# 3. test_missing_role()      → payload có email và password nhưng không có role
+# Mỗi hàm nên:
+#   - POST đến /users với payload chưa đầy đủ
+#   - assert status_code in (400, 422)
+#   - assert tên trường bị thiếu xuất hiện trong response body
+
+def test_missing_email():
+    payload = ???  # password and role, no email
+    response = requests.post(f"{BASE_URL}/users", json=payload)
+    assert response.status_code in (400, 422)
+    assert "email" in response.text.lower()
+
+def test_missing_password():
+    ???
+
+def test_missing_role():
+    ???
+
+test_missing_email()
+test_missing_password()
+test_missing_role()
+print("Missing field tests complete")`
+  },
+  {
+    title: "Exercise 2 — SQL injection and error message safety",
+    code: `import requests
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# TODO (EN): Write a test function test_sql_injection_safety() that:
+# 1. Sends a POST request with a SQL injection payload as the title:
+#    "' OR '1'='1"
+# 2. Asserts the status code is NOT 500 (server must not crash)
+# 3. Asserts the response body does NOT contain any of these strings:
+#    "syntax error", "sqlite", "mysql", "postgresql", "pg_", "ora-"
+# 4. Print whether the response status code is safe (4xx) or dangerous (5xx)
+#
+# TODO (VI): Viết hàm test test_sql_injection_safety():
+# 1. Gửi POST request với SQL injection payload làm title:
+#    "' OR '1'='1"
+# 2. Assert status code KHÔNG PHẢI 500 (server không được crash)
+# 3. Assert response body KHÔNG CHỨA bất kỳ chuỗi nào trong:
+#    "syntax error", "sqlite", "mysql", "postgresql", "pg_", "ora-"
+# 4. In ra liệu status code có an toàn (4xx) hay nguy hiểm (5xx)
+
+FORBIDDEN_STRINGS = ["syntax error", "sqlite", "mysql", "postgresql", "pg_", "ora-"]
+
+def test_sql_injection_safety():
+    sql_payload = ???
+    response = requests.post(f"{BASE_URL}/posts",
+                             json={"title": sql_payload, "body": "test", "userId": 1})
+    ???  # assert not 500
+    body_lower = response.text.lower()
+    for forbidden in FORBIDDEN_STRINGS:
+        ???  # assert forbidden not in body_lower
+    status_label = "safe" if response.status_code < 500 else "DANGEROUS"
+    print(f"SQL injection test: {response.status_code} ({status_label})")
+
+test_sql_injection_safety()`
+  },
+  {
+    title: "Exercise 3 — Apply BVA to a username field",
+    code: `import requests
+
+# Hypothetical API: username field accepts 3-20 characters
+# Below 3 → 422, at 3 → 201, at 20 → 201, above 20 → 422
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# TODO (EN): Using pytest.mark.parametrize (or a loop for this demo),
+# write tests for all four BVA boundary points:
+# - length 2  → expected 422
+# - length 3  → expected 201
+# - length 20 → expected 201
+# - length 21 → expected 422
+# Print the result for each: length, actual status, expected status, PASS or FAIL
+#
+# TODO (VI): Dùng pytest.mark.parametrize (hoặc vòng lặp cho demo này),
+# viết test cho cả bốn điểm biên BVA:
+# - độ dài 2  → mong đợi 422
+# - độ dài 3  → mong đợi 201
+# - độ dài 20 → mong đợi 201
+# - độ dài 21 → mong đợi 422
+# In kết quả cho mỗi cái: độ dài, status thực tế, status mong đợi, PASS hay FAIL
+
+BVA_CASES = [
+    ???,  # (length, expected_status) for each boundary
+]
+
+for length, expected_status in BVA_CASES:
+    username = "a" * length
+    response = requests.post(f"{BASE_URL}/users",
+                             json={"username": username, "email": "x@example.com"})
+    actual = response.status_code
+    result = "PASS" if actual == expected_status else "FAIL"
+    print(f"  length={length}: actual={actual}, expected={expected_status} → {result}")`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Write three separate test functions each omitting one required field. Assert 400 or 422 status and that the missing field name appears in the error response.
+- [ ] Exercise 2: Send a SQL injection string as a field value. Assert the server does not return 500 and that no database error text leaks in the response body.
+- [ ] Exercise 3: Apply BVA to a username field with a 3–20 character constraint. Test all four boundary points (min-1, min, max, max+1) and print PASS/FAIL for each.
+
+> Note: These exercises require a local Python environment. Install dependencies first: `pip install requests pytest`
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài 1: Viết ba hàm test riêng biệt, mỗi cái bỏ qua một trường bắt buộc. Assert status 400 hoặc 422 và tên trường bị thiếu xuất hiện trong error response.
+- [ ] Bài 2: Gửi chuỗi SQL injection làm giá trị trường. Assert server không trả về 500 và không có text lỗi database nào rò rỉ trong response body.
+- [ ] Bài 3: Áp dụng BVA cho trường username với ràng buộc 3–20 ký tự. Kiểm thử cả bốn điểm biên (min-1, min, max, max+1) và in PASS/FAIL cho mỗi điểm.
+
+> Lưu ý: Các bài tập này cần môi trường Python cục bộ. Cài đặt thư viện trước: `pip install requests pytest`
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "When a user submits a form with an invalid email, what status code should the API return?",
+    qVi: "Khi người dùng gửi form với email không hợp lệ, API nên trả về status code nào?",
     choices: [
       "200 OK with an error flag in the body",
       "400 Bad Request or 422 Unprocessable Entity",
       "500 Internal Server Error",
       "404 Not Found"
     ],
+    choicesVi: [
+      "200 OK với flag lỗi trong body",
+      "400 Bad Request hoặc 422 Unprocessable Entity",
+      "500 Internal Server Error",
+      "404 Not Found"
+    ],
     answer: 1,
-    explain: "400 Bad Request means the client sent malformed data. 422 Unprocessable Entity (more specific) means the request was well-formed but failed semantic validation. Either is correct; 500 means the server crashed — a bug, not a handled error."
+    explain: "400 Bad Request means the client sent malformed data. 422 Unprocessable Entity (more specific) means the request was well-formed but failed semantic validation. Either is correct; 500 means the server crashed — a bug, not a handled error.",
+    explainVi: "400 Bad Request nghĩa là client gửi dữ liệu sai định dạng. 422 Unprocessable Entity (cụ thể hơn) nghĩa là request được định dạng tốt nhưng thất bại xác thực ngữ nghĩa. Cả hai đều đúng; 500 nghĩa là server crash — đó là bug, không phải lỗi được xử lý."
   },
   {
     q: "Why should API error responses never include a database stack trace?",
+    qVi: "Tại sao API error response không bao giờ nên chứa stack trace của database?",
     choices: [
       "Stack traces are too long to include in JSON",
       "Stack traces reveal internal implementation details (table names, SQL queries, framework versions) that attackers can exploit",
       "Clients cannot parse stack traces",
       "Stack traces are only for HTTP 5xx errors"
     ],
+    choicesVi: [
+      "Stack trace quá dài để đưa vào JSON",
+      "Stack trace lộ chi tiết triển khai nội bộ (tên table, câu SQL, phiên bản framework) mà kẻ tấn công có thể khai thác",
+      "Client không thể phân tích stack trace",
+      "Stack trace chỉ dành cho lỗi HTTP 5xx"
+    ],
     answer: 1,
-    explain: "Stack traces expose the internal architecture — database schema, ORM queries, file paths, framework versions. This information helps attackers craft targeted attacks. Errors should return a human-readable message with no internal implementation details."
+    explain: "Stack traces expose the internal architecture — database schema, ORM queries, file paths, framework versions. This information helps attackers craft targeted attacks. Errors should return a human-readable message with no internal implementation details.",
+    explainVi: "Stack trace lộ kiến trúc nội bộ — schema database, câu truy vấn ORM, đường dẫn file, phiên bản framework. Thông tin này giúp kẻ tấn công tạo ra các cuộc tấn công có mục tiêu. Lỗi nên trả về thông báo dễ đọc không chứa chi tiết triển khai nội bộ."
+  },
+  {
+    q: "What is Boundary Value Analysis (BVA)?",
+    qVi: "Phân tích giá trị biên (BVA) là gì?",
+    choices: [
+      "A technique that tests only the most common valid inputs",
+      "A technique that tests values at the exact edges of valid input ranges, because bugs most commonly appear at boundaries",
+      "A technique that randomly generates test data within the valid range",
+      "A technique that tests all possible input combinations"
+    ],
+    choicesVi: [
+      "Kỹ thuật chỉ kiểm thử các đầu vào hợp lệ phổ biến nhất",
+      "Kỹ thuật kiểm thử các giá trị tại các cạnh chính xác của phạm vi đầu vào hợp lệ, vì lỗi thường xuất hiện nhất tại các biên",
+      "Kỹ thuật tạo ngẫu nhiên dữ liệu test trong phạm vi hợp lệ",
+      "Kỹ thuật kiểm thử tất cả các tổ hợp đầu vào có thể"
+    ],
+    answer: 1,
+    explain: "BVA is a systematic technique: for a field accepting values in range [min, max], you test min-1 (invalid), min (valid), max (valid), and max+1 (invalid). Developers often write boundary checks like '> 3' instead of '>= 3', creating off-by-one bugs that BVA reliably catches.",
+    explainVi: "BVA là kỹ thuật có hệ thống: với trường chấp nhận giá trị trong phạm vi [min, max], bạn kiểm thử min-1 (không hợp lệ), min (hợp lệ), max (hợp lệ), và max+1 (không hợp lệ). Developer thường viết kiểm tra biên như '> 3' thay vì '>= 3', tạo ra lỗi off-by-one mà BVA bắt được một cách đáng tin cậy."
+  },
+  {
+    q: "A POST endpoint with a missing required field returns 500 instead of 422. What does this indicate?",
+    qVi: "Một POST endpoint thiếu trường bắt buộc trả về 500 thay vì 422. Điều này chỉ ra điều gì?",
+    choices: [
+      "The API correctly identified the missing field",
+      "The server crashed because input validation is missing — this is a bug in the API implementation",
+      "500 is the correct status for missing required fields",
+      "The client sent the wrong Content-Type header"
+    ],
+    choicesVi: [
+      "API đã xác định đúng trường bị thiếu",
+      "Server crash vì thiếu xác thực đầu vào — đây là bug trong triển khai API",
+      "500 là status đúng cho các trường bắt buộc bị thiếu",
+      "Client gửi Content-Type header sai"
+    ],
+    answer: 1,
+    explain: "A 500 response to a missing field means the server tried to use the field (e.g., insert it into a database) without first validating that it exists, then crashed with an unhandled exception. The fix is adding input validation before processing. This is exactly why negative testing matters: it exposes missing validation layers.",
+    explainVi: "Response 500 với trường bị thiếu có nghĩa là server đã cố dùng trường đó (ví dụ chèn vào database) mà không trước tiên xác thực rằng nó tồn tại, sau đó crash với exception chưa được xử lý. Cách sửa là thêm xác thực đầu vào trước khi xử lý. Đây chính xác là lý do tại sao kiểm thử tiêu cực quan trọng: nó lộ ra các lớp xác thực bị thiếu."
+  },
+  {
+    q: "What should you assert about an API response when you send a SQL injection payload?",
+    qVi: "Bạn nên assert điều gì về API response khi gửi SQL injection payload?",
+    choices: [
+      "The response status must be 200 OK",
+      "The status is NOT 500 and the response body contains no database error text like 'syntax error' or table names",
+      "The server must return 404 for all injection attempts",
+      "The response body must be empty"
+    ],
+    choicesVi: [
+      "Status response phải là 200 OK",
+      "Status KHÔNG PHẢI 500 và response body không chứa text lỗi database như 'syntax error' hay tên table",
+      "Server phải trả về 404 cho tất cả các lần thử injection",
+      "Response body phải rỗng"
+    ],
+    answer: 1,
+    explain: "For SQL injection tests you assert two things: (1) status != 500 — the server must not crash, meaning input is sanitized before use; (2) no database error text in the body — table names, SQL syntax errors, or ORM exceptions in the response are a security information leak.",
+    explainVi: "Với SQL injection test bạn assert hai điều: (1) status != 500 — server không được crash, có nghĩa đầu vào được làm sạch trước khi dùng; (2) không có text lỗi database trong body — tên table, lỗi cú pháp SQL, hay ORM exception trong response là rò rỉ thông tin bảo mật."
+  },
+  {
+    q: "What is the difference between HTTP 400 and HTTP 422?",
+    qVi: "Sự khác biệt giữa HTTP 400 và HTTP 422 là gì?",
+    choices: [
+      "400 is for server errors; 422 is for client errors",
+      "400 is for syntactically malformed requests; 422 is for well-formed requests that fail semantic validation",
+      "400 means unauthorized; 422 means forbidden",
+      "They are identical — use either interchangeably"
+    ],
+    choicesVi: [
+      "400 cho lỗi server; 422 cho lỗi client",
+      "400 cho request sai cú pháp; 422 cho request được định dạng tốt nhưng thất bại xác thực ngữ nghĩa",
+      "400 nghĩa là chưa xác thực; 422 nghĩa là bị cấm",
+      "Chúng giống hệt nhau — dùng cái nào cũng được"
+    ],
+    answer: 1,
+    explain: "400 Bad Request = the request itself is malformed (invalid JSON syntax, wrong Content-Type, missing required headers). 422 Unprocessable Entity = the request is structurally valid JSON but the data fails business logic validation (email field present but not a valid email format). In practice, both are used for 'client sent wrong data' — what matters is consistency across your API.",
+    explainVi: "400 Bad Request = bản thân request sai định dạng (cú pháp JSON không hợp lệ, Content-Type sai, thiếu header bắt buộc). 422 Unprocessable Entity = request là JSON hợp lệ về mặt cấu trúc nhưng dữ liệu thất bại xác thực logic nghiệp vụ (trường email có nhưng không phải định dạng email hợp lệ). Trong thực tế, cả hai được dùng cho 'client gửi dữ liệu sai' — điều quan trọng là tính nhất quán trên toàn bộ API của bạn."
+  },
+  {
+    q: "Why should you test one missing required field at a time rather than omitting all fields at once?",
+    qVi: "Tại sao bạn nên kiểm thử thiếu từng trường bắt buộc một thay vì bỏ qua tất cả cùng một lúc?",
+    choices: [
+      "Omitting all fields at once causes a connection timeout",
+      "Testing one field at a time isolates which validation rule triggered and verifies each field's error message independently",
+      "APIs only validate the first missing field",
+      "It reduces the number of test cases needed"
+    ],
+    choicesVi: [
+      "Bỏ qua tất cả trường cùng lúc gây ra connection timeout",
+      "Kiểm thử từng trường một cô lập quy tắc xác thực nào được kích hoạt và xác minh thông báo lỗi của từng trường độc lập",
+      "API chỉ xác thực trường bị thiếu đầu tiên",
+      "Nó giảm số lượng test case cần thiết"
+    ],
+    answer: 1,
+    explain: "If you omit all required fields at once, the test only tells you 'the API rejected the request'. It doesn't tell you whether each individual field has proper validation and a meaningful error message. Testing one missing field per test also makes failures easier to diagnose: the test name immediately tells you which validation rule broke.",
+    explainVi: "Nếu bạn bỏ qua tất cả trường bắt buộc cùng lúc, test chỉ cho bạn biết 'API từ chối request'. Nó không cho bạn biết liệu từng trường riêng lẻ có xác thực đúng và thông báo lỗi có ý nghĩa không. Kiểm thử một trường bị thiếu mỗi test cũng giúp chẩn đoán thất bại dễ dàng hơn: tên test ngay lập tức cho bạn biết quy tắc xác thực nào bị hỏng."
+  },
+  {
+    q: "What is the risk of an API returning 200 OK with `{\"error\": \"...\"}`  instead of a 4xx status code?",
+    qVi: "Rủi ro của một API trả về 200 OK với `{\"error\": \"...\"}` thay vì status code 4xx là gì?",
+    choices: [
+      "None — using 200 with an error body is the industry standard",
+      "Test automation relying on status codes will miss the failure; the error goes undetected in monitoring systems",
+      "It causes the browser to cache the error response permanently",
+      "It forces the client to retry the request automatically"
+    ],
+    choicesVi: [
+      "Không có — dùng 200 với error body là tiêu chuẩn ngành",
+      "Tự động hoá test dựa trên status code sẽ bỏ lỡ lỗi; lỗi không bị phát hiện trong hệ thống giám sát",
+      "Nó khiến trình duyệt cache error response vĩnh viễn",
+      "Nó buộc client tự động thử lại request"
+    ],
+    answer: 1,
+    explain: "Returning 200 with an error body breaks the HTTP contract. Test assertions like 'assert response.status_code == 200' will pass even when the operation failed. Monitoring systems that alert on 4xx/5xx rates will show a healthy API while errors silently accumulate. Always use the correct HTTP status code to communicate failure.",
+    explainVi: "Trả về 200 với error body phá vỡ hợp đồng HTTP. Các assertion test như 'assert response.status_code == 200' sẽ pass ngay cả khi thao tác thất bại. Các hệ thống giám sát cảnh báo về tỷ lệ 4xx/5xx sẽ hiển thị API khỏe mạnh trong khi lỗi âm thầm tích lũy. Luôn dùng HTTP status code đúng để thông báo lỗi."
   }
 ]} />
 

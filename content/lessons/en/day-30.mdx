@@ -9,233 +9,669 @@ tags: ["playwright", "pom", "practice"]
 ## Intro
 
 <En>
-Yesterday you learned the theory behind the Page Object Model. Today you build a real, multi-page POM implementation — a `BasePage`, a `TodoPage`, and a complete test suite that uses it. By the end, you will have a maintainable test project structure that scales to dozens of tests without repetition.
+Yesterday you learned the theory of Page Object Model. Today you build one from scratch — step by step — for a real site. By the end you will have a working `LoginPage` and `AccountPage` class with tests that use them.
+
+The target site is `https://practicesoftwaretesting.com`. We will:
+1. Inspect the login form to identify selectors
+2. Build `LoginPage` with navigate, fill, and submit actions
+3. Build `AccountPage` to verify the logged-in state
+4. Write tests that wire them together
+5. Add a shared `logged_in` pytest fixture so any test can skip login
 </En>
 <Vi>
-Hôm qua bạn đã học lý thuyết đằng sau Page Object Model. Hôm nay bạn xây dựng một POM thực, nhiều trang — `BasePage`, `TodoPage`, và một bộ test hoàn chỉnh sử dụng nó. Cuối ngày, bạn sẽ có một cấu trúc dự án test có thể bảo trì và mở rộng đến hàng chục test mà không lặp lại.
+Hôm qua bạn đã học lý thuyết về Page Object Model. Hôm nay bạn xây dựng một cái từ đầu — từng bước — cho một trang web thực. Đến cuối buổi, bạn sẽ có class `LoginPage` và `AccountPage` hoạt động được với các test sử dụng chúng.
+
+Trang đích là `https://practicesoftwaretesting.com`. Chúng ta sẽ:
+1. Kiểm tra form đăng nhập để xác định selector
+2. Xây dựng `LoginPage` với các action navigate, fill và submit
+3. Xây dựng `AccountPage` để xác minh trạng thái đã đăng nhập
+4. Viết test kết nối chúng lại
+5. Thêm fixture pytest `logged_in` dùng chung để các test có thể bỏ qua bước đăng nhập
 </Vi>
 
 ## Concept
 
 <En>
-**Full project structure:**
+**Project structure we are building:**
+
 ```
-pom_project/
+project/
 ├── pages/
-│   ├── __init__.py
-│   ├── base_page.py
-│   └── todo_page.py
+│   ├── __init__.py       ← makes pages/ a Python package
+│   ├── login_page.py     ← LoginPage class
+│   └── account_page.py   ← AccountPage class
 ├── tests/
-│   ├── __init__.py
-│   ├── conftest.py
-│   └── test_todo.py
-├── pytest.ini
-└── requirements.txt
+│   ├── conftest.py       ← shared fixtures (logged_in, base_url)
+│   └── test_auth.py      ← test file using both page objects
+└── pytest.ini            ← base_url and other config
 ```
 
-**`conftest.py`** is pytest's configuration and shared fixture file. Put:
-- Browser configuration (viewport, base URL)
-- Page Object instantiation fixtures
-- Any other shared setup
+**Key design decisions:**
+- Locators are `Locator` typed attributes set in `__init__`
+- Action methods return the next logical Page Object after navigation
+- `conftest.py` defines a `logged_in_page` fixture that tests can declare as a parameter to get a pre-authenticated page
+- Tests import page objects using relative imports from the `pages/` package
 
-**`pytest.ini`** global settings:
-```ini
-[pytest]
-base_url = https://demo.playwright.dev/todomvc
+**The two Page Objects we build:**
+
 ```
-
-**Returning a Page Object from a fixture:**
-```python
-@pytest.fixture
-def todo_page(page: Page) -> TodoPage:
-    tp = TodoPage(page)
-    tp.navigate()
-    return tp
+LoginPage                       AccountPage
+──────────────────────────      ──────────────────────────
++ URL                           + URL
++ email_input: Locator          + welcome_heading: Locator
++ password_input: Locator       + nav_menu: Locator
++ login_button: Locator
++ error_alert: Locator
+──────────────────────────      ──────────────────────────
++ navigate() → LoginPage        + is_logged_in() → bool
++ login(email, pw) → AccountPage
++ get_error_text() → str
 ```
-
-Tests that declare `todo_page` as a parameter get a pre-navigated `TodoPage` object — clean and reusable.
 </En>
 <Vi>
-**Cấu trúc dự án đầy đủ:**
+**Cấu trúc project chúng ta xây dựng:**
+
 ```
-pom_project/
+project/
 ├── pages/
 │   ├── __init__.py
-│   ├── base_page.py
-│   └── todo_page.py
+│   ├── login_page.py
+│   └── account_page.py
 ├── tests/
-│   ├── __init__.py
 │   ├── conftest.py
-│   └── test_todo.py
-├── pytest.ini
-└── requirements.txt
+│   └── test_auth.py
+└── pytest.ini
 ```
 
-**`conftest.py`** là file cấu hình và fixture dùng chung của pytest.
+**Hai Page Object chúng ta xây dựng:**
 
-**`pytest.ini`** cài đặt toàn cục:
-```ini
-[pytest]
-base_url = https://demo.playwright.dev/todomvc
 ```
-
-**Trả về Page Object từ fixture:**
-```python
-@pytest.fixture
-def todo_page(page: Page) -> TodoPage:
-    tp = TodoPage(page)
-    tp.navigate()
-    return tp
+LoginPage                       AccountPage
+──────────────────────────      ──────────────────────────
++ email_input: Locator          + welcome_heading: Locator
++ password_input: Locator
++ login_button: Locator
+──────────────────────────      ──────────────────────────
++ navigate()                    + is_logged_in() → bool
++ login(email, pw)
++ get_error_text()
 ```
 </Vi>
 
 ## Code / Demo
 
-```python
-# pages/base_page.py
-from playwright.sync_api import Page
+<En>
 
-class BasePage:
+**Part 1 — Project structure**
+
+</En>
+<Vi>
+
+**Phần 1 — Cấu trúc dự án**
+
+</Vi>
+
+```python
+# pages/__init__.py
+# This file is intentionally empty.
+# It tells Python that pages/ is a package, enabling imports like:
+#   from pages.login_page import LoginPage
+```
+
+<En>
+
+**Part 2 — pages/login_page.py**
+
+</En>
+<Vi>
+
+**Phần 2 — pages/login_page.py**
+
+</Vi>
+
+```python
+# pages/login_page.py
+from __future__ import annotations
+from playwright.sync_api import Page, Locator
+
+class LoginPage:
+    """
+    Page Object for: https://practicesoftwaretesting.com/auth/login
+
+    Usage:
+        login_page = LoginPage(page)
+        login_page.navigate()
+        account_page = login_page.login("email", "password")
+    """
+
+    URL = "https://practicesoftwaretesting.com/auth/login"
+
     def __init__(self, page: Page) -> None:
         self.page = page
 
-    def navigate(self, url: str = "") -> None:
-        self.page.goto(url)
+        # ── Locators ────────────────────────────────────────────────
+        self.email_input: Locator = page.get_by_label("Email")
+        self.password_input: Locator = page.get_by_label("Password")
+        self.login_button: Locator = page.get_by_role("button", name="Login")
+        self.error_alert: Locator = page.locator(".alert-danger")
+        self.register_link: Locator = page.get_by_role("link", name="Register your account")
 
-    @property
-    def title(self) -> str:
-        return self.page.title()
+    # ── Navigation ──────────────────────────────────────────────────
+    def navigate(self) -> LoginPage:
+        """Go to the login page."""
+        self.page.goto(self.URL)
+        return self
 
-    @property
-    def current_url(self) -> str:
-        return self.page.url
+    # ── Actions ─────────────────────────────────────────────────────
+    def fill_email(self, email: str) -> LoginPage:
+        self.email_input.fill(email)
+        return self
+
+    def fill_password(self, password: str) -> LoginPage:
+        self.password_input.fill(password)
+        return self
+
+    def submit(self) -> LoginPage:
+        self.login_button.click()
+        return self
+
+    def login(self, email: str, password: str) -> "AccountPage":
+        """
+        Fill credentials and click Login.
+        Returns AccountPage (assuming login succeeds).
+        For negative tests, check error_alert after calling this.
+        """
+        from pages.account_page import AccountPage
+        self.fill_email(email)
+        self.fill_password(password)
+        self.submit()
+        return AccountPage(self.page)
+
+    # ── Queries ─────────────────────────────────────────────────────
+    def get_error_text(self) -> str:
+        """Return the error message text, or empty string if not visible."""
+        if self.error_alert.is_visible():
+            return self.error_alert.text_content() or ""
+        return ""
+
+    def is_error_visible(self) -> bool:
+        return self.error_alert.is_visible()
 ```
+
+<En>
+
+**Part 3 — pages/account_page.py**
+
+</En>
+<Vi>
+
+**Phần 3 — pages/account_page.py**
+
+</Vi>
 
 ```python
-# pages/todo_page.py
-from playwright.sync_api import Page, Locator, expect
-from .base_page import BasePage
+# pages/account_page.py
+from __future__ import annotations
+from playwright.sync_api import Page, Locator
 
-class TodoPage(BasePage):
-    URL = "https://demo.playwright.dev/todomvc"
+class AccountPage:
+    """
+    Page Object for: https://practicesoftwaretesting.com/account
 
-    def navigate(self) -> None:  # type: ignore[override]
-        self.page.goto(self.URL)
+    Represents the logged-in account/dashboard page.
+    """
 
-    @property
-    def new_todo_input(self) -> Locator:
-        return self.page.get_by_placeholder("What needs to be done?")
+    URL = "https://practicesoftwaretesting.com/account"
 
-    @property
-    def todo_items(self) -> Locator:
-        return self.page.get_by_role("listitem")
+    def __init__(self, page: Page) -> None:
+        self.page = page
 
-    @property
-    def items_left_label(self) -> Locator:
-        return self.page.locator(".todo-count")
+        # ── Locators ────────────────────────────────────────────────
+        self.welcome_heading: Locator = page.get_by_role("heading", name="My account")
+        self.sign_out_link: Locator = page.get_by_role("link", name="Sign out")
+        self.profile_link: Locator = page.get_by_role("link", name="Profile")
+        self.orders_link: Locator = page.get_by_role("link", name="My orders")
 
-    def add(self, text: str) -> None:
-        self.new_todo_input.fill(text)
-        self.new_todo_input.press("Enter")
+    # ── Queries ─────────────────────────────────────────────────────
+    def is_logged_in(self) -> bool:
+        """Return True if the account page heading is visible."""
+        return self.welcome_heading.is_visible()
 
-    def complete(self, text: str) -> None:
-        checkbox = self.page.get_by_role("checkbox", name=text)
-        checkbox.check()
+    def wait_until_loaded(self) -> "AccountPage":
+        """Wait for the account page to fully load."""
+        self.page.wait_for_url("**/account", timeout=10_000)
+        self.welcome_heading.wait_for()
+        return self
 
-    def delete(self, text: str) -> None:
-        item = self.todo_items.filter(has_text=text)
-        item.hover()
-        item.get_by_role("button", name="Delete").click()
-
-    def get_count(self) -> int:
-        return self.todo_items.count()
-
-    def expect_item(self, text: str) -> None:
-        expect(self.todo_items.filter(has_text=text)).to_be_visible()
-
-    def expect_item_absent(self, text: str) -> None:
-        expect(self.todo_items.filter(has_text=text)).not_to_be_visible()
+    # ── Actions ─────────────────────────────────────────────────────
+    def sign_out(self) -> None:
+        """Click Sign out."""
+        self.sign_out_link.click()
 ```
+
+<En>
+
+**Part 4 — conftest.py with logged_in_page fixture**
+
+</En>
+<Vi>
+
+**Phần 4 — conftest.py với fixture logged_in_page**
+
+</Vi>
 
 ```python
 # tests/conftest.py
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 import pytest
 from playwright.sync_api import Page
-from pages.todo_page import TodoPage
+from pages.login_page import LoginPage
+
+VALID_EMAIL = "customer@practicesoftwaretesting.com"
+VALID_PASSWORD = "welcome01"
 
 @pytest.fixture
-def todo_page(page: Page) -> TodoPage:
-    tp = TodoPage(page)
-    tp.navigate()
-    return tp
+def logged_in_page(page: Page) -> Page:
+    """
+    Fixture: returns a Page that is already logged in.
+    Use this in tests that need to skip the login step.
+
+    Usage in test:
+        def test_something(logged_in_page: Page):
+            # page is already at /account
+            expect(logged_in_page).to_have_url("**/account")
+    """
+    login_page = LoginPage(page)
+    login_page.navigate()
+    login_page.login(VALID_EMAIL, VALID_PASSWORD)
+    page.wait_for_url("**/account")
+    return page
 ```
 
+<En>
+
+**Part 5 — tests/test_auth.py**
+
+</En>
+<Vi>
+
+**Phần 5 — tests/test_auth.py**
+
+</Vi>
+
 ```python
-# tests/test_todo.py
-from pages.todo_page import TodoPage
+# tests/test_auth.py
+# Run with: pytest tests/test_auth.py -v
+import pytest
+from playwright.sync_api import Page, expect
+from pages.login_page import LoginPage
+from pages.account_page import AccountPage
 
-def test_add_single_item(todo_page: TodoPage):
-    todo_page.add("Buy milk")
-    todo_page.expect_item("Buy milk")
-    assert todo_page.get_count() == 1
+BASE = "https://practicesoftwaretesting.com"
+VALID_EMAIL = "customer@practicesoftwaretesting.com"
+VALID_PASSWORD = "welcome01"
 
-def test_add_multiple_items(todo_page: TodoPage):
-    todo_page.add("Item one")
-    todo_page.add("Item two")
-    todo_page.add("Item three")
-    assert todo_page.get_count() == 3
+class TestLogin:
+    """Tests for the login flow."""
 
-def test_complete_item(todo_page: TodoPage):
-    todo_page.add("Learn POM")
-    todo_page.complete("Learn POM")
-    completed = todo_page.page.locator(".todo-list li.completed")
-    assert completed.count() == 1
+    def test_valid_login_redirects_to_account(self, page: Page):
+        """Successful login should redirect to /account."""
+        account = LoginPage(page).navigate().login(VALID_EMAIL, VALID_PASSWORD)
+        account.wait_until_loaded()
+        assert account.is_logged_in(), "Account heading not visible"
+        expect(page).to_have_url(f"{BASE}/account")
 
-def test_delete_item(todo_page: TodoPage):
-    todo_page.add("Temporary item")
-    todo_page.delete("Temporary item")
-    todo_page.expect_item_absent("Temporary item")
-    assert todo_page.get_count() == 0
+    def test_invalid_password_shows_error(self, page: Page):
+        """Wrong password should show an error alert."""
+        login_page = LoginPage(page)
+        login_page.navigate()
+        login_page.fill_email(VALID_EMAIL)
+        login_page.fill_password("wrongpassword")
+        login_page.submit()
+        expect(login_page.error_alert).to_be_visible()
+        assert "Invalid" in login_page.get_error_text() or login_page.is_error_visible()
+
+    def test_empty_fields_do_not_navigate(self, page: Page):
+        """Submitting empty form should not navigate away from login."""
+        login_page = LoginPage(page)
+        login_page.navigate()
+        login_page.submit()
+        assert "login" in page.url
+
+class TestAccountPage:
+    """Tests that use the logged_in_page fixture."""
+
+    def test_account_heading_visible(self, logged_in_page: Page):
+        """Account page should show the welcome heading."""
+        account = AccountPage(logged_in_page)
+        expect(account.welcome_heading).to_be_visible()
+
+    def test_sign_out_link_visible(self, logged_in_page: Page):
+        """Sign out link should be visible when logged in."""
+        account = AccountPage(logged_in_page)
+        expect(account.sign_out_link).to_be_visible()
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Set up the full `pom_project/` directory structure, copy all files above, install dependencies, and run `pytest -v` — all 4 tests should pass
-- [ ] Add a `clear_completed()` method to `TodoPage` and write a test that: adds 2 items, marks both complete, calls `clear_completed()`, and asserts the list is empty
-- [ ] Add a `filter_by(status: str)` method that clicks the "Active", "Completed", or "All" filter buttons, and write tests for each filter state
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Part 1 — Create the RegisterPage Page Object",
+    code: `# pages/register_page.py
+from __future__ import annotations
+from playwright.sync_api import Page, Locator
+
+class RegisterPage:
+    """
+    Page Object for: https://practicesoftwaretesting.com/auth/register
+    """
+
+    URL = "https://practicesoftwaretesting.com/auth/register"
+
+    def __init__(self, page: Page) -> None:
+        self.page = page
+
+        # TODO: Define locators for all form fields
+        # Hint: inspect the registration page to find label text
+        # TODO (EN): Find the "First name" label text by inspecting the registration page
+        # TODO (VI): Tìm text label "First name" bằng cách inspect trang đăng ký
+        self.first_name: Locator = page.get_by_label("???")
+        # TODO (EN): Find the "Last name" label text
+        # TODO (VI): Tìm text label "Last name"
+        self.last_name: Locator = page.get_by_label("???")
+        # TODO (EN): Find the date of birth label text
+        # TODO (VI): Tìm text label ngày sinh
+        self.dob: Locator = page.get_by_label("???")
+        self.email: Locator = page.get_by_label("Email")
+        self.password: Locator = page.get_by_label("Password")
+        # TODO (EN): The register button text — inspect the form submit button
+        # TODO (VI): Text nút đăng ký — inspect nút submit của form
+        self.register_button: Locator = page.get_by_role("button", name="???")
+        # TODO (EN): Inspect the page after registration to find the success selector
+        # TODO (VI): Inspect trang sau khi đăng ký để tìm selector thông báo thành công
+        self.success_message: Locator = page.locator("???")  # find by inspecting
+
+    def navigate(self) -> "RegisterPage":
+        self.page.goto(self.URL)
+        return self
+
+    def fill_basic_info(self, first: str, last: str, dob: str) -> "RegisterPage":
+        # TODO: implement — fill first_name, last_name, dob locators
+        # TODO (EN): Fill first_name, last_name, and dob locators with the provided values
+        # TODO (VI): Điền vào locator first_name, last_name và dob với giá trị được cung cấp
+        ???
+        return self
+
+    def fill_credentials(self, email: str, password: str) -> "RegisterPage":
+        # TODO: implement — fill email and password locators
+        # TODO (EN): Fill email and password locators
+        # TODO (VI): Điền vào locator email và password
+        ???
+        return self
+
+    def submit(self) -> "RegisterPage":
+        self.register_button.click()
+        return self`
+  },
+  {
+    title: "Part 2 — Write tests using the RegisterPage Page Object",
+    code: `# tests/test_register.py
+# Run with: pytest tests/test_register.py -v
+import random, string
+from playwright.sync_api import Page, expect
+from pages.register_page import RegisterPage
+
+def random_email():
+    suffix = ''.join(random.choices(string.ascii_lowercase, k=6))
+    return f"test_{suffix}@example.com"
+
+def test_registration_page_loads(page: Page):
+    reg = RegisterPage(page).navigate()
+    expect(reg.first_name).to_be_visible()
+    expect(reg.register_button).to_be_visible()
+
+def test_register_with_valid_data(page: Page):
+    """Fill all required fields and submit — should succeed."""
+    reg = RegisterPage(page).navigate()
+    reg.fill_basic_info("Test", "User", "1990-01-15")
+    # TODO: fill other required fields (address, city, postcode, phone, country)
+    # Hint: use page.get_by_label(...).fill(...) directly for fields not in the PO
+    reg.fill_credentials(random_email(), "Test@1234!")
+    reg.submit()
+    # TODO: assert on success — check URL or message after registration
+    # TODO (EN): Assert success — check URL after registration (often redirects to /auth/login)
+    # TODO (VI): Kiểm tra thành công — kiểm tra URL sau đăng ký (thường chuyển đến /auth/login)
+    ???
+
+def test_submit_empty_form_shows_errors(page: Page):
+    """Submitting empty form should show validation messages."""
+    reg = RegisterPage(page).navigate()
+    reg.submit()
+    errors = page.locator(".is-invalid, .alert-danger")
+    assert errors.count() > 0, "Expected validation errors for empty form"`
+  }
+]}>
+
+<En>
+Inspect `https://practicesoftwaretesting.com/auth/register` to find the exact label text for each form field.
+
+- [ ] Fill in all `???` in `register_page.py` — inspect the site to find correct label text
+- [ ] Implement `fill_basic_info` and `fill_credentials` methods
+- [ ] Run `pytest tests/test_register.py -v` — all 3 tests should pass
+- [ ] Add a 4th test using the `RegisterPage` PO for a specific validation case
+</En>
+<Vi>
+Inspect `https://practicesoftwaretesting.com/auth/register` để tìm text label chính xác cho từng trường form.
+
+- [ ] Điền tất cả `???` trong `register_page.py` — inspect trang để tìm label text đúng
+- [ ] Implement các phương thức `fill_basic_info` và `fill_credentials`
+- [ ] Chạy `pytest tests/test_register.py -v` — tất cả 3 test phải pass
+- [ ] Thêm test thứ 4 dùng `RegisterPage` PO cho một trường hợp validation cụ thể
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What is the purpose of a `conftest.py` file in a pytest project?",
+    q: "Why does `LoginPage.login()` return an `AccountPage` object instead of `self`?",
+    qVi: "Tại sao `LoginPage.login()` trả về đối tượng `AccountPage` thay vì `self`?",
     choices: [
-      "It is a required configuration file that lists all test files",
-      "It defines shared fixtures, hooks, and plugins available to all tests in the same directory",
-      "It replaces pytest.ini for configuration",
-      "It must contain at least one test function"
+      "It must return something — None would cause an error",
+      "After logging in, the user is on a different page; returning the next Page Object models this navigation explicitly",
+      "AccountPage is a subclass of LoginPage",
+      "pytest requires all fixture methods to return Page Objects"
+    ],
+    choicesVi: [
+      "Nó phải trả về gì đó — None sẽ gây lỗi",
+      "Sau khi đăng nhập, người dùng ở một trang khác; trả về Page Object tiếp theo mô hình hóa navigation này một cách rõ ràng",
+      "AccountPage là lớp con của LoginPage",
+      "pytest yêu cầu tất cả phương thức fixture trả về Page Object"
     ],
     answer: 1,
-    explain: "conftest.py is automatically loaded by pytest. Fixtures defined there are available to all tests in the same directory and subdirectories — without needing to import them. It's the central place for shared setup like page objects, API clients, and test data."
+    explain: "When an action causes a page transition, returning the new Page Object models the application flow. LoginPage.login() → AccountPage(page) signals that the user is now on the account page. This enables chaining: LoginPage(page).navigate().login(e, p).wait_until_loaded().",
+    explainVi: "Khi một hành động gây ra chuyển trang, việc trả về Page Object mới mô hình hóa luồng ứng dụng. LoginPage.login() → AccountPage(page) báo hiệu rằng người dùng hiện đang ở trang account. Điều này cho phép chaining: LoginPage(page).navigate().login(e, p).wait_until_loaded()."
   },
   {
-    q: "Why do page object methods return `None` instead of returning the current page?",
+    q: "Why is `pages/__init__.py` needed?",
+    qVi: "Tại sao cần có `pages/__init__.py`?",
     choices: [
-      "Python functions return None by default",
-      "Page objects model actions, not chains — tests control flow explicitly",
-      "Returning the page would cause infinite loops",
-      "It is a Playwright limitation"
+      "It contains the base class all Page Objects inherit from",
+      "It makes pages/ a Python package, enabling `from pages.login_page import LoginPage`",
+      "It runs before all Page Objects are imported",
+      "pytest requires it to discover Page Object fixtures"
+    ],
+    choicesVi: [
+      "Nó chứa class cơ sở mà tất cả Page Object kế thừa",
+      "Nó biến pages/ thành Python package, cho phép `from pages.login_page import LoginPage`",
+      "Nó chạy trước khi tất cả Page Object được import",
+      "pytest yêu cầu nó để khám phá fixture Page Object"
     ],
     answer: 1,
-    explain: "Some frameworks use method chaining (login().navigate().assert()). For beginners, explicit control flow is clearer: each method does one thing, and the test reads as a list of steps. Method chaining is an alternative style, not a requirement."
+    explain: "An empty __init__.py file tells Python that the directory is a package. Without it, `from pages.login_page import LoginPage` would fail with a ModuleNotFoundError.",
+    explainVi: "File __init__.py rỗng nói với Python rằng thư mục đó là một package. Không có nó, `from pages.login_page import LoginPage` sẽ thất bại với lỗi ModuleNotFoundError."
+  },
+  {
+    q: "What is the purpose of the `logged_in_page` fixture in conftest.py?",
+    qVi: "Mục đích của fixture `logged_in_page` trong conftest.py là gì?",
+    choices: [
+      "It logs out before each test",
+      "It provides tests with a pre-authenticated page, so tests that need login don't have to repeat the login steps",
+      "It stores the user session between test files",
+      "It creates a new user account for each test"
+    ],
+    choicesVi: [
+      "Nó đăng xuất trước mỗi test",
+      "Nó cung cấp cho test một trang đã xác thực trước, vì vậy các test cần đăng nhập không phải lặp lại các bước đăng nhập",
+      "Nó lưu trữ session người dùng giữa các file test",
+      "Nó tạo tài khoản người dùng mới cho mỗi test"
+    ],
+    answer: 1,
+    explain: "The logged_in_page fixture performs the login once and returns the authenticated page. Any test that declares `logged_in_page: Page` as a parameter receives an already-logged-in page — avoiding repeated login code in every test.",
+    explainVi: "Fixture logged_in_page thực hiện đăng nhập một lần và trả về trang đã xác thực. Bất kỳ test nào khai báo `logged_in_page: Page` làm tham số đều nhận được trang đã đăng nhập — tránh lặp lại code đăng nhập trong mỗi test."
+  },
+  {
+    q: "What is wrong with defining locators inside action methods instead of `__init__`?",
+    qVi: "Vấn đề gì khi định nghĩa locator bên trong các phương thức hành động thay vì trong `__init__`?",
+    choices: [
+      "Nothing — both approaches are equivalent",
+      "Locators defined inside methods are created on every call; if defined in __init__, they are reusable and defined once",
+      "Locators defined in methods don't auto-wait",
+      "pytest cannot inject them"
+    ],
+    choicesVi: [
+      "Không có gì — cả hai cách đều tương đương",
+      "Locator được định nghĩa trong phương thức được tạo mỗi lần gọi; nếu định nghĩa trong __init__, chúng có thể tái sử dụng và chỉ định nghĩa một lần",
+      "Locator được định nghĩa trong phương thức không tự động chờ",
+      "pytest không thể inject chúng"
+    ],
+    answer: 1,
+    explain: "Defining locators in __init__ centralises all selectors in one place, making them easy to update and reuse across multiple methods. If locators are defined inside each method, you repeat selector strings throughout the class — the same maintainability problem POM was designed to solve.",
+    explainVi: "Định nghĩa locator trong __init__ tập trung tất cả selector ở một nơi, làm cho chúng dễ cập nhật và tái sử dụng trên nhiều phương thức. Nếu locator được định nghĩa trong từng phương thức, bạn lặp lại chuỗi selector trong toàn bộ class — chính vấn đề bảo trì mà POM được thiết kế để giải quyết."
+  },
+  {
+    q: "A test calls `LoginPage(page).navigate().login(email, pw)` but the credentials are wrong. What happens?",
+    qVi: "Một test gọi `LoginPage(page).navigate().login(email, pw)` nhưng thông tin đăng nhập sai. Điều gì xảy ra?",
+    choices: [
+      "An exception is thrown immediately",
+      "The method returns an AccountPage object (page hasn't navigated) and the error alert is visible on the page",
+      "The test passes because login() always returns AccountPage",
+      "Playwright automatically retries with different credentials"
+    ],
+    choicesVi: [
+      "Một ngoại lệ được ném ra ngay lập tức",
+      "Phương thức trả về đối tượng AccountPage (trang chưa chuyển hướng) và error alert hiển thị trên trang",
+      "Test pass vì login() luôn trả về AccountPage",
+      "Playwright tự động thử lại với thông tin đăng nhập khác"
+    ],
+    answer: 1,
+    explain: "login() always returns AccountPage(self.page) regardless of success — it doesn't know if login worked. For negative tests, check login_page.is_error_visible() or expect(login_page.error_alert).to_be_visible() after calling fill+submit separately, or accept that login() returns AccountPage and then verify the page is still on /auth/login.",
+    explainVi: "login() luôn trả về AccountPage(self.page) bất kể thành công hay không — nó không biết đăng nhập có hoạt động hay không. Với test âm tính, hãy kiểm tra login_page.is_error_visible() hoặc expect(login_page.error_alert).to_be_visible() sau khi gọi fill+submit riêng biệt, hoặc chấp nhận rằng login() trả về AccountPage rồi xác minh trang vẫn còn ở /auth/login."
+  },
+  {
+    q: "A test needs to log in and then place an order. Which pattern is correct?",
+    qVi: "Một test cần đăng nhập rồi đặt hàng. Pattern nào đúng?",
+    choices: [
+      "Use one giant Page Object with both login and order methods",
+      "Use LoginPage to log in, receive a DashboardPage, then use a separate OrderPage for ordering",
+      "Write all locators inline in the test function to avoid complex POM chains",
+      "Create a single fixture that does both login and order in conftest.py"
+    ],
+    choicesVi: [
+      "Dùng một Page Object khổng lồ với cả phương thức login và order",
+      "Dùng LoginPage để đăng nhập, nhận DashboardPage, sau đó dùng OrderPage riêng để đặt hàng",
+      "Viết tất cả locator inline trong hàm test để tránh chuỗi POM phức tạp",
+      "Tạo một fixture duy nhất thực hiện cả login và order trong conftest.py"
+    ],
+    answer: 1,
+    explain: "In POM, each page of the application gets its own class. A multi-step test chains them: LoginPage → DashboardPage → ProductPage → CartPage. The test reads like a user story. No single class gets bloated with responsibilities from multiple pages.",
+    explainVi: "Trong POM, mỗi trang của ứng dụng có class riêng. Một test nhiều bước xâu chuỗi chúng: LoginPage → DashboardPage → ProductPage → CartPage. Test đọc như một câu chuyện người dùng. Không có class nào bị phình to với trách nhiệm từ nhiều trang."
+  },
+  {
+    q: "What is the advantage of defining locators as properties in `__init__` versus defining them inline in each method?",
+    qVi: "Ưu điểm của việc định nghĩa locator dưới dạng thuộc tính trong `__init__` so với định nghĩa inline trong mỗi phương thức là gì?",
+    choices: [
+      "It makes the class run faster by pre-compiling selectors",
+      "All selectors are in one place — if the UI changes, you update the selector once and all methods benefit",
+      "It allows Playwright to cache element references for reuse",
+      "It is required by Playwright — locators defined in methods are not valid"
+    ],
+    choicesVi: [
+      "Làm cho class chạy nhanh hơn bằng cách biên dịch trước selector",
+      "Tất cả selector ở một nơi — nếu UI thay đổi, bạn cập nhật selector một lần và tất cả phương thức đều được hưởng lợi",
+      "Cho phép Playwright cache tham chiếu phần tử để tái sử dụng",
+      "Bắt buộc bởi Playwright — locator định nghĩa trong phương thức không hợp lệ"
+    ],
+    answer: 1,
+    explain: "Centralizing selectors in __init__ is the core POM maintenance benefit. If the CSS selector for the email input changes, you update self.email_input = page.get_by_label('Email') once and every method that uses self.email_input automatically uses the new selector.",
+    explainVi: "Tập trung selector trong __init__ là lợi ích bảo trì cốt lõi của POM. Nếu CSS selector cho ô nhập email thay đổi, bạn cập nhật self.email_input = page.get_by_label('Email') một lần và mọi phương thức dùng self.email_input tự động dùng selector mới."
+  },
+  {
+    q: "What should a Page Object method named `get_product_count()` return?",
+    qVi: "Phương thức Page Object tên `get_product_count()` nên trả về gì?",
+    choices: [
+      "Nothing — Page Object methods should only perform actions, never return data",
+      "A Locator object for the count element",
+      "The actual count value (e.g., an integer) so the test can assert on it",
+      "A boolean — True if products are present, False otherwise"
+    ],
+    choicesVi: [
+      "Không trả về gì — phương thức Page Object chỉ thực hiện action, không bao giờ trả về dữ liệu",
+      "Đối tượng Locator cho phần tử count",
+      "Giá trị count thực tế (ví dụ: số nguyên) để test có thể assert trên đó",
+      "Boolean — True nếu có sản phẩm, False nếu không"
+    ],
+    answer: 2,
+    explain: "Page Object methods that 'get' data should return actual values so the test can assert on them: `count = products_page.get_product_count(); assert count > 0`. Returning a Locator leaks implementation details. Returning a boolean loses precision. Pure actions (click, fill) return self or the next page.",
+    explainVi: "Các phương thức Page Object 'get' dữ liệu nên trả về giá trị thực tế để test có thể assert trên đó: `count = products_page.get_product_count(); assert count > 0`. Trả về Locator làm lộ chi tiết triển khai. Trả về boolean mất độ chính xác. Các action thuần túy (click, fill) trả về self hoặc trang tiếp theo."
+  },
+  {
+    q: "A test file imports `from pages.login_page import LoginPage` but gets ModuleNotFoundError. What is the most likely cause?",
+    qVi: "File test import `from pages.login_page import LoginPage` nhưng nhận ModuleNotFoundError. Nguyên nhân có thể nhất là gì?",
+    choices: [
+      "The LoginPage class name does not match the file name",
+      "The pages/ directory is missing an __init__.py file",
+      "Playwright does not support importing from subdirectories",
+      "The import should use dots: `from pages import login_page`"
+    ],
+    choicesVi: [
+      "Tên class LoginPage không khớp với tên file",
+      "Thư mục pages/ thiếu file __init__.py",
+      "Playwright không hỗ trợ import từ thư mục con",
+      "Import nên dùng dấu chấm: `from pages import login_page`"
+    ],
+    answer: 1,
+    explain: "Python requires an __init__.py file (even an empty one) in every directory that should be treated as a package. Without it, `from pages.login_page import LoginPage` raises ModuleNotFoundError because Python does not recognize 'pages' as a package.",
+    explainVi: "Python yêu cầu file __init__.py (dù rỗng) trong mỗi thư mục được coi là package. Nếu không có nó, `from pages.login_page import LoginPage` gây ra ModuleNotFoundError vì Python không nhận ra 'pages' là package."
+  },
+  {
+    q: "A Page Object for a shared navigation bar (header with links) is best described as:",
+    qVi: "Page Object cho thanh điều hướng chung (header với các link) được mô tả tốt nhất là:",
+    choices: [
+      "A violation of POM — shared elements cannot be Page Objects",
+      "A Component Object — a Page Object that represents a reusable UI fragment used across multiple pages",
+      "A Base Page class that all other Page Objects inherit from",
+      "A conftest.py fixture that injects the header locator"
+    ],
+    choicesVi: [
+      "Vi phạm POM — các phần tử dùng chung không thể là Page Object",
+      "Component Object — Page Object đại diện cho một đoạn UI có thể tái sử dụng trên nhiều trang",
+      "Class Base Page mà tất cả Page Object khác kế thừa",
+      "Fixture conftest.py inject locator header"
+    ],
+    answer: 1,
+    explain: "A shared UI element like a navigation bar is best modeled as a Component Object (sometimes called a Page Component or Widget Object). It has its own class with locators and methods, and it is composed into each Page Object that contains the nav bar — e.g., `self.nav = NavComponent(page)`.",
+    explainVi: "Phần tử UI dùng chung như thanh điều hướng được mô hình tốt nhất là Component Object (đôi khi gọi là Page Component hoặc Widget Object). Nó có class riêng với locator và phương thức, và được compose vào mỗi Page Object chứa thanh nav — ví dụ: `self.nav = NavComponent(page)`."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Page Objects Guide", url: "https://playwright.dev/python/docs/pom" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "Playwright Python — Page Object Model", url: "https://playwright.dev/python/docs/pom" },
+  { title: "pytest — conftest.py and fixtures", url: "https://docs.pytest.org/en/stable/reference/fixtures.html" },
+  { title: "Practice site", url: "https://practicesoftwaretesting.com" }
 ]} />

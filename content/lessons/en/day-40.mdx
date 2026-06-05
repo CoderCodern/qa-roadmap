@@ -23,7 +23,7 @@ Postman rất tốt để khám phá thủ công, nhưng các API test tự đ�
 pip install requests
 ```
 
-**Basic usage:**
+**Basic HTTP methods — same pattern for all:**
 ```python
 import requests
 
@@ -34,29 +34,95 @@ response = requests.patch("https://api.example.com/users/1", json={"name": "Alic
 response = requests.delete("https://api.example.com/users/1")
 ```
 
-**The Response object:**
+Every method returns the same `Response` object regardless of the HTTP verb. Learn the Response object well — it is the core of all API assertions.
 
-| Property/Method | What it gives you |
-|-----------------|------------------|
-| `response.status_code` | Integer status code (200, 404, etc.) |
-| `response.json()` | Parse response body as dict/list |
-| `response.text` | Response body as string |
-| `response.headers` | Dict of response headers |
-| `response.ok` | `True` if status < 400 |
-| `response.raise_for_status()` | Raise `HTTPError` if status >= 400 |
+**The Response object — your primary assertion surface:**
 
-**Sending data:**
-- `json=` — serialises dict to JSON, sets Content-Type automatically
-- `params=` — query parameters (`?key=value&key2=value2`)
-- `headers=` — custom headers dict
-- `data=` — form-encoded body (not JSON)
+| Property/Method | What it gives you | Example value |
+|-----------------|------------------|---------------|
+| `response.status_code` | Integer HTTP status code | `200`, `404`, `201` |
+| `response.json()` | Parse body as dict or list | `{"id": 1, "name": "Alice"}` |
+| `response.text` | Body as a raw string | `'{"id":1}'` |
+| `response.content` | Body as raw bytes | `b'{"id":1}'` |
+| `response.headers` | Dict of response headers | `{"Content-Type": "application/json"}` |
+| `response.ok` | `True` if status code < 400 | `True` |
+| `response.raise_for_status()` | Raises `HTTPError` if status >= 400 | (raises or does nothing) |
+| `response.elapsed` | Time the server took to respond | `datetime.timedelta(...)` |
 
-**Using a Session (recommended):**
+**response.text vs response.json() — know the difference:**
+
+- `response.text` always works — it returns whatever the server sent as a string. Useful when the server returns non-JSON (HTML errors, plain text).
+- `response.json()` parses the string as JSON and returns a Python dict or list. Raises `json.JSONDecodeError` if the body is not valid JSON. Use this for all JSON APIs.
+
+```python
+# Prefer this:
+data = response.json()  # dict — you can key into it directly
+user_name = data["name"]
+
+# Avoid this for structured data:
+raw = response.text     # string — you'd have to parse it yourself
+```
+
+**Sending data — four common patterns:**
+
+```python
+# 1. JSON body (POST/PUT/PATCH) — sets Content-Type: application/json automatically
+response = requests.post(url, json={"name": "Alice", "role": "admin"})
+
+# 2. Query parameters (GET filtering/pagination) — handles encoding automatically
+response = requests.get(url, params={"page": 2, "limit": 10, "q": "alice jones"})
+# Produces: ?page=2&limit=10&q=alice+jones
+
+# 3. Custom headers — auth, correlation ids, client version
+response = requests.get(url, headers={
+    "Authorization": "Bearer mytoken",
+    "X-Request-Id": "test-run-001"
+})
+
+# 4. Form-encoded body — for legacy APIs or form submissions
+response = requests.post(url, data={"username": "alice", "password": "secret"})
+```
+
+**raise_for_status() — the clean error pattern:**
+
+```python
+response = requests.get("https://api.example.com/users/99999")
+response.raise_for_status()  # raises HTTPError if 4xx or 5xx — no if/else needed
+user = response.json()
+```
+
+Without `raise_for_status()`, a 404 response does not raise an exception — `response.json()` still executes and may return an error payload that silently passes your assertions. Use `raise_for_status()` to fail loudly on any HTTP error.
+
+**Timeouts — always set one:**
+
+```python
+# Without timeout: your test hangs forever if the server is down
+response = requests.get(url, timeout=5)        # 5 seconds connect + read
+response = requests.get(url, timeout=(3, 10))  # (connect_timeout, read_timeout)
+```
+
+Never make requests without a timeout in test code. A hanging test wastes CI minutes and blocks other jobs.
+
+**Using a Session — recommended for test suites:**
+
 ```python
 session = requests.Session()
-session.headers.update({"Authorization": "Bearer abc123"})
-# All requests via session share headers, cookies, connection pool
+
+# Set default headers for all requests made via this session
+session.headers.update({
+    "Authorization": "Bearer abc123",
+    "Content-Type": "application/json",
+    "X-Client-Version": "test-1.0"
+})
+
+# All requests share headers, cookies, and the underlying TCP connection pool
+response = session.get("https://api.example.com/users")
+response = session.post("https://api.example.com/posts", json={"title": "Test"})
+
+# Sessions also persist cookies — useful when testing session-based auth
 ```
+
+A `Session` reuses TCP connections (HTTP keep-alive), which makes test suites significantly faster than making a new connection per request. It also keeps a single place for shared auth headers — change the token in one spot, not 20 test functions.
 </En>
 <Vi>
 **Cài đặt:**
@@ -64,35 +130,92 @@ session.headers.update({"Authorization": "Bearer abc123"})
 pip install requests
 ```
 
-**Cách dùng cơ bản:**
+**Các phương thức HTTP cơ bản — cùng pattern cho tất cả:**
 ```python
 import requests
 
 response = requests.get("https://api.example.com/users")
 response = requests.post("https://api.example.com/users", json={"email": "a@b.com"})
+response = requests.put("https://api.example.com/users/1", json={"name": "Alice"})
+response = requests.patch("https://api.example.com/users/1", json={"name": "Alice"})
 response = requests.delete("https://api.example.com/users/1")
 ```
 
-**Đối tượng Response:**
+Mọi phương thức đều trả về cùng một đối tượng `Response`. Hãy nắm vững đối tượng Response — đó là cốt lõi của tất cả các assertion API.
 
-| Thuộc tính/Phương thức | Cung cấp gì |
-|-----------------|------------------|
-| `response.status_code` | Mã trạng thái số nguyên |
-| `response.json()` | Phân tích body là dict/list |
-| `response.text` | Body là chuỗi |
-| `response.headers` | Dict header response |
-| `response.ok` | `True` nếu status < 400 |
-| `response.raise_for_status()` | Raise `HTTPError` nếu status >= 400 |
+**Đối tượng Response — bề mặt assertion chính của bạn:**
 
-**Dùng Session (khuyến nghị):**
+| Thuộc tính/Phương thức | Cung cấp gì | Ví dụ giá trị |
+|-----------------|------------------|---------------|
+| `response.status_code` | Mã trạng thái HTTP số nguyên | `200`, `404`, `201` |
+| `response.json()` | Phân tích body là dict hoặc list | `{"id": 1, "name": "Alice"}` |
+| `response.text` | Body dạng chuỗi thô | `'{"id":1}'` |
+| `response.content` | Body dạng bytes thô | `b'{"id":1}'` |
+| `response.headers` | Dict header response | `{"Content-Type": "application/json"}` |
+| `response.ok` | `True` nếu mã trạng thái < 400 | `True` |
+| `response.raise_for_status()` | Raise `HTTPError` nếu status >= 400 | (raise hoặc không làm gì) |
+| `response.elapsed` | Thời gian server phản hồi | `datetime.timedelta(...)` |
+
+**response.text vs response.json() — biết sự khác biệt:**
+
+- `response.text` luôn hoạt động — trả về bất kỳ thứ gì server gửi dưới dạng chuỗi. Hữu ích khi server trả về non-JSON.
+- `response.json()` phân tích chuỗi dạng JSON và trả về dict hoặc list Python. Raise `json.JSONDecodeError` nếu body không phải JSON hợp lệ. Dùng cái này cho tất cả JSON API.
+
+**Gửi dữ liệu — bốn pattern phổ biến:**
+
+```python
+# 1. JSON body — tự động đặt Content-Type: application/json
+response = requests.post(url, json={"name": "Alice", "role": "admin"})
+
+# 2. Query parameters — tự động xử lý encoding
+response = requests.get(url, params={"page": 2, "limit": 10})
+
+# 3. Header tùy chỉnh — auth, correlation id
+response = requests.get(url, headers={"Authorization": "Bearer mytoken"})
+
+# 4. Form-encoded body — cho API cũ hoặc form submission
+response = requests.post(url, data={"username": "alice", "password": "secret"})
+```
+
+**raise_for_status() — pattern xử lý lỗi sạch:**
+
+Không có `raise_for_status()`, response 404 không raise exception — `response.json()` vẫn thực thi và có thể trả về payload lỗi mà âm thầm vượt qua assertion. Dùng `raise_for_status()` để thất bại rõ ràng khi có lỗi HTTP.
+
+**Timeout — luôn đặt:**
+
+```python
+response = requests.get(url, timeout=5)        # 5 giây connect + read
+response = requests.get(url, timeout=(3, 10))  # (connect_timeout, read_timeout)
+```
+
+Không bao giờ tạo request không có timeout trong code test. Test treo làm mất phút CI và chặn các job khác.
+
+**Dùng Session — khuyến nghị cho bộ test:**
+
 ```python
 session = requests.Session()
-session.headers.update({"Authorization": "Bearer abc123"})
-# Tất cả request qua session dùng chung headers, cookie
+session.headers.update({
+    "Authorization": "Bearer abc123",
+    "Content-Type": "application/json",
+})
+# Tất cả request dùng chung header, cookie và connection pool TCP
 ```
+
+`Session` tái sử dụng kết nối TCP (HTTP keep-alive), giúp bộ test nhanh hơn đáng kể so với tạo kết nối mới cho mỗi request. Nó cũng giữ một nơi duy nhất cho auth header chung — thay đổi token ở một chỗ, không phải 20 hàm test.
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — Basic GET, POST, and field assertions**
+
+</En>
+<Vi>
+
+**Phần 1 — GET, POST cơ bản và assertion trường**
+
+</Vi>
 
 ```python
 # Real HTTP calls to JSONPlaceholder — a free, public REST API for testing
@@ -100,93 +223,388 @@ import requests
 
 BASE_URL = "https://jsonplaceholder.typicode.com"
 
-# --- GET a resource ---
-response = requests.get(f"{BASE_URL}/posts/1")
+# --- GET a single resource and assert its shape ---
+response = requests.get(f"{BASE_URL}/posts/1", timeout=10)
 assert response.status_code == 200
 post = response.json()
-print(f"GET post: id={post['id']}, title={post['title'][:30]}...")
 
-# --- Assert types and fields ---
+# Assert types — a common source of subtle bugs
 assert isinstance(post["id"], int)
 assert isinstance(post["title"], str)
+assert len(post["title"]) > 0
 assert post["id"] == 1
+print(f"GET post: id={post['id']}, title={post['title'][:30]}...")
 
-# --- POST to create ---
+# --- POST to create a resource ---
 new_post = {"title": "My Test Post", "body": "Content here", "userId": 1}
-response = requests.post(f"{BASE_URL}/posts", json=new_post)
+response = requests.post(f"{BASE_URL}/posts", json=new_post, timeout=10)
 assert response.status_code == 201
 created = response.json()
 assert "id" in created
 assert created["title"] == "My Test Post"
+assert isinstance(created["id"], int)
 print(f"Created post id: {created['id']}")
+```
 
+<En>
+
+**Part 2 — Query params, raise_for_status, and DELETE**
+
+</En>
+<Vi>
+
+**Phần 2 — Query params, raise_for_status và DELETE**
+
+</Vi>
+
+```python
 # --- GET a list with query params ---
-response = requests.get(f"{BASE_URL}/posts", params={"userId": 1, "_limit": 3})
+# params= automatically encodes the dict as ?userId=1&_limit=3
+response = requests.get(
+    f"{BASE_URL}/posts",
+    params={"userId": 1, "_limit": 3},
+    timeout=10
+)
 assert response.status_code == 200
 posts = response.json()
 assert isinstance(posts, list)
 assert len(posts) <= 3
+# Verify all returned posts belong to userId=1
+for p in posts:
+    assert p["userId"] == 1
 print(f"Got {len(posts)} posts for userId=1")
 
-# --- DELETE ---
-response = requests.delete(f"{BASE_URL}/posts/1")
-assert response.status_code == 200  # JSONPlaceholder returns 200 for delete
+# --- raise_for_status — explicit error handling ---
+try:
+    response = requests.get(f"{BASE_URL}/posts/99999", timeout=10)
+    response.raise_for_status()   # no-op on 200; raises HTTPError on 4xx/5xx
+    data = response.json()
+except requests.exceptions.HTTPError as e:
+    # The server returned a 4xx or 5xx — handle it explicitly
+    print(f"HTTP error: {e.response.status_code} — {e}")
 
-# --- Using a Session ---
+# --- DELETE ---
+response = requests.delete(f"{BASE_URL}/posts/1", timeout=10)
+assert response.status_code == 200   # JSONPlaceholder returns 200 for DELETE
+print("DELETE successful")
+```
+
+<En>
+
+**Part 3 — Session with shared headers and inspecting the request**
+
+</En>
+<Vi>
+
+**Phần 3 — Session với header dùng chung và kiểm tra request**
+
+</Vi>
+
+```python
+# --- Using a Session — shared headers, cookies, connection reuse ---
 session = requests.Session()
 session.headers.update({
     "Content-Type": "application/json",
-    "X-Test-Run": "automation-phase4"
+    "X-Test-Run": "automation-phase4",
+    "X-Client-Version": "1.0"
 })
 
-response = session.get(f"{BASE_URL}/users/1")
+response = session.get(f"{BASE_URL}/users/1", timeout=10)
 assert response.status_code == 200
 user = response.json()
 assert "email" in user
+assert "@" in user["email"]
 print(f"User: {user['name']} ({user['email']})")
 
-# --- raise_for_status pattern ---
-try:
-    response = requests.get(f"{BASE_URL}/posts/99999")
-    response.raise_for_status()
-except requests.exceptions.HTTPError as e:
-    print(f"HTTP error: {e}")
+# --- Inspect the actual request that was sent ---
+# response.request is a PreparedRequest — shows what actually went over the wire
+sent_headers = response.request.headers
+print(f"Sent X-Test-Run: {sent_headers.get('X-Test-Run')}")
+# Useful to verify your custom headers were actually attached
+
+# --- response.ok shorthand ---
+response = session.get(f"{BASE_URL}/posts/1", timeout=10)
+if response.ok:  # True for status < 400
+    print("Request succeeded:", response.status_code)
+else:
+    print("Request failed:", response.status_code)
 
 print("All requests tests passed!")
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Make a GET request to `https://jsonplaceholder.typicode.com/users` and assert: status is 200, body is a list, each user has an `email` field containing "@", and the list has exactly 10 items
-- [ ] Create a `requests.Session` with a custom header `X-Test-Client: my-qa-suite`, then make a POST request to create a post — verify the session header was sent by printing `response.request.headers`
-- [ ] Write a function `get_post(post_id: int) -> dict` that makes a GET request, raises `ValueError` if the status is not 200, and returns the parsed JSON body
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — GET list validation",
+    code: `import requests
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# TODO (EN): Make a GET request to /users and assert all four conditions below
+# TODO (VI): Gửi GET request đến /users và kiểm tra cả bốn điều kiện bên dưới
+response = requests.get(???, timeout=10)
+
+# 1. Status is 200
+assert response.status_code == ???
+
+# 2. Body is a list
+users = response.json()
+assert isinstance(users, ???)
+
+# 3. List has exactly 10 items
+assert len(users) == ???
+
+# 4. Each user has an email field containing "@"
+for user in users:
+    assert "email" in user
+    assert ??? in user["email"]  # hint: check for "@"
+
+print(f"All {len(users)} users have valid emails")
+`
+  },
+  {
+    title: "Exercise 2 — Session with custom header",
+    code: `import requests
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# TODO (EN): Create a requests.Session and attach the header X-Test-Client: my-qa-suite
+# TODO (VI): Tạo requests.Session và gắn header X-Test-Client: my-qa-suite
+session = requests.Session()
+session.headers.update({
+    ???: ???
+})
+
+# Make a POST request to create a post using the session
+payload = {"title": "Session Test", "body": "Created via session", "userId": 1}
+response = session.post(f"{BASE_URL}/posts", json=payload, timeout=10)
+assert response.status_code == 201
+
+# TODO (EN): Print response.request.headers and verify "X-Test-Client" was sent
+# TODO (VI): In response.request.headers và xác minh "X-Test-Client" đã được gửi
+sent = response.request.headers
+print("Sent headers:", dict(sent))
+assert ??? in sent  # verify the custom header is present
+print("Custom header confirmed:", sent[???])
+`
+  },
+  {
+    title: "Exercise 3 — Reusable get_post function",
+    code: `import requests
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+def get_post(post_id: int) -> dict:
+    """
+    Fetch a post by id.
+    Raises ValueError if status is not 200.
+    Returns the parsed JSON body as a dict.
+    """
+    response = requests.get(f"{BASE_URL}/posts/{post_id}", timeout=10)
+
+    # TODO (EN): Check if status_code is not 200 and raise ValueError with a descriptive message
+    # TODO (VI): Kiểm tra nếu status_code không phải 200 thì raise ValueError với thông báo mô tả
+    if response.status_code != ???:
+        raise ValueError(???)  # e.g. f"Expected 200, got {response.status_code}"
+
+    # TODO (EN): Return the parsed JSON body
+    # TODO (VI): Trả về body JSON đã được phân tích
+    return ???
+
+# Test the function with a valid id
+post = get_post(1)
+assert post["id"] == 1
+assert isinstance(post["title"], str)
+print(f"Fetched: {post['title'][:40]}")
+
+# Test that it raises for an invalid id
+try:
+    get_post(99999)
+    print("ERROR: Should have raised ValueError")
+except ValueError as e:
+    print(f"Correctly raised ValueError: {e}")
+`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Install `requests` with `pip install requests` if you haven't already
+- [ ] For Exercise 1: fill in all `???` placeholders and run the script — all assertions should pass
+- [ ] For Exercise 2: create a Session, add the custom header, make a POST, then verify `response.request.headers` contains `X-Test-Client`
+- [ ] For Exercise 3: implement `get_post()` so it raises `ValueError` on non-200 and returns the dict on success — test both the happy path and the error path
+
+> Note: This code uses the `requests` library which requires network access to `jsonplaceholder.typicode.com`. Copy and run this in your local Python environment.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Cài `requests` bằng `pip install requests` nếu chưa làm
+- [ ] Bài 1: điền tất cả chỗ `???` và chạy script — tất cả assertion phải pass
+- [ ] Bài 2: tạo Session, thêm header tùy chỉnh, gửi POST, rồi xác minh `response.request.headers` chứa `X-Test-Client`
+- [ ] Bài 3: implement `get_post()` sao cho nó raise `ValueError` khi không phải 200 và trả về dict khi thành công — kiểm tra cả happy path và error path
+
+> Lưu ý: Code này dùng thư viện `requests` cần truy cập mạng đến `jsonplaceholder.typicode.com`. Sao chép và chạy trong môi trường Python cục bộ của bạn.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What is the difference between `requests.get(url, params={'page': 2})` and manually adding `?page=2` to the URL?",
+    qVi: "Sự khác biệt giữa `requests.get(url, params={'page': 2})` và thêm thủ công `?page=2` vào URL là gì?",
     choices: [
       "params= is slower",
       "They produce the same URL — params= handles encoding automatically (e.g., spaces → %20)",
       "params= only works with POST requests",
       "Manually adding ?page=2 is required for authentication"
     ],
+    choicesVi: [
+      "params= chậm hơn",
+      "Chúng tạo ra cùng URL — params= tự động xử lý encoding (ví dụ: khoảng trắng → %20)",
+      "params= chỉ hoạt động với POST request",
+      "Thêm thủ công ?page=2 là bắt buộc để xác thực"
+    ],
     answer: 1,
-    explain: "Both produce ?page=2 in the final URL. The params= keyword argument is preferred because it handles URL encoding automatically — special characters like spaces, &, and = are percent-encoded correctly."
+    explain: "Both produce ?page=2 in the final URL. The params= keyword argument is preferred because it handles URL encoding automatically — special characters like spaces, &, and = are percent-encoded correctly.",
+    explainVi: "Cả hai đều tạo ra ?page=2 trong URL cuối cùng. Tham số từ khóa params= được ưu tiên vì nó tự động xử lý URL encoding — các ký tự đặc biệt như khoảng trắng, & và = được mã hóa percent đúng cách."
   },
   {
     q: "What does `response.raise_for_status()` do?",
+    qVi: "`response.raise_for_status()` làm gì?",
     choices: [
       "Returns the status code as an integer",
       "Raises an HTTPError exception if the response status is 4xx or 5xx",
       "Retries the request if it fails",
       "Prints the status code to the terminal"
     ],
+    choicesVi: [
+      "Trả về mã trạng thái dưới dạng số nguyên",
+      "Raise exception HTTPError nếu status response là 4xx hoặc 5xx",
+      "Thử lại request nếu thất bại",
+      "In mã trạng thái ra terminal"
+    ],
     answer: 1,
-    explain: "raise_for_status() checks the status code and raises requests.exceptions.HTTPError if it indicates a failure (4xx or 5xx). This allows you to catch API errors with a try/except block instead of manually checking the status code."
+    explain: "raise_for_status() checks the status code and raises requests.exceptions.HTTPError if it indicates a failure (4xx or 5xx). This allows you to catch API errors with a try/except block instead of manually checking the status code.",
+    explainVi: "raise_for_status() kiểm tra mã trạng thái và raise requests.exceptions.HTTPError nếu nó cho thấy lỗi (4xx hoặc 5xx). Điều này cho phép bạn bắt lỗi API bằng khối try/except thay vì kiểm tra thủ công mã trạng thái."
+  },
+  {
+    q: "What does `response.ok` return for a 404 status code?",
+    qVi: "`response.ok` trả về gì cho mã trạng thái 404?",
+    choices: [
+      "True — 404 is a valid response",
+      "False — response.ok is True only for status codes below 400",
+      "None — response.ok is undefined for 4xx",
+      "It raises an exception"
+    ],
+    choicesVi: [
+      "True — 404 là response hợp lệ",
+      "False — response.ok chỉ là True cho mã trạng thái dưới 400",
+      "None — response.ok không được định nghĩa cho 4xx",
+      "Nó raise exception"
+    ],
+    answer: 1,
+    explain: "response.ok is a shorthand for `status_code < 400`. A 404 is >= 400, so response.ok returns False. It does not raise an exception — use raise_for_status() if you want an automatic exception on errors.",
+    explainVi: "response.ok là viết tắt của `status_code < 400`. 404 là >= 400, nên response.ok trả về False. Nó không raise exception — dùng raise_for_status() nếu bạn muốn exception tự động khi có lỗi."
+  },
+  {
+    q: "How do you send a JSON body in a POST request using the requests library?",
+    qVi: "Làm thế nào để gửi JSON body trong POST request dùng thư viện requests?",
+    choices: [
+      "requests.post(url, body=json.dumps(data))",
+      "requests.post(url, json=data)",
+      "requests.post(url, data=json.dumps(data), content_type='json')",
+      "requests.post(url, payload=data)"
+    ],
+    choicesVi: [
+      "requests.post(url, body=json.dumps(data))",
+      "requests.post(url, json=data)",
+      "requests.post(url, data=json.dumps(data), content_type='json')",
+      "requests.post(url, payload=data)"
+    ],
+    answer: 1,
+    explain: "Passing `json=data` (where data is a Python dict or list) automatically serialises the dict to a JSON string and sets the Content-Type header to application/json. This is the correct and idiomatic way — no manual json.dumps() needed.",
+    explainVi: "Truyền `json=data` (data là dict hoặc list Python) tự động serialize dict thành chuỗi JSON và đặt header Content-Type thành application/json. Đây là cách đúng và idiomatic — không cần json.dumps() thủ công."
+  },
+  {
+    q: "What is a `requests.Session` primarily used for in API test suites?",
+    qVi: "`requests.Session` được dùng chủ yếu để làm gì trong bộ test API?",
+    choices: [
+      "To run multiple requests in parallel",
+      "To share default headers, cookies, and reuse TCP connections across all requests",
+      "To automatically retry failed requests",
+      "To limit the number of concurrent connections"
+    ],
+    choicesVi: [
+      "Để chạy nhiều request song song",
+      "Để chia sẻ header mặc định, cookie và tái sử dụng kết nối TCP qua tất cả request",
+      "Để tự động thử lại request thất bại",
+      "Để giới hạn số kết nối đồng thời"
+    ],
+    answer: 1,
+    explain: "A Session persists headers, cookies, and authentication across requests, and reuses the underlying TCP connection (keep-alive). In a test suite this means you set auth once on the Session object, and every request made through it carries that auth automatically.",
+    explainVi: "Session duy trì header, cookie và xác thực qua các request, và tái sử dụng kết nối TCP (keep-alive). Trong bộ test điều này có nghĩa là bạn đặt auth một lần trên đối tượng Session, và mọi request thực hiện qua nó đều tự động mang auth đó."
+  },
+  {
+    q: "What is the difference between `response.text` and `response.json()`?",
+    qVi: "Sự khác biệt giữa `response.text` và `response.json()` là gì?",
+    choices: [
+      "response.text is faster; response.json() is more accurate",
+      "response.text returns the raw string body; response.json() parses it into a Python dict or list",
+      "response.json() only works for GET requests",
+      "They are identical — json() just calls text internally"
+    ],
+    choicesVi: [
+      "response.text nhanh hơn; response.json() chính xác hơn",
+      "response.text trả về chuỗi body thô; response.json() phân tích nó thành dict hoặc list Python",
+      "response.json() chỉ hoạt động với GET request",
+      "Chúng giống nhau — json() chỉ gọi text bên trong"
+    ],
+    answer: 1,
+    explain: "response.text gives you the response body as a decoded string (e.g., '{\"id\":1}'). response.json() parses that string as JSON and returns a Python object (e.g., {\"id\": 1}) — which you can immediately index with [\"id\"]. Use json() for JSON APIs.",
+    explainVi: "response.text cung cấp body response dưới dạng chuỗi đã decode (ví dụ: '{\"id\":1}'). response.json() phân tích chuỗi đó dạng JSON và trả về đối tượng Python (ví dụ: {\"id\": 1}) — mà bạn có thể ngay lập tức index với [\"id\"]. Dùng json() cho JSON API."
+  },
+  {
+    q: "How do you add a custom header to ALL requests made through a `requests.Session`?",
+    qVi: "Làm thế nào để thêm header tùy chỉnh vào TẤT CẢ request thực hiện qua `requests.Session`?",
+    choices: [
+      "Pass headers= to every individual request call",
+      "session.headers.update({\"X-Custom\": \"value\"})",
+      "session.add_header(\"X-Custom\", \"value\")",
+      "requests.default_headers[\"X-Custom\"] = \"value\""
+    ],
+    choicesVi: [
+      "Truyền headers= vào mỗi lần gọi request riêng lẻ",
+      "session.headers.update({\"X-Custom\": \"value\"})",
+      "session.add_header(\"X-Custom\", \"value\")",
+      "requests.default_headers[\"X-Custom\"] = \"value\""
+    ],
+    answer: 1,
+    explain: "session.headers is a dict-like object. Calling .update() on it merges your custom headers into the session's default headers. Every subsequent request made via that session will include those headers automatically.",
+    explainVi: "session.headers là đối tượng giống dict. Gọi .update() trên nó merge header tùy chỉnh của bạn vào header mặc định của session. Mỗi request tiếp theo thực hiện qua session đó sẽ tự động bao gồm các header đó."
+  },
+  {
+    q: "What does `timeout=5` do in `requests.get(url, timeout=5)`?",
+    qVi: "`timeout=5` trong `requests.get(url, timeout=5)` làm gì?",
+    choices: [
+      "Retries the request 5 times on failure",
+      "Raises a Timeout exception if the server doesn't respond within 5 seconds",
+      "Caches the response for 5 seconds",
+      "Limits the response body to 5 MB"
+    ],
+    choicesVi: [
+      "Thử lại request 5 lần khi thất bại",
+      "Raise exception Timeout nếu server không phản hồi trong vòng 5 giây",
+      "Cache response trong 5 giây",
+      "Giới hạn body response ở 5 MB"
+    ],
+    answer: 1,
+    explain: "timeout=5 causes requests to raise a requests.exceptions.Timeout exception if the server does not respond within 5 seconds. Without a timeout, a test can hang indefinitely if the server is slow or down — blocking CI pipelines and wasting build minutes.",
+    explainVi: "timeout=5 khiến requests raise exception requests.exceptions.Timeout nếu server không phản hồi trong 5 giây. Không có timeout, test có thể treo vô thời hạn nếu server chậm hoặc down — chặn CI pipeline và lãng phí thời gian build."
   }
 ]} />
 

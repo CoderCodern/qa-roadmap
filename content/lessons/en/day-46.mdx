@@ -21,69 +21,93 @@ Các test mạnh mẽ nhất kết hợp API và UI — sử dụng API để th
 **The hybrid test pattern — three layers:**
 
 **1. API setup (fast, direct):**
-Create test data via API calls. No browser needed. Runs in milliseconds.
+Create test data via API calls. No browser needed. Runs in milliseconds. A direct POST to create a resource is 50–100x faster than navigating a form.
 
 **2. UI verification (meaningful, realistic):**
-Navigate to the page and verify the UI reflects the state set via API.
+Navigate to the page and verify the UI reflects the state set via API. This is the most valuable layer — it confirms that data created by the backend actually appears correctly for the user.
 
 **3. API teardown (fast, clean):**
-Delete test data via API after the test. Keeps the database clean.
+Delete test data via API after the test. Keeps the database in a known state. Never rely on other tests cleaning up after you.
 
 **Why API setup beats UI setup:**
 | Dimension | UI setup | API setup |
 |-----------|---------|----------|
-| Speed | ~5-10 seconds | ~0.1-0.5 seconds |
+| Speed | ~5–10 seconds | ~0.1–0.5 seconds |
 | Reliability | Can break with UI changes | Stable as long as API works |
 | Dependencies | Requires login UI, forms, navigation | Just a request |
+| Maintenance | High — every UI change may break setup | Low — API contracts change less often |
 
-**Common patterns:**
+**When to prefer pure UI tests:**
+- When you are testing the UI interaction itself (form validation, keyboard shortcuts, animations)
+- When the feature has no API equivalent (client-side-only logic)
+- When testing the full user journey from scratch is the acceptance criteria
+
+**Injecting auth state from an API token:**
 ```python
-def test_user_shows_in_dashboard(api, page):
-    # 1. Create user via API
-    response = api.post("/users", json={"email": "test@example.com", "role": "viewer"})
-    user_id = response.json()["id"]
+# Option 1: cookie-based auth
+context.add_cookies([{"name": "session", "value": token, "domain": "example.com", "path": "/"}])
 
-    # 2. Navigate UI and verify
-    page.goto(f"/admin/users/{user_id}")
-    expect(page.get_by_text("test@example.com")).to_be_visible()
-
-    # 3. Cleanup via API
-    api.delete(f"/users/{user_id}")
+# Option 2: header-based auth (Bearer token)
+context.set_extra_http_headers({"Authorization": f"Bearer {token}"})
 ```
+`context.set_extra_http_headers` adds the header to every HTTP request made by any page in that browser context — not just the first navigation.
 
-**Setting auth state in Playwright from an API token:**
-```python
-context.add_cookies([{"name": "session", "value": token, "domain": "example.com"}])
-# OR
-page.set_extra_http_headers({"Authorization": f"Bearer {token}"})
-```
+**Fixture scope strategy:**
+- Shared API session (auth token, base URL): `scope="session"` — created once per test run
+- Browser context with auth state: `scope="function"` — fresh per test to avoid state leakage between tests
 </En>
 <Vi>
 **Mẫu test hỗn hợp — ba lớp:**
 
 **1. API setup (nhanh, trực tiếp):**
-Tạo dữ liệu test qua API call. Không cần trình duyệt. Chạy trong mili giây.
+Tạo dữ liệu test qua API call. Không cần trình duyệt. Chạy trong mili giây. Một POST trực tiếp để tạo tài nguyên nhanh hơn 50–100 lần so với điều hướng qua form.
 
 **2. UI verification (có ý nghĩa, thực tế):**
-Điều hướng đến trang và xác minh UI phản ánh trạng thái được đặt qua API.
+Điều hướng đến trang và xác minh UI phản ánh trạng thái được đặt qua API. Đây là lớp có giá trị nhất — nó xác nhận dữ liệu được tạo bởi backend thực sự hiển thị đúng cho người dùng.
 
 **3. API teardown (nhanh, sạch):**
-Xoá dữ liệu test qua API sau khi test. Giữ cơ sở dữ liệu sạch.
+Xoá dữ liệu test qua API sau khi test. Giữ cơ sở dữ liệu ở trạng thái đã biết. Đừng bao giờ dựa vào các test khác để dọn dẹp sau bạn.
 
 **Tại sao API setup đánh bại UI setup:**
 | Khía cạnh | UI setup | API setup |
 |-----------|---------|----------|
-| Tốc độ | ~5-10 giây | ~0.1-0.5 giây |
+| Tốc độ | ~5–10 giây | ~0.1–0.5 giây |
 | Độ tin cậy | Có thể vỡ với thay đổi UI | Ổn định miễn là API hoạt động |
-| Phụ thuộc | Yêu cầu UI đăng nhập, form | Chỉ một request |
+| Phụ thuộc | Yêu cầu UI đăng nhập, form, điều hướng | Chỉ một request |
+| Bảo trì | Cao — mọi thay đổi UI có thể phá vỡ setup | Thấp — contract API thay đổi ít hơn |
 
-**Đặt trạng thái auth trong Playwright từ API token:**
+**Khi nào nên dùng pure UI test:**
+- Khi bạn đang kiểm thử chính tương tác UI (xác thực form, phím tắt, animation)
+- Khi tính năng không có API tương đương (logic chỉ phía client)
+- Khi kiểm thử toàn bộ hành trình người dùng từ đầu là tiêu chí chấp nhận
+
+**Inject auth state từ API token:**
 ```python
-context.add_cookies([{"name": "session", "value": token, "domain": "example.com"}])
+# Tùy chọn 1: auth dựa trên cookie
+context.add_cookies([{"name": "session", "value": token, "domain": "example.com", "path": "/"}])
+
+# Tùy chọn 2: auth dựa trên header (Bearer token)
+context.set_extra_http_headers({"Authorization": f"Bearer {token}"})
 ```
+`context.set_extra_http_headers` thêm header vào mọi HTTP request được thực hiện bởi bất kỳ trang nào trong browser context đó — không chỉ lần điều hướng đầu tiên.
+
+**Chiến lược fixture scope:**
+- Session API dùng chung (auth token, base URL): `scope="session"` — tạo một lần mỗi test run
+- Browser context với auth state: `scope="function"` — mới cho mỗi test để tránh rò rỉ trạng thái
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — API verifies UI action, and API creates data for UI display**
+
+</En>
+<Vi>
+
+**Phần 1 — API xác minh hành động UI, và API tạo dữ liệu để UI hiển thị**
+
+</Vi>
 
 ```python
 # tests/test_hybrid.py — combining API + Playwright UI tests
@@ -95,7 +119,7 @@ from playwright.sync_api import Page, BrowserContext, expect
 BASE_API = "https://jsonplaceholder.typicode.com"
 BASE_UI = "https://demo.playwright.dev/todomvc"
 
-# --- Pattern 1: API verifies what UI creates ---
+# --- Pattern 1: UI action → verify via page state (simulating API check) ---
 def test_ui_action_reflected_in_api_state(page: Page):
     """
     User adds a TodoMVC item via UI → verify via page state (simulating API check).
@@ -115,11 +139,12 @@ def test_ui_action_reflected_in_api_state(page: Page):
     assert item_count >= 1
     print(f"Item count after UI action: {item_count}")
 
-# --- Pattern 2: API creates data, UI displays it ---
+# --- Pattern 2: API creates data → UI displays it ---
 def test_api_data_displayed_in_browser(page: Page):
     """
-    API creates a post → navigate to a browser rendering of that post.
+    API creates a post → verify via another API call (simulating UI display verification).
     Demonstrates the setup-via-API pattern.
+    In a real app: after API setup, page.goto(f"/posts/{id}") and assert the title is visible.
     """
     # 1. Create via API
     payload = {"title": "Hybrid Test Post", "body": "Created by API", "userId": 1}
@@ -133,61 +158,299 @@ def test_api_data_displayed_in_browser(page: Page):
     assert get_response.status_code == 200
     assert get_response.json()["title"] == "Hybrid Test Post"
 
-    # In a real app: page.goto(f"{BASE_UI}/posts/{created_post['id']}")
+    # In a real app with a live backend:
+    # page.goto(f"{BASE_UI}/posts/{created_post['id']}")
     # expect(page.get_by_role("heading")).to_contain_text("Hybrid Test Post")
-    print("API-created data verified via read API (simulating UI check)")
+    print("API-created data verified (simulating UI display check)")
+```
 
+<En>
+
+**Part 2 — Injecting auth state and API teardown**
+
+</En>
+<Vi>
+
+**Phần 2 — Inject auth state và API teardown**
+
+</Vi>
+
+```python
 # --- Pattern 3: Inject auth state from API token ---
 def test_inject_auth_state(context: BrowserContext):
     """
     Get auth token from API → inject into browser context → access protected UI.
     This avoids clicking through a login form in every test.
     """
-    # Simulated: normally you'd POST to /auth/login
+    # Simulated: in a real project you would POST to /auth/login
     fake_token = "test-bearer-token-123"
 
-    # Inject into browser context so all pages in this context have the header
+    # Inject into browser context so ALL pages in this context send the header
     context.set_extra_http_headers({"Authorization": f"Bearer {fake_token}"})
 
     page = context.new_page()
     page.goto(BASE_UI)
-    # In a real app: navigate to /dashboard — it would load because the auth header is set
+    # In a real app: navigate to /dashboard — it loads because the auth header is present
     assert page.url.startswith("https://")
     print("Auth injected into browser context successfully")
+
+# --- Pattern 4: Full 3-layer hybrid test with teardown ---
+def test_full_hybrid_create_verify_delete(page: Page):
+    """
+    3-layer hybrid: API setup → UI verify → API teardown.
+    This is the gold standard for API+UI integration tests.
+    """
+    # Layer 1: API setup — create the resource
+    payload = {"title": "Portfolio Project", "body": "Built in Phase 4", "userId": 1}
+    create_resp = requests.post(f"{BASE_API}/posts", json=payload)
+    assert create_resp.status_code == 201
+    resource_id = create_resp.json()["id"]
+
+    try:
+        # Layer 2: UI verification — navigate and confirm data is visible
+        # JSONPlaceholder has no real UI, so we verify via a second API call here.
+        # Replace with: page.goto(f"{BASE_UI}/posts/{resource_id}") in a real app.
+        verify_resp = requests.get(f"{BASE_API}/posts/{resource_id}")
+        assert verify_resp.status_code == 200
+        assert verify_resp.json()["title"] == "Portfolio Project"
+        print(f"Resource {resource_id} verified in UI layer")
+    finally:
+        # Layer 3: API teardown — always clean up, even if the test failed
+        delete_resp = requests.delete(f"{BASE_API}/posts/{resource_id}")
+        assert delete_resp.status_code == 200
+        print(f"Resource {resource_id} cleaned up via API teardown")
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a test that: creates a post via POST to JSONPlaceholder, saves the id, then makes a GET request for that specific post and asserts all fields match what was sent
-- [ ] Design (in pseudocode) a hybrid test for a real application: (1) use the API to create a user, (2) use Playwright to log into the admin panel, (3) navigate to the user management page, (4) verify the user appears in the list, (5) delete via API in teardown
-- [ ] Explain the tradeoff: when would you choose pure UI tests vs API+UI hybrid tests vs pure API tests for the same scenario?
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — API create then verify lifecycle",
+    code: `import requests
+import pytest
+
+BASE_API = "https://jsonplaceholder.typicode.com"
+
+def test_create_post_and_verify():
+    # TODO (EN): POST a new post to /posts with title, body, and userId.
+    # TODO (VI): POST một post mới đến /posts với title, body và userId.
+    # Assert status_code == 201 and the response contains your title.
+    payload = {
+        "title": ???,
+        "body": ???,
+        "userId": ???,
+    }
+    create_resp = requests.post(f"{BASE_API}/posts", json=payload)
+    # TODO (EN): Assert status and response fields.
+    # TODO (VI): Kiểm tra status và các trường response.
+    created_id = create_resp.json()["id"]
+
+    # TODO (EN): GET the created post by id and verify all fields match.
+    # TODO (VI): GET post vừa tạo theo id và xác minh tất cả các trường khớp.
+    get_resp = ???
+    assert get_resp.status_code == ???
+    assert get_resp.json()["title"] == ???`
+  },
+  {
+    title: "Exercise 2 — Hybrid test design (pseudocode)",
+    code: `# TODO (EN): Write pseudocode for a 3-layer hybrid test for a user management system.
+# TODO (VI): Viết pseudocode cho một test hỗn hợp 3 lớp cho hệ thống quản lý người dùng.
+#
+# The test should:
+# 1. API setup: create a user via POST /users
+# 2. UI verify: use Playwright to navigate to /admin/users and assert the user is listed
+# 3. API teardown: delete the user via DELETE /users/{id}
+#
+# Write it as comments or pseudocode — no need for real Playwright code yet.
+
+# LAYER 1 — API setup
+# create_resp = ???
+# user_id = ???
+
+# LAYER 2 — UI verification
+# page.goto(???)
+# expect(???).to_be_visible()
+
+# LAYER 3 — API teardown (should run even if layer 2 fails — use try/finally)
+# delete_resp = ???`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: make the `test_create_post_and_verify` test pass against JSONPlaceholder — fill in the payload fields and assertions
+- [ ] Exercise 2: write the pseudocode comments for the 3-layer hybrid test — focus on the structure, not real Playwright syntax
+- [ ] Bonus: explain in a comment why API teardown should be inside a `try/finally` block rather than just at the end of the test
+
+> Note: Exercise 1 requires a local Python environment with `requests` and `pytest` installed. Exercise 2 requires `playwright` installed as well (`pip install requests pytest playwright && playwright install chromium`).
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài tập 1: làm cho test `test_create_post_and_verify` pass với JSONPlaceholder — điền vào các trường payload và assertion
+- [ ] Bài tập 2: viết các comment pseudocode cho test hỗn hợp 3 lớp — tập trung vào cấu trúc, không phải cú pháp Playwright thực
+- [ ] Bonus: giải thích trong comment tại sao API teardown nên nằm bên trong khối `try/finally` thay vì ở cuối test
+
+> Lưu ý: Bài tập 1 cần môi trường Python cục bộ với `requests` và `pytest` đã cài đặt. Bài tập 2 cần thêm `playwright` (`pip install requests pytest playwright && playwright install chromium`).
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Why is using the API for test setup faster and more reliable than using the UI?",
+    qVi: "Tại sao dùng API để setup test lại nhanh hơn và đáng tin cậy hơn so với dùng UI?",
     choices: [
       "APIs run on a separate server that is faster",
       "API calls skip browser rendering, network round-trips for UI interactions, and visual verification — they go directly to the business logic layer",
       "Playwright does not support setup in beforeEach hooks",
       "APIs have no rate limiting"
     ],
+    choicesVi: [
+      "API chạy trên server riêng biệt nhanh hơn",
+      "API call bỏ qua render trình duyệt, vòng tròn mạng cho tương tác UI và xác minh trực quan — chúng đi thẳng đến tầng logic nghiệp vụ",
+      "Playwright không hỗ trợ setup trong hook beforeEach",
+      "API không có giới hạn tốc độ"
+    ],
     answer: 1,
-    explain: "A direct API call to create a user takes ~100ms. The equivalent UI flow (navigate to register, fill form, submit, wait for redirect) takes 5-10 seconds. API setup is 50-100x faster and unaffected by UI changes."
+    explain: "A direct API call to create a user takes ~100ms. The equivalent UI flow (navigate to register, fill form, submit, wait for redirect) takes 5–10 seconds. API setup is 50–100x faster and unaffected by UI changes.",
+    explainVi: "Một API call trực tiếp để tạo người dùng mất ~100ms. Luồng UI tương đương (điều hướng đến trang đăng ký, điền form, submit, chờ redirect) mất 5–10 giây. API setup nhanh hơn 50–100 lần và không bị ảnh hưởng bởi các thay đổi UI."
   },
   {
     q: "What does `context.set_extra_http_headers({'Authorization': 'Bearer token'})` do in Playwright?",
+    qVi: "`context.set_extra_http_headers({'Authorization': 'Bearer token'})` làm gì trong Playwright?",
     choices: [
       "Sends an HTTP request to the server",
       "Adds the header to every HTTP request made by pages in that browser context",
       "Sets a cookie named Authorization",
       "It only works for the first page load"
     ],
+    choicesVi: [
+      "Gửi HTTP request đến server",
+      "Thêm header vào mọi HTTP request được thực hiện bởi các trang trong browser context đó",
+      "Đặt cookie có tên Authorization",
+      "Nó chỉ hoạt động cho lần tải trang đầu tiên"
+    ],
     answer: 1,
-    explain: "set_extra_http_headers adds headers to all requests made by any page within that browser context. This is how you inject an auth token from an API login response into the browser — avoiding the need to fill a login form in every test."
+    explain: "set_extra_http_headers adds headers to all requests made by any page within that browser context. This is how you inject an auth token from an API login response into the browser — avoiding the need to fill a login form in every test.",
+    explainVi: "set_extra_http_headers thêm header vào tất cả các request được thực hiện bởi bất kỳ trang nào trong browser context đó. Đây là cách bạn inject auth token từ API login response vào trình duyệt — tránh phải điền form đăng nhập trong mỗi test."
+  },
+  {
+    q: "What is the 3-layer hybrid test pattern in order?",
+    qVi: "Mẫu test hỗn hợp 3 lớp theo thứ tự là gì?",
+    choices: [
+      "UI setup → API verify → UI teardown",
+      "API setup → UI verify → API teardown",
+      "UI setup → UI verify → UI teardown",
+      "API setup → API verify → UI teardown"
+    ],
+    choicesVi: [
+      "UI setup → API xác minh → UI teardown",
+      "API setup → UI xác minh → API teardown",
+      "UI setup → UI xác minh → UI teardown",
+      "API setup → API xác minh → UI teardown"
+    ],
+    answer: 1,
+    explain: "The hybrid pattern is: create test data via API (fast), verify it appears correctly in the UI (meaningful), then delete the test data via API (fast and reliable). This combines the speed of API operations with the user-perspective value of UI verification.",
+    explainVi: "Mẫu hỗn hợp là: tạo dữ liệu test qua API (nhanh), xác minh nó xuất hiện đúng trong UI (có ý nghĩa), sau đó xoá dữ liệu test qua API (nhanh và đáng tin cậy). Điều này kết hợp tốc độ của API với giá trị quan điểm người dùng của UI verification."
+  },
+  {
+    q: "When should you prefer pure UI tests over API+UI hybrid tests?",
+    qVi: "Khi nào nên ưu tiên pure UI test hơn test hỗn hợp API+UI?",
+    choices: [
+      "Always — pure UI tests are more realistic",
+      "When testing the UI interaction itself (form validation, animations, keyboard navigation) or when no API exists for the feature",
+      "When the API is too slow to use in setup",
+      "When you want tests to run in parallel"
+    ],
+    choicesVi: [
+      "Luôn luôn — pure UI test thực tế hơn",
+      "Khi kiểm thử chính tương tác UI (xác thực form, animation, điều hướng bàn phím) hoặc khi không có API cho tính năng",
+      "Khi API quá chậm để dùng trong setup",
+      "Khi bạn muốn test chạy song song"
+    ],
+    answer: 1,
+    explain: "Pure UI tests are valuable when you need to verify the UI behavior itself — how a form validates on blur, how a dropdown keyboard-navigates, or how an error message appears. The hybrid pattern is for verifying data state displayed in UI, not the UI mechanics.",
+    explainVi: "Pure UI test có giá trị khi bạn cần xác minh chính hành vi UI — cách form xác thực khi blur, cách dropdown điều hướng bàn phím, hoặc cách thông báo lỗi xuất hiện. Mẫu hỗn hợp dành cho việc xác minh trạng thái dữ liệu hiển thị trong UI, không phải cơ chế UI."
+  },
+  {
+    q: "What does `context.add_cookies([...])` accomplish in Playwright?",
+    qVi: "`context.add_cookies([...])` làm gì trong Playwright?",
+    choices: [
+      "Deletes all existing cookies in the browser",
+      "Injects cookies into the browser context so pages act as if the browser already received those cookies from the server",
+      "Reads cookies from the server response",
+      "Encrypts cookies before storing them"
+    ],
+    choicesVi: [
+      "Xoá tất cả cookie hiện có trong trình duyệt",
+      "Inject cookie vào browser context để các trang hoạt động như thể trình duyệt đã nhận được các cookie đó từ server",
+      "Đọc cookie từ server response",
+      "Mã hóa cookie trước khi lưu trữ"
+    ],
+    answer: 1,
+    explain: "add_cookies() lets you pre-load session cookies obtained from an API login call into the browser context. When the browser then navigates to a page, it sends those cookies automatically — simulating a logged-in state without performing the login flow in the UI.",
+    explainVi: "add_cookies() cho phép bạn pre-load các session cookie thu được từ API login call vào browser context. Khi trình duyệt điều hướng đến trang, nó tự động gửi các cookie đó — mô phỏng trạng thái đã đăng nhập mà không cần thực hiện luồng đăng nhập trong UI."
+  },
+  {
+    q: "Why is API teardown (cleanup) important in hybrid tests?",
+    qVi: "Tại sao API teardown (dọn dẹp) quan trọng trong test hỗn hợp?",
+    choices: [
+      "It is not important — test databases are reset between runs automatically",
+      "It keeps the database in a known state and prevents test pollution where one test's data affects another test's results",
+      "It speeds up the test suite",
+      "It is required by Playwright"
+    ],
+    choicesVi: [
+      "Không quan trọng — cơ sở dữ liệu test được reset tự động giữa các lần chạy",
+      "Nó giữ cơ sở dữ liệu ở trạng thái đã biết và ngăn ô nhiễm test khi dữ liệu của test này ảnh hưởng đến kết quả của test khác",
+      "Nó tăng tốc test suite",
+      "Playwright yêu cầu điều đó"
+    ],
+    answer: 1,
+    explain: "Without teardown, test data accumulates across runs. A test that asserts 'there is 1 user in the list' will fail on the second run when there are now 2 users from two test runs. Always delete test data in teardown — ideally in a try/finally so cleanup runs even when the test fails.",
+    explainVi: "Không có teardown, dữ liệu test tích lũy qua các lần chạy. Một test kiểm tra 'có 1 người dùng trong danh sách' sẽ fail ở lần chạy thứ hai khi có 2 người dùng từ hai lần chạy test. Luôn xoá dữ liệu test trong teardown — lý tưởng là trong try/finally để dọn dẹp chạy ngay cả khi test fail."
+  },
+  {
+    q: "If an API creates a resource but the UI doesn't display it — what kind of bug is that?",
+    qVi: "Nếu API tạo tài nguyên nhưng UI không hiển thị nó — đó là loại bug gì?",
+    choices: [
+      "A backend API bug",
+      "A frontend rendering or data-fetching bug — the API works correctly but the UI fails to retrieve or display the data",
+      "A network connectivity bug",
+      "A test setup bug"
+    ],
+    choicesVi: [
+      "Bug API backend",
+      "Bug render frontend hoặc data-fetching — API hoạt động đúng nhưng UI không lấy hoặc hiển thị dữ liệu được",
+      "Bug kết nối mạng",
+      "Bug setup test"
+    ],
+    answer: 1,
+    explain: "This is exactly what the hybrid test pattern catches. If the API layer works (POST returns 201, GET returns the resource) but the UI doesn't show it, the bug is in the frontend — data fetching, rendering logic, or state management. The 3-layer test isolates which layer is broken.",
+    explainVi: "Đây chính xác là những gì mẫu test hỗn hợp bắt được. Nếu tầng API hoạt động (POST trả về 201, GET trả về tài nguyên) nhưng UI không hiển thị nó, bug nằm ở frontend — logic lấy dữ liệu, render hoặc quản lý state. Test 3 lớp giúp xác định tầng nào bị lỗi."
+  },
+  {
+    q: "What fixture scopes make sense for a shared API session vs a browser context in hybrid tests?",
+    qVi: "Fixture scope nào phù hợp cho API session dùng chung vs browser context trong test hỗn hợp?",
+    choices: [
+      "Both should be scope='function'",
+      "API session: scope='session'; browser context: scope='function' to avoid state leakage between tests",
+      "Both should be scope='session'",
+      "API session: scope='module'; browser context: scope='session'"
+    ],
+    choicesVi: [
+      "Cả hai nên là scope='function'",
+      "API session: scope='session'; browser context: scope='function' để tránh rò rỉ trạng thái giữa các test",
+      "Cả hai nên là scope='session'",
+      "API session: scope='module'; browser context: scope='session'"
+    ],
+    answer: 1,
+    explain: "The API session (requests.Session with auth headers) is stateless enough to share across the whole run — scope='session' reduces HTTP overhead. But the browser context holds cookies, local storage, and navigation history — if shared, state from one test leaks into the next. scope='function' gives each test a clean browser context.",
+    explainVi: "API session (requests.Session với auth header) đủ stateless để chia sẻ trong toàn bộ lần chạy — scope='session' giảm overhead HTTP. Nhưng browser context giữ cookie, local storage và lịch sử điều hướng — nếu chia sẻ, trạng thái từ test này rò rỉ vào test tiếp theo. scope='function' cho mỗi test một browser context sạch."
   }
 ]} />
 

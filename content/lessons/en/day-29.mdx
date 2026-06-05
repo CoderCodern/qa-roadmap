@@ -3,221 +3,582 @@ id: 29
 title: "Page Object Model — concept"
 phase: 3
 estMinutes: 60
-tags: ["playwright", "pom", "design-patterns"]
+tags: ["playwright", "pom", "design"]
 ---
 
 ## Intro
 
 <En>
-The Page Object Model (POM) is the most widely adopted design pattern in browser test automation. Without it, test code becomes fragile: a single UI change requires hunting through dozens of test files to update locators. POM solves this by wrapping each page's interactions in a class, so when the UI changes you update one place, not many.
+Imagine you have 30 tests that all log in before doing their thing. The login form has an email field, a password field, and a submit button. One day the developer renames the button from "Login" to "Sign in". Now all 30 tests break — you have to find and update 30 different locators scattered across 30 files.
+
+The **Page Object Model (POM)** solves this. Instead of writing locators directly in test files, you create a Python class that represents a page (or component) and encapsulates all its locators and actions. The 30 tests all call `login_page.login(email, password)` — and when the button text changes, you fix it in exactly one place.
+
+POM is the single most impactful design pattern in UI test automation.
 </En>
 <Vi>
-Page Object Model (POM) là mẫu thiết kế được áp dụng rộng rãi nhất trong tự động hoá test trình duyệt. Không có nó, code test trở nên dễ vỡ: một thay đổi UI đòi hỏi phải tìm kiếm qua hàng chục file test để cập nhật locator. POM giải quyết điều này bằng cách bọc các tương tác của mỗi trang trong một class, vì vậy khi UI thay đổi bạn chỉ cần cập nhật một chỗ, không phải nhiều chỗ.
+Hãy tưởng tượng bạn có 30 test đều cần đăng nhập trước khi thực hiện hành động. Form đăng nhập có trường email, trường mật khẩu và nút submit. Một ngày, developer đổi tên nút từ "Login" thành "Sign in". Bây giờ tất cả 30 test đều hỏng — bạn phải tìm và cập nhật 30 locator khác nhau rải rác trong 30 file.
+
+**Page Object Model (POM)** giải quyết vấn đề này. Thay vì viết locator trực tiếp trong file test, bạn tạo một class Python đại diện cho một trang (hoặc component) và đóng gói tất cả locator và hành động của nó. 30 test đều gọi `login_page.login(email, password)` — và khi text nút thay đổi, bạn sửa ở đúng một chỗ.
+
+POM là design pattern có tác động lớn nhất trong tự động hoá UI.
 </Vi>
 
 ## Concept
 
 <En>
-**The core idea:**
-- Each page (or significant component) gets its own class.
-- Locators are defined once inside the class.
-- Test methods call page object methods — they don't reference locators directly.
+**The core idea — separation of concerns:**
 
-**Structure:**
 ```
-tests/
-├── pages/
-│   ├── base_page.py      # shared helpers
-│   ├── login_page.py
-│   ├── dashboard_page.py
-│   └── ...
-├── conftest.py
-└── test_login.py
+Without POM                         With POM
+─────────────────────────────────   ─────────────────────────────────────
+test_login.py                       pages/login_page.py
+  page.fill("#email", "a@b.com")      class LoginPage:
+  page.fill("#pass", "pw")              def login(self, email, pw):
+  page.click("button[Login]")             self.email.fill(email)
+  assert "dashboard" in page.url          self.password.fill(pw)
+                                          self.submit_btn.click()
+test_checkout.py
+  page.fill("#email", "a@b.com")    test_login.py
+  page.fill("#pass", "pw")            login_page.login("a@b.com", "pw")
+  page.click("button[Login]")         expect(page).to_have_url(".../dashboard")
+  # ... checkout steps ...
+                                    test_checkout.py
+                                      login_page.login("a@b.com", "pw")
+                                      # ... checkout steps ...
 ```
 
-**What a page object should and should not contain:**
+**Rules of a good Page Object:**
 
-| Should contain | Should NOT contain |
-|---------------|--------------------|
-| Locators (as properties) | Assertions about business logic |
-| Actions (login, fill form) | Test data (use fixtures) |
-| Navigation methods | `assert` statements (usually) |
-| Helper properties (is_logged_in) | Test orchestration logic |
+1. **Never assert in a Page Object** — a PO is a reusable action layer; let the test decide what to assert.
+2. **Return `self` or another Page Object** from action methods — enables method chaining and represents navigation.
+3. **Keep locators private** — the test should call `page_object.login(...)`, not `page_object.email_input.fill(...)`.
+4. **One class per page (or major component)** — LoginPage, DashboardPage, CartPage, etc.
+5. **Initialise locators in `__init__`** — so they're defined once and reused.
 
-**The test reads like English:**
+**Anatomy of a Page Object:**
+
 ```python
-# Without POM:
-page.get_by_placeholder("Email").fill("alice@example.com")
-page.get_by_placeholder("Password").fill("SecurePass1")
-page.get_by_role("button", name="Login").click()
-expect(page.locator(".welcome")).to_be_visible()
+from playwright.sync_api import Page, Locator
 
-# With POM:
-login_page.login("alice@example.com", "SecurePass1")
-dashboard_page.expect_welcome_visible()
+class LoginPage:
+    # URL constant — good practice
+    URL = "/auth/login"
+
+    def __init__(self, page: Page):
+        self.page = page
+        # ── Locators defined once ────────────────────────────────
+        self.email_input: Locator = page.get_by_label("Email")
+        self.password_input: Locator = page.get_by_label("Password")
+        self.login_button: Locator = page.get_by_role("button", name="Login")
+        self.error_message: Locator = page.locator(".alert-danger")
+
+    # ── Actions ──────────────────────────────────────────────────
+    def navigate(self) -> "LoginPage":
+        self.page.goto(self.URL)
+        return self
+
+    def login(self, email: str, password: str) -> "LoginPage":
+        self.email_input.fill(email)
+        self.password_input.fill(password)
+        self.login_button.click()
+        return self  # or return DashboardPage(self.page) after redirect
+
+    def login_and_go_to_dashboard(self, email: str, password: str) -> "DashboardPage":
+        self.email_input.fill(email)
+        self.password_input.fill(password)
+        self.login_button.click()
+        return DashboardPage(self.page)  # navigate to next page
 ```
 
-**Key benefits:**
-1. **Maintainability** — locator changes in one file, not 20 tests
-2. **Readability** — tests describe behaviour, not implementation
-3. **Reusability** — same page object used across multiple test files
+**Using the Page Object in tests:**
+
+```python
+def test_successful_login(page: Page):
+    login_page = LoginPage(page)
+    login_page.navigate()
+    login_page.login("user@example.com", "password123")
+    expect(page).to_have_url("**/dashboard")
+
+# Method chaining style:
+def test_login_chained(page: Page):
+    LoginPage(page).navigate().login("user@example.com", "password123")
+    expect(page).to_have_url("**/dashboard")
+```
+
+**Shared login fixture (pytest best practice):**
+```python
+# conftest.py
+@pytest.fixture
+def logged_in_page(page):
+    """Pre-authenticated page — use in tests that need to skip login."""
+    LoginPage(page).navigate().login("customer@example.com", "welcome01")
+    return page
+```
 </En>
 <Vi>
-**Ý tưởng cốt lõi:**
-- Mỗi trang (hoặc component quan trọng) có class riêng.
-- Locator được định nghĩa một lần bên trong class.
-- Phương thức test gọi phương thức page object — chúng không tham chiếu locator trực tiếp.
+**Ý tưởng cốt lõi — phân tách mối quan tâm:**
 
-**Cấu trúc:**
+Không có POM: locator rải rác trong từng file test — khi UI thay đổi, phải sửa nhiều nơi.
+Có POM: tất cả locator và hành động nằm trong class — khi UI thay đổi, chỉ sửa một nơi.
+
+**Quy tắc của Page Object tốt:**
+1. **Không bao giờ assert trong Page Object** — PO là lớp hành động tái sử dụng
+2. **Trả về `self` hoặc Page Object khác** — cho phép method chaining
+3. **Giữ locator private** — test chỉ gọi action, không trực tiếp dùng locator
+4. **Một class mỗi trang** — LoginPage, DashboardPage, CartPage...
+5. **Khởi tạo locator trong `__init__`** — định nghĩa một lần, dùng nhiều lần
+
+**Cấu trúc của Page Object:**
+```python
+class LoginPage:
+    def __init__(self, page: Page):
+        self.page = page
+        self.email_input = page.get_by_label("Email")
+        self.password_input = page.get_by_label("Password")
+        self.login_button = page.get_by_role("button", name="Login")
+
+    def navigate(self):
+        self.page.goto("/auth/login")
+        return self
+
+    def login(self, email: str, password: str):
+        self.email_input.fill(email)
+        self.password_input.fill(password)
+        self.login_button.click()
+        return self
 ```
-tests/
-├── pages/
-│   ├── base_page.py
-│   ├── login_page.py
-│   └── dashboard_page.py
-├── conftest.py
-└── test_login.py
-```
-
-**Page object nên và không nên chứa gì:**
-
-| Nên chứa | KHÔNG nên chứa |
-|---------------|--------------------|
-| Locator (như property) | Assertion về logic nghiệp vụ |
-| Action (login, điền form) | Dữ liệu test |
-| Phương thức điều hướng | Câu lệnh `assert` (thường) |
-
-**Các lợi ích chính:**
-1. **Khả năng bảo trì** — thay đổi locator ở một file, không phải 20 test
-2. **Khả năng đọc** — test mô tả hành vi, không phải triển khai
-3. **Khả năng tái sử dụng** — cùng page object dùng cho nhiều file test
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Without POM: raw test that's hard to maintain**
+
+</En>
+<Vi>
+
+**Phần 1 — Không có POM: test thô khó bảo trì**
+
+</Vi>
+
 ```python
-# pages/base_page.py
-from playwright.sync_api import Page
-
-class BasePage:
-    def __init__(self, page: Page):
-        self.page = page
-
-    def navigate(self, path: str = "") -> None:
-        self.page.goto(path)
-
-    def get_title(self) -> str:
-        return self.page.title()
-
-    def get_url(self) -> str:
-        return self.page.url
-
-# pages/login_page.py
+# WITHOUT POM — tests/test_login_no_pom.py
+# Notice: locators repeated in each test, hard to maintain
 from playwright.sync_api import Page, expect
-from .base_page import BasePage
 
-class LoginPage(BasePage):
-    URL = "https://demo.playwright.dev/todomvc"  # using TodoMVC as demo
+BASE = "https://practicesoftwaretesting.com"
 
-    # Locators as properties — change once, all tests update
-    @property
-    def new_todo_input(self):
-        return self.page.get_by_placeholder("What needs to be done?")
+def test_valid_login_no_pom(page: Page):
+    page.goto(f"{BASE}/auth/login")
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+    page.get_by_role("button", name="Login").click()
+    expect(page).to_have_url(f"{BASE}/account")
 
-    @property
-    def todo_items(self):
-        return self.page.get_by_role("listitem")
+def test_invalid_login_no_pom(page: Page):
+    page.goto(f"{BASE}/auth/login")
+    page.get_by_label("Email").fill("wrong@email.com")  # duplicated!
+    page.get_by_label("Password").fill("wrongpassword")  # duplicated!
+    page.get_by_role("button", name="Login").click()     # duplicated!
+    error = page.locator(".alert-danger")
+    expect(error).to_be_visible()
 
-    def navigate(self) -> None:
-        self.page.goto(self.URL)
+# If "Login" button text changes to "Sign in",
+# we must update EVERY test above.
+```
 
-    def add_todo(self, text: str) -> None:
-        self.new_todo_input.fill(text)
-        self.new_todo_input.press("Enter")
+<En>
 
-    def get_item_count(self) -> int:
-        return self.todo_items.count()
+**Part 2 — With POM: clean, readable, maintainable**
 
-    def expect_item_visible(self, text: str) -> None:
-        item = self.todo_items.filter(has_text=text)
-        expect(item).to_be_visible()
+</En>
+<Vi>
 
-# tests/test_pom_concept.py
-import pytest
-from playwright.sync_api import Page
-# from pages.login_page import LoginPage  # real import path
+**Phần 2 — Có POM: sạch sẽ, dễ đọc, dễ bảo trì**
 
-# Inline for demo — in reality, import from pages/
-class TodoPage:
-    def __init__(self, page: Page):
+</Vi>
+
+```python
+# pages/login_page.py
+from playwright.sync_api import Page, Locator
+
+class LoginPage:
+    """Page Object for https://practicesoftwaretesting.com/auth/login"""
+
+    URL = "https://practicesoftwaretesting.com/auth/login"
+
+    def __init__(self, page: Page) -> None:
         self.page = page
+        # Locators — defined once here
+        self.email_input: Locator = page.get_by_label("Email")
+        self.password_input: Locator = page.get_by_label("Password")
+        self.login_button: Locator = page.get_by_role("button", name="Login")
+        self.error_alert: Locator = page.locator(".alert-danger")
 
-    @property
-    def input(self):
-        return self.page.get_by_placeholder("What needs to be done?")
+    def navigate(self) -> "LoginPage":
+        self.page.goto(self.URL)
+        return self
 
-    @property
-    def items(self):
-        return self.page.get_by_role("listitem")
+    def fill_email(self, email: str) -> "LoginPage":
+        self.email_input.fill(email)
+        return self
 
-    def go(self) -> None:
-        self.page.goto("https://demo.playwright.dev/todomvc")
+    def fill_password(self, password: str) -> "LoginPage":
+        self.password_input.fill(password)
+        return self
 
-    def add(self, text: str) -> None:
-        self.input.fill(text)
-        self.input.press("Enter")
+    def submit(self) -> "LoginPage":
+        self.login_button.click()
+        return self
 
-def test_add_items_via_pom(page: Page):
-    todo = TodoPage(page)
-    todo.go()
-    todo.add("Learn Page Object Model")
-    todo.add("Practice POM pattern")
-    assert todo.items.count() == 2
+    def login(self, email: str, password: str) -> "LoginPage":
+        """Convenience method: fill both fields and submit."""
+        self.fill_email(email)
+        self.fill_password(password)
+        self.submit()
+        return self
+```
 
-def test_page_title_via_pom(page: Page):
-    todo = TodoPage(page)
-    todo.go()
-    assert "TodoMVC" in page.title()
+```python
+# tests/test_login_with_pom.py
+# Run with: pytest tests/test_login_with_pom.py -v
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from playwright.sync_api import Page, expect
+from pages.login_page import LoginPage
+
+BASE = "https://practicesoftwaretesting.com"
+VALID_EMAIL = "customer@practicesoftwaretesting.com"
+VALID_PASSWORD = "welcome01"
+
+def test_valid_login_with_pom(page: Page):
+    """Valid credentials → redirect to account page."""
+    LoginPage(page).navigate().login(VALID_EMAIL, VALID_PASSWORD)
+    expect(page).to_have_url(f"{BASE}/account")
+
+def test_invalid_login_shows_error(page: Page):
+    """Invalid credentials → error message visible."""
+    login_page = LoginPage(page)
+    login_page.navigate()
+    login_page.login("wrong@example.com", "wrongpassword")
+    expect(login_page.error_alert).to_be_visible()
+
+def test_empty_email_shows_validation(page: Page):
+    """Empty email → form should not submit (or show error)."""
+    login_page = LoginPage(page)
+    login_page.navigate()
+    login_page.fill_password(VALID_PASSWORD)
+    login_page.submit()
+    # Either still on login page or validation message
+    assert "login" in page.url or login_page.error_alert.is_visible()
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Create a `pages/` directory and build a `LoginPage` class for a demo login page with properties for the email input, password input, submit button, and an `error_message` property. Add a `login(email, password)` method
-- [ ] Write two tests that use your `LoginPage` — one happy path (valid credentials) and one negative (empty fields) — and observe that neither test references a locator directly
-- [ ] Explain in your own words: if the email input's placeholder changes from "Email" to "Enter your email", how many files do you need to update with POM vs without?
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Part 1 — Create the HomePage Page Object",
+    code: `# pages/home_page.py
+# Target: https://practicesoftwaretesting.com
+from playwright.sync_api import Page, Locator
+
+class HomePage:
+    """Page Object for the practicesoftwaretesting.com homepage."""
+
+    URL = "https://practicesoftwaretesting.com"
+
+    def __init__(self, page: Page) -> None:
+        self.page = page
+        # TODO: Define these locators
+        # TODO (EN): role="textbox" or "searchbox", name="Search" — inspect the search field
+        # TODO (VI): role="textbox" hoặc "searchbox", name="Search" — inspect trường tìm kiếm
+        self.search_input: Locator = page.get_by_role("???", name="???")
+        # TODO (EN): The exact link text — inspect the navigation bar
+        # TODO (VI): Text link chính xác — inspect thanh điều hướng
+        self.sign_in_link: Locator = page.get_by_role("link", name="???")
+        # TODO (EN): CSS selector for product cards — inspect the product grid
+        # TODO (VI): CSS selector cho thẻ sản phẩm — inspect lưới sản phẩm
+        self.product_cards: Locator = page.locator("???")
+
+    def navigate(self) -> "HomePage":
+        self.page.goto(self.URL)
+        return self
+
+    def search(self, term: str) -> "HomePage":
+        """Fill the search box and press Enter."""
+        # TODO: implement — fill search_input and press Enter
+        # TODO (EN): Fill search_input with term and press Enter
+        # TODO (VI): Điền search_input với term và nhấn Enter
+        ???
+        return self
+
+    def go_to_login(self) -> "HomePage":
+        """Click the Sign in link."""
+        # TODO: implement
+        # TODO (EN): Click the sign_in_link
+        # TODO (VI): Click vào sign_in_link
+        ???
+        return self
+
+    def product_count(self) -> int:
+        """Return the number of product cards on the page."""
+        # TODO: implement
+        # TODO (EN): Return self.product_cards.count()
+        # TODO (VI): Trả về self.product_cards.count()
+        return ???`
+  },
+  {
+    title: "Part 2 — Write tests using the HomePage Page Object",
+    code: `# tests/test_home_page_pom.py
+# Run with: pytest tests/test_home_page_pom.py -v
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from playwright.sync_api import Page, expect
+from pages.home_page import HomePage
+
+def test_homepage_loads(page: Page):
+    """Homepage should load with a search input visible."""
+    home = HomePage(page).navigate()
+    expect(home.search_input).to_be_visible()
+
+def test_search_filters_products(page: Page):
+    """Searching for 'Hammer' should show at least 1 product."""
+    home = HomePage(page).navigate()
+    home.search("Hammer")
+    page.wait_for_load_state("networkidle")
+    assert home.product_count() > 0, "Expected results for 'Hammer'"
+
+def test_sign_in_link_navigates(page: Page):
+    """Clicking Sign in should navigate to the login page."""
+    home = HomePage(page).navigate()
+    home.go_to_login()
+    # TODO (EN): The login page URL — "https://practicesoftwaretesting.com/auth/login"
+    # TODO (VI): URL trang login — "https://practicesoftwaretesting.com/auth/login"
+    expect(page).to_have_url("???")   # what URL should it be?`
+  }
+]}>
+
+<En>
+Inspect `https://practicesoftwaretesting.com` in DevTools to find the correct role, name, and CSS selectors for the search input, sign-in link, and product cards.
+
+- [ ] Fill in all `???` in `home_page.py` — inspect the site to find the correct selectors
+- [ ] Fill in the expected URL in `test_sign_in_link_navigates`
+- [ ] Run `pytest tests/test_home_page_pom.py -v` — all 3 tests should pass
+- [ ] Add a 4th test: search for a term that returns no results and assert that the product count is 0
+</En>
+<Vi>
+Inspect `https://practicesoftwaretesting.com` trong DevTools để tìm role, name và CSS selector đúng cho ô tìm kiếm, link đăng nhập và thẻ sản phẩm.
+
+- [ ] Điền tất cả `???` trong `home_page.py` — inspect trang để tìm selector đúng
+- [ ] Điền URL mong đợi trong `test_sign_in_link_navigates`
+- [ ] Chạy `pytest tests/test_home_page_pom.py -v` — tất cả 3 test phải pass
+- [ ] Thêm test thứ 4: tìm kiếm với từ không có kết quả và kiểm tra số lượng sản phẩm là 0
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What is the main benefit of defining locators as properties inside a Page Object class?",
+    q: "What is the main benefit of the Page Object Model?",
+    qVi: "Lợi ích chính của Page Object Model là gì?",
     choices: [
-      "Properties run faster than hardcoded strings",
-      "When a locator changes, you update it in one place and all tests using that page object benefit",
-      "Locators as properties avoid the need for assertions",
-      "It allows tests to run in parallel automatically"
+      "Tests run faster because locators are cached",
+      "When a UI element changes, you only update the locator in one place (the Page Object) instead of every test",
+      "It eliminates the need for assertions in tests",
+      "It allows running tests in parallel automatically"
+    ],
+    choicesVi: [
+      "Test chạy nhanh hơn vì locator được cache",
+      "Khi một phần tử UI thay đổi, bạn chỉ cập nhật locator ở một nơi (Page Object) thay vì mọi test",
+      "Nó loại bỏ nhu cầu assertion trong test",
+      "Nó cho phép chạy test song song tự động"
     ],
     answer: 1,
-    explain: "Centralising locators in the page object class means that when the UI changes (a button gets a new label, an input gets a new placeholder), you update the locator once in the page object, and every test that uses it is fixed automatically."
+    explain: "The single biggest benefit of POM is maintainability. When a selector or flow changes, you update one Page Object instead of hunting through every test file. This becomes exponentially more valuable as the test suite grows.",
+    explainVi: "Lợi ích lớn nhất của POM là khả năng bảo trì. Khi selector hoặc luồng thay đổi, bạn cập nhật một Page Object thay vì tìm kiếm qua mọi file test. Điều này trở nên có giá trị theo cấp số nhân khi bộ test phát triển."
   },
   {
-    q: "Should a Page Object class contain assert statements?",
+    q: "Should a Page Object contain `assert` or `expect()` statements?",
+    qVi: "Page Object có nên chứa câu lệnh `assert` hoặc `expect()` không?",
     choices: [
-      "Yes — all assertions belong in page objects",
-      "Generally no — assertions belong in tests; page objects expose state, not test logic",
-      "Only if using pytest",
-      "Only for negative test cases"
+      "Yes — all assertions should be in the Page Object",
+      "No — Page Objects provide actions; assertions belong in the test",
+      "Only for verifying that navigation worked",
+      "Only when using pytest"
+    ],
+    choicesVi: [
+      "Có — tất cả assertion nên nằm trong Page Object",
+      "Không — Page Object cung cấp hành động; assertion thuộc về test",
+      "Chỉ để xác minh navigation đã hoạt động",
+      "Chỉ khi dùng pytest"
     ],
     answer: 1,
-    explain: "Page objects model the page's interface, not the test's expectations. Assertions about what should be true in a given test scenario belong in the test function. Some teams add assertion helpers (expect_* methods) to page objects for convenience, but the core assertions remain in tests."
+    explain: "Page Objects should be pure action layers — navigate, click, fill, return. Assertions (what should be true) belong in the test. This keeps Page Objects reusable across tests with different expected outcomes (e.g., a login that should succeed vs. one that should fail).",
+    explainVi: "Page Object nên là lớp hành động thuần túy — navigate, click, fill, return. Assertion (những gì phải đúng) thuộc về test. Điều này giữ Page Object có thể tái sử dụng trên các test với kết quả mong đợi khác nhau (ví dụ: đăng nhập thành công vs. đăng nhập thất bại)."
+  },
+  {
+    q: "Why do Page Object action methods often `return self`?",
+    qVi: "Tại sao các phương thức hành động trong Page Object thường `return self`?",
+    choices: [
+      "To avoid Python garbage collection",
+      "To enable method chaining: LoginPage(page).navigate().login(email, pw)",
+      "It is required by pytest-playwright",
+      "To share state between tests"
+    ],
+    choicesVi: [
+      "Để tránh Python garbage collection",
+      "Để cho phép method chaining: LoginPage(page).navigate().login(email, pw)",
+      "pytest-playwright yêu cầu điều này",
+      "Để chia sẻ trạng thái giữa các test"
+    ],
+    answer: 1,
+    explain: "Returning `self` enables fluent/chaining syntax: `LoginPage(page).navigate().fill_email('a').fill_password('b').submit()`. It makes test code read like a narrative of user actions.",
+    explainVi: "Trả về `self` cho phép cú pháp fluent/chaining: `LoginPage(page).navigate().fill_email('a').fill_password('b').submit()`. Nó làm cho code test đọc như một câu chuyện về hành động của người dùng."
+  },
+  {
+    q: "Where should Page Object classes be stored in a typical project?",
+    qVi: "Các class Page Object nên được lưu ở đâu trong một dự án điển hình?",
+    choices: [
+      "Inside each test file",
+      "In a dedicated `pages/` directory at the project root",
+      "In conftest.py",
+      "In a `fixtures/` directory"
+    ],
+    choicesVi: [
+      "Bên trong mỗi file test",
+      "Trong thư mục `pages/` riêng biệt ở gốc dự án",
+      "Trong conftest.py",
+      "Trong thư mục `fixtures/`"
+    ],
+    answer: 1,
+    explain: "The standard convention is a `pages/` directory at the project root — one file per Page Object (pages/login_page.py, pages/cart_page.py, etc.). This makes them easy to find and import from test files.",
+    explainVi: "Quy ước chuẩn là thư mục `pages/` ở gốc dự án — một file cho mỗi Page Object (pages/login_page.py, pages/cart_page.py, v.v.). Điều này làm cho chúng dễ tìm và import từ các file test."
+  },
+  {
+    q: "A `LoginPage.login()` method logs in and the app redirects to the dashboard. What should the method return?",
+    qVi: "Phương thức `LoginPage.login()` đăng nhập và ứng dụng chuyển hướng đến dashboard. Phương thức nên trả về gì?",
+    choices: [
+      "True (to indicate success)",
+      "self (LoginPage)",
+      "DashboardPage(self.page) — the next page the user lands on",
+      "None — actions don't need return values"
+    ],
+    choicesVi: [
+      "True (để chỉ thành công)",
+      "self (LoginPage)",
+      "DashboardPage(self.page) — trang tiếp theo người dùng đến",
+      "None — hành động không cần giá trị trả về"
+    ],
+    answer: 2,
+    explain: "When a user action causes a page transition, returning the next Page Object models the navigation explicitly. `DashboardPage(self.page)` signals to the reader that after login(), the user is on the dashboard. This also enables chaining: `LoginPage(page).navigate().login(e, p).check_welcome_message()`.",
+    explainVi: "Khi hành động người dùng gây ra chuyển trang, việc trả về Page Object mới mô hình hóa navigation một cách rõ ràng. `DashboardPage(self.page)` báo hiệu cho người đọc rằng sau login(), người dùng đang ở dashboard. Điều này cũng cho phép chaining: `LoginPage(page).navigate().login(e, p).check_welcome_message()`."
+  },
+  {
+    q: "How does a test get access to a Page Object in pytest-playwright?",
+    qVi: "Test truy cập Page Object như thế nào trong pytest-playwright?",
+    choices: [
+      "Import it directly and instantiate it with the page fixture",
+      "pytest-playwright creates Page Objects automatically from class names",
+      "Page Objects must be registered in conftest.py as fixtures",
+      "Use @pytest.mark.page_object decorator"
+    ],
+    choicesVi: [
+      "Import trực tiếp và khởi tạo với fixture page",
+      "pytest-playwright tự động tạo Page Object từ tên class",
+      "Page Object phải được đăng ký trong conftest.py dưới dạng fixture",
+      "Sử dụng decorator @pytest.mark.page_object"
+    ],
+    answer: 0,
+    explain: "The test receives the 'page' fixture from pytest-playwright, then instantiates the Page Object manually: `login = LoginPage(page)`. Alternatively, a conftest.py fixture can wrap this for reuse. pytest has no auto-discovery for Page Object classes.",
+    explainVi: "Test nhận fixture 'page' từ pytest-playwright, sau đó khởi tạo Page Object thủ công: `login = LoginPage(page)`. Ngoài ra, fixture conftest.py có thể bọc điều này để tái sử dụng. pytest không có auto-discovery cho các class Page Object."
+  },
+  {
+    q: "How many Page Object classes should you create for a web application's login page?",
+    qVi: "Bạn nên tạo bao nhiêu class Page Object cho trang đăng nhập của ứng dụng web?",
+    choices: [
+      "One per test file that uses it",
+      "One per element on the page",
+      "One per page (or major feature section) of the application",
+      "As many as needed to keep each class under 50 lines"
+    ],
+    choicesVi: [
+      "Một cho mỗi file test sử dụng nó",
+      "Một cho mỗi phần tử trên trang",
+      "Một cho mỗi trang (hoặc phần tính năng chính) của ứng dụng",
+      "Bao nhiêu tùy ý để giữ mỗi class dưới 50 dòng"
+    ],
+    answer: 2,
+    explain: "The POM convention is one class per page or major feature area. LoginPage handles everything on the login screen. One class per element would create hundreds of tiny useless classes; one per test file would lead to duplication.",
+    explainVi: "Quy ước POM là một class cho mỗi trang hoặc khu vực tính năng chính. LoginPage xử lý mọi thứ trên màn hình đăng nhập. Một class cho mỗi phần tử sẽ tạo ra hàng trăm class nhỏ vô dụng; một class cho mỗi file test sẽ dẫn đến trùng lặp."
+  },
+  {
+    q: "What is a 'Base Page' in the Page Object Model?",
+    qVi: "'Base Page' trong Page Object Model là gì?",
+    choices: [
+      "The first page of the application flow",
+      "A parent class that holds shared methods (e.g., wait_for_load, scroll_to) that all Page Objects inherit",
+      "A Page Object specifically for the homepage",
+      "A fixture that creates a blank page before each test"
+    ],
+    choicesVi: [
+      "Trang đầu tiên trong luồng ứng dụng",
+      "Class cha chứa các phương thức dùng chung (ví dụ: wait_for_load, scroll_to) mà tất cả Page Object kế thừa",
+      "Page Object dành riêng cho trang chủ",
+      "Fixture tạo trang trống trước mỗi test"
+    ],
+    answer: 1,
+    explain: "A Base Page (or BasePage class) contains helper methods shared across all pages — like waiting for network idle, scrolling to an element, or accepting cookies. Other Page Objects inherit from it. This keeps each Page Object focused on its own page's actions.",
+    explainVi: "Base Page (hoặc class BasePage) chứa các phương thức helper dùng chung cho tất cả trang — như chờ network idle, cuộn đến phần tử, hoặc chấp nhận cookie. Các Page Object khác kế thừa từ nó. Điều này giúp mỗi Page Object tập trung vào các action của trang riêng nó."
+  },
+  {
+    q: "Where should the assertion `expect(page).to_have_url('/dashboard')` live in a POM-based test?",
+    qVi: "Assertion `expect(page).to_have_url('/dashboard')` nên ở đâu trong test dựa trên POM?",
+    choices: [
+      "Inside the LoginPage.login() method",
+      "Inside the DashboardPage.__init__() constructor",
+      "In the test function itself, after calling login()",
+      "In conftest.py as a shared assertion fixture"
+    ],
+    choicesVi: [
+      "Bên trong phương thức LoginPage.login()",
+      "Bên trong constructor DashboardPage.__init__()",
+      "Trong hàm test, sau khi gọi login()",
+      "Trong conftest.py dưới dạng fixture assertion dùng chung"
+    ],
+    answer: 2,
+    explain: "Page Objects contain actions, not assertions. The test function owns the 'then verify' step. Putting assertions inside Page Objects tightly couples them to specific expected outcomes and makes them unusable for tests where the same action should produce a different result.",
+    explainVi: "Page Object chứa các action, không phải assertion. Hàm test sở hữu bước 'sau đó xác minh'. Đặt assertion bên trong Page Object kết hợp chặt chẽ chúng với các kết quả mong đợi cụ thể và khiến chúng không thể dùng cho các test mà cùng action nên tạo ra kết quả khác nhau."
+  },
+  {
+    q: "When is it NOT worth creating a Page Object?",
+    qVi: "Khi nào KHÔNG đáng tạo Page Object?",
+    choices: [
+      "When the page has more than 10 elements",
+      "When only one test ever interacts with that page",
+      "When the page requires authentication",
+      "When the page uses dynamic JavaScript"
+    ],
+    choicesVi: [
+      "Khi trang có hơn 10 phần tử",
+      "Khi chỉ có một test tương tác với trang đó",
+      "Khi trang yêu cầu xác thực",
+      "Khi trang sử dụng JavaScript động"
+    ],
+    answer: 1,
+    explain: "POM pays off when multiple tests reuse the same page interactions. If only one test ever touches a specific page, inlining locators directly in that test is simpler — adding a Page Object would be premature abstraction. Let the duplication drive the decision.",
+    explainVi: "POM có giá trị khi nhiều test tái sử dụng cùng các tương tác trang. Nếu chỉ một test tương tác với trang cụ thể, việc inline locator trực tiếp trong test đó đơn giản hơn — thêm Page Object sẽ là trừu tượng hóa sớm. Hãy để sự lặp lại dẫn đến quyết định."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Page Objects Guide", url: "https://playwright.dev/python/docs/pom" },
-  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" }
+  { title: "Playwright Python — Page Object Model", url: "https://playwright.dev/python/docs/pom" },
+  { title: "Martin Fowler — Page Object", url: "https://martinfowler.com/bliki/PageObject.html" },
+  { title: "Playwright Python — Best Practices", url: "https://playwright.dev/python/docs/best-practices" }
 ]} />

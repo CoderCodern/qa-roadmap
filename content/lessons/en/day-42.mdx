@@ -44,9 +44,9 @@ A JSON Schema is a JSON object that describes what another JSON object should lo
 | `properties` | Schema for each named field |
 | `items` | Schema for array elements |
 | `enum` | List of allowed values |
-| `minimum` / `maximum` | Numeric range |
-| `minLength` / `maxLength` | String length range |
-| `additionalProperties` | Whether unlisted fields are allowed |
+| `minimum` / `maximum` | Numeric range constraints |
+| `minLength` / `maxLength` | String length range constraints |
+| `additionalProperties` | Whether unlisted fields are allowed (`false` = strict) |
 
 **Python library:**
 ```bash
@@ -59,9 +59,37 @@ from jsonschema import validate, ValidationError
 validate(instance=data, schema=schema)  # raises ValidationError if invalid
 ```
 
+The `validate()` call raises `ValidationError` with a descriptive message telling you exactly which field failed and why. If validation passes, it returns `None` silently.
+
+**Nested schemas:**
+You can define schemas for nested objects and arrays. Use `"items"` for array element schemas:
+
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "title"],
+    "properties": {
+      "id":    { "type": "integer" },
+      "title": { "type": "string", "minLength": 1 }
+    }
+  },
+  "minItems": 1
+}
+```
+
 **Where to store schemas:**
-- Inline dicts in test files (simple schemas)
-- Separate `.json` files in a `schemas/` directory (large schemas, reused across tests)
+- Inline dicts in test files — suitable for simple schemas used in one place
+- Separate `.json` files in a `schemas/` directory — for large schemas or schemas reused across multiple test files
+
+```python
+import json
+from pathlib import Path
+
+schema = json.loads(Path("schemas/post.json").read_text())
+validate(instance=response.json(), schema=schema)
+```
 </En>
 <Vi>
 **JSON Schema cơ bản:**
@@ -73,9 +101,11 @@ JSON Schema là một JSON object mô tả một JSON object khác trông như t
   "required": ["id", "email", "role"],
   "properties": {
     "id":    { "type": "integer", "minimum": 1 },
-    "email": { "type": "string" },
-    "role":  { "type": "string", "enum": ["admin", "editor", "viewer"] }
-  }
+    "email": { "type": "string", "format": "email" },
+    "role":  { "type": "string", "enum": ["admin", "editor", "viewer"] },
+    "name":  { "type": "string" }
+  },
+  "additionalProperties": false
 }
 ```
 
@@ -84,12 +114,13 @@ JSON Schema là một JSON object mô tả một JSON object khác trông như t
 | Từ khóa | Mô tả |
 |---------|-------------|
 | `type` | `"string"`, `"integer"`, `"number"`, `"boolean"`, `"null"`, `"array"`, `"object"` |
-| `required` | Danh sách tên trường phải có |
+| `required` | Danh sách tên trường phải có mặt |
 | `properties` | Schema cho từng trường được đặt tên |
-| `items` | Schema cho các phần tử mảng |
+| `items` | Schema cho các phần tử trong mảng |
 | `enum` | Danh sách các giá trị được phép |
-| `minimum` / `maximum` | Phạm vi số |
-| `additionalProperties` | Có cho phép trường không được liệt kê không |
+| `minimum` / `maximum` | Ràng buộc phạm vi số |
+| `minLength` / `maxLength` | Ràng buộc độ dài chuỗi |
+| `additionalProperties` | Có cho phép trường không được liệt kê không (`false` = nghiêm ngặt) |
 
 **Thư viện Python:**
 ```bash
@@ -98,11 +129,55 @@ pip install jsonschema
 
 ```python
 from jsonschema import validate, ValidationError
+
 validate(instance=data, schema=schema)  # raise ValidationError nếu không hợp lệ
+```
+
+Hàm `validate()` raise `ValidationError` với thông báo mô tả chính xác trường nào thất bại và tại sao. Nếu xác thực thành công, nó trả về `None` lặng lẽ.
+
+**Schema lồng nhau:**
+Bạn có thể định nghĩa schema cho các object và mảng lồng nhau. Dùng `"items"` cho schema của phần tử mảng:
+
+```json
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "title"],
+    "properties": {
+      "id":    { "type": "integer" },
+      "title": { "type": "string", "minLength": 1 }
+    }
+  },
+  "minItems": 1
+}
+```
+
+**Nơi lưu trữ schema:**
+- Dict nội tuyến trong file test — phù hợp cho schema đơn giản dùng ở một chỗ
+- File `.json` riêng trong thư mục `schemas/` — dành cho schema lớn hoặc dùng ở nhiều file test
+
+```python
+import json
+from pathlib import Path
+
+schema = json.loads(Path("schemas/post.json").read_text())
+validate(instance=response.json(), schema=schema)
 ```
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — Define schemas and validate a single object**
+
+</En>
+<Vi>
+
+**Phần 1 — Định nghĩa schema và xác thực một object**
+
+</Vi>
 
 ```python
 import requests
@@ -136,26 +211,13 @@ USER_SCHEMA = {
     },
 }
 
-POSTS_LIST_SCHEMA = {
-    "type": "array",
-    "items": POST_SCHEMA,
-    "minItems": 1,
-}
-
 BASE_URL = "https://jsonplaceholder.typicode.com"
 
-# --- Tests ---
 def test_single_post_schema():
     response = requests.get(f"{BASE_URL}/posts/1")
     assert response.status_code == 200
     validate(instance=response.json(), schema=POST_SCHEMA)
     print("POST schema valid!")
-
-def test_posts_list_schema():
-    response = requests.get(f"{BASE_URL}/posts", params={"_limit": 5})
-    assert response.status_code == 200
-    validate(instance=response.json(), schema=POSTS_LIST_SCHEMA)
-    print("Posts list schema valid!")
 
 def test_user_schema():
     response = requests.get(f"{BASE_URL}/users/1")
@@ -163,54 +225,367 @@ def test_user_schema():
     validate(instance=response.json(), schema=USER_SCHEMA)
     print("USER schema valid!")
 
+test_single_post_schema()
+test_user_schema()
+```
+
+<En>
+
+**Part 2 — Validate a list response and catch schema violations**
+
+</En>
+<Vi>
+
+**Phần 2 — Xác thực response dạng danh sách và bắt lỗi vi phạm schema**
+
+</Vi>
+
+```python
+POSTS_LIST_SCHEMA = {
+    "type": "array",
+    "items": POST_SCHEMA,
+    "minItems": 1,
+}
+
+def test_posts_list_schema():
+    response = requests.get(f"{BASE_URL}/posts", params={"_limit": 5})
+    assert response.status_code == 200
+    validate(instance=response.json(), schema=POSTS_LIST_SCHEMA)
+    print("Posts list schema valid!")
+
 def test_schema_catches_invalid_data():
+    # Simulate bad API data: id is a string instead of integer
     bad_data = {"id": "not-an-integer", "userId": 1, "title": "x", "body": "y"}
     try:
         validate(instance=bad_data, schema=POST_SCHEMA)
         assert False, "Validation should have failed"
     except ValidationError as e:
         print(f"Correctly caught: {e.message}")
+        # e.path shows which field failed: deque(['id'])
+        print(f"Failed at field: {list(e.path)}")
 
-# Run all tests
-test_single_post_schema()
 test_posts_list_schema()
-test_user_schema()
 test_schema_catches_invalid_data()
 print("All schema validation tests passed!")
 ```
 
+<En>
+
+**Part 3 — Load schemas from external JSON files**
+
+</En>
+<Vi>
+
+**Phần 3 — Tải schema từ file JSON bên ngoài**
+
+</Vi>
+
+```python
+import json
+from pathlib import Path
+
+# schemas/post.json would contain the POST_SCHEMA dict above
+# This pattern is useful when schemas are shared across multiple test files
+
+def load_schema(name: str) -> dict:
+    schema_path = Path("schemas") / f"{name}.json"
+    return json.loads(schema_path.read_text())
+
+def test_with_external_schema():
+    # schema = load_schema("post")  # uncomment when schemas/ directory exists
+    schema = POST_SCHEMA  # using inline for demo
+    response = requests.get(f"{BASE_URL}/posts/1")
+    assert response.status_code == 200
+    validate(instance=response.json(), schema=schema)
+    print("External schema validation passed!")
+
+test_with_external_schema()
+```
+
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a JSON Schema for the `/users` response from JSONPlaceholder — include nested `address` and `company` objects with their required fields, then validate with `jsonschema.validate()`
-- [ ] Intentionally break the schema (e.g., change `"type": "integer"` to `"type": "string"` for the `id` field) and observe the `ValidationError` message — note how descriptive it is
-- [ ] Create a `schemas/` directory and store your schemas as `.json` files — load them with `json.loads(Path("schemas/post.json").read_text())` and validate a real API response
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Write a schema for /users with nested address",
+    code: `import requests
+from jsonschema import validate, ValidationError
+
+# TODO (EN): Define USER_SCHEMA with:
+# - required fields: id, name, username, email
+# - nested "address" object with required "city" and "zipcode"
+# - additionalProperties: False for the top-level object
+# TODO (VI): Định nghĩa USER_SCHEMA với:
+# - các trường bắt buộc: id, name, username, email
+# - object "address" lồng nhau có "city" và "zipcode" bắt buộc
+# - additionalProperties: False cho object cấp cao nhất
+
+USER_SCHEMA = ???
+
+response = requests.get("https://jsonplaceholder.typicode.com/users/1")
+assert response.status_code == 200
+validate(instance=response.json(), schema=USER_SCHEMA)
+print("User schema with nested address: VALID")`
+  },
+  {
+    title: "Exercise 2 — Observe ValidationError messages",
+    code: `from jsonschema import validate, ValidationError
+
+POST_SCHEMA = {
+    "type": "object",
+    "required": ["id", "userId", "title", "body"],
+    "properties": {
+        "id":     {"type": "integer", "minimum": 1},
+        "userId": {"type": "integer", "minimum": 1},
+        "title":  {"type": "string",  "minLength": 1},
+        "body":   {"type": "string",  "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+# TODO (EN): Create 3 bad_data dicts that each violate one rule:
+# 1. id is a string instead of integer
+# 2. title is missing entirely
+# 3. an unexpected field "extra" is present
+# For each, catch the ValidationError and print e.message and list(e.path)
+# TODO (VI): Tạo 3 dict bad_data, mỗi cái vi phạm một quy tắc:
+# 1. id là chuỗi thay vì integer
+# 2. title bị thiếu hoàn toàn
+# 3. có trường không mong đợi "extra"
+# Với mỗi cái, bắt ValidationError và in e.message và list(e.path)
+
+bad_cases = [
+    ???,
+    ???,
+    ???,
+]
+
+for case in bad_cases:
+    try:
+        validate(instance=case, schema=POST_SCHEMA)
+        print("ERROR: Validation should have failed!")
+    except ValidationError as e:
+        print(f"Field: {list(e.path)} | Message: {e.message}")`
+  },
+  {
+    title: "Exercise 3 — Store and load schemas from files",
+    code: `import json
+import requests
+from pathlib import Path
+from jsonschema import validate
+
+# TODO (EN): 
+# 1. Create a schemas/ directory
+# 2. Save the POST_SCHEMA below as schemas/post.json using json.dumps
+# 3. Write a load_schema() function that reads from schemas/<name>.json
+# 4. Use load_schema("post") to validate /posts/1
+# TODO (VI):
+# 1. Tạo thư mục schemas/
+# 2. Lưu POST_SCHEMA bên dưới thành schemas/post.json dùng json.dumps
+# 3. Viết hàm load_schema() đọc từ schemas/<name>.json
+# 4. Dùng load_schema("post") để xác thực /posts/1
+
+POST_SCHEMA = {
+    "type": "object",
+    "required": ["id", "userId", "title", "body"],
+    "properties": {
+        "id":     {"type": "integer", "minimum": 1},
+        "userId": {"type": "integer", "minimum": 1},
+        "title":  {"type": "string",  "minLength": 1},
+        "body":   {"type": "string",  "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+def save_schema(name: str, schema: dict) -> None:
+    ???
+
+def load_schema(name: str) -> dict:
+    ???
+
+save_schema("post", POST_SCHEMA)
+schema = load_schema("post")
+response = requests.get("https://jsonplaceholder.typicode.com/posts/1")
+assert response.status_code == 200
+validate(instance=response.json(), schema=schema)
+print("Schema loaded from file and validation passed!")`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Write a full schema for the `/users/1` response including a nested `address` object. Run and confirm `validate()` passes with no error.
+- [ ] Exercise 2: Create three intentionally bad data dicts. Catch `ValidationError` for each and print the field path (`e.path`) and error message (`e.message`).
+- [ ] Exercise 3: Create a `schemas/` directory, write a function to save schemas as JSON files, and write a function to load them back. Validate a real API response using the loaded schema.
+
+> Note: These exercises require a local Python environment. Install dependencies first: `pip install requests jsonschema`
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài 1: Viết schema đầy đủ cho response `/users/1` bao gồm object `address` lồng nhau. Chạy và xác nhận `validate()` thành công không có lỗi.
+- [ ] Bài 2: Tạo ba dict dữ liệu sai cố ý. Bắt `ValidationError` cho từng cái và in đường dẫn trường (`e.path`) và thông báo lỗi (`e.message`).
+- [ ] Bài 3: Tạo thư mục `schemas/`, viết hàm lưu schema thành file JSON, và viết hàm để tải lại chúng. Xác thực response API thực tế bằng schema đã tải.
+
+> Lưu ý: Các bài tập này cần môi trường Python cục bộ. Cài đặt thư viện trước: `pip install requests jsonschema`
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What is the main advantage of JSON Schema validation over field-by-field assertions?",
+    qVi: "Ưu điểm chính của xác thực JSON Schema so với assertion từng trường là gì?",
     choices: [
       "It runs faster than individual assertions",
       "You define the contract once and validate the entire structure in one call — catching missing fields, wrong types, and invalid values simultaneously",
       "JSON Schema is required by REST APIs",
       "It replaces the need for status code assertions"
     ],
+    choicesVi: [
+      "Nó chạy nhanh hơn các assertion riêng lẻ",
+      "Bạn định nghĩa contract một lần và xác thực toàn bộ cấu trúc trong một lần gọi — bắt các trường bị thiếu, sai kiểu và giá trị không hợp lệ cùng lúc",
+      "JSON Schema là bắt buộc với REST API",
+      "Nó thay thế nhu cầu assertion status code"
+    ],
     answer: 1,
-    explain: "JSON Schema validation checks the entire response structure in a single validate() call. It catches missing required fields, wrong types, values outside enums, and length violations — all at once, with a clear error message describing exactly what failed."
+    explain: "JSON Schema validation checks the entire response structure in a single validate() call. It catches missing required fields, wrong types, values outside enums, and length violations — all at once, with a clear error message describing exactly what failed.",
+    explainVi: "Xác thực JSON Schema kiểm tra toàn bộ cấu trúc response trong một lần gọi validate(). Nó bắt các trường bắt buộc bị thiếu, sai kiểu, giá trị ngoài enum, và vi phạm độ dài — tất cả cùng một lúc, với thông báo lỗi rõ ràng mô tả chính xác điều gì thất bại."
   },
   {
     q: "What does `\"additionalProperties\": false` in a JSON Schema mean?",
+    qVi: "`\"additionalProperties\": false` trong JSON Schema có nghĩa là gì?",
     choices: [
       "The object cannot have any properties",
       "The object must not contain any fields not defined in `properties`",
       "Additional properties are automatically converted to strings",
       "The field is optional"
     ],
+    choicesVi: [
+      "Object không thể có bất kỳ thuộc tính nào",
+      "Object không được chứa bất kỳ trường nào không được định nghĩa trong `properties`",
+      "Các thuộc tính bổ sung được tự động chuyển đổi thành chuỗi",
+      "Trường này là tùy chọn"
+    ],
     answer: 1,
-    explain: "additionalProperties: false makes the schema strict — any field in the actual response that is NOT listed in the 'properties' section causes a ValidationError. This is useful for catching when an API starts returning unexpected new fields."
+    explain: "additionalProperties: false makes the schema strict — any field in the actual response that is NOT listed in the 'properties' section causes a ValidationError. This is useful for catching when an API starts returning unexpected new fields.",
+    explainVi: "additionalProperties: false làm cho schema trở nên nghiêm ngặt — bất kỳ trường nào trong response thực tế KHÔNG được liệt kê trong phần 'properties' sẽ gây ra ValidationError. Điều này hữu ích để bắt khi API bắt đầu trả về các trường mới không mong đợi."
+  },
+  {
+    q: "What does `\"required\": [\"id\", \"email\"]` enforce in a JSON Schema?",
+    qVi: "`\"required\": [\"id\", \"email\"]` trong JSON Schema bắt buộc điều gì?",
+    choices: [
+      "The fields id and email must have non-null values",
+      "The fields id and email must be present as keys in the object",
+      "The fields id and email must appear first in the object",
+      "The object must have exactly two fields"
+    ],
+    choicesVi: [
+      "Các trường id và email phải có giá trị khác null",
+      "Các trường id và email phải có mặt như là key trong object",
+      "Các trường id và email phải xuất hiện đầu tiên trong object",
+      "Object phải có đúng hai trường"
+    ],
+    answer: 1,
+    explain: "The 'required' keyword enforces that the listed keys must exist in the object. It does NOT require them to be non-null — a null value still satisfies 'required' unless you also add 'type' constraints. If a required key is absent, ValidationError is raised.",
+    explainVi: "Từ khóa 'required' bắt buộc các key được liệt kê phải tồn tại trong object. Nó KHÔNG yêu cầu chúng phải khác null — giá trị null vẫn thỏa mãn 'required' trừ khi bạn thêm ràng buộc 'type'. Nếu một key bắt buộc vắng mặt, ValidationError sẽ được raise."
+  },
+  {
+    q: "How does `\"enum\": [\"admin\", \"viewer\"]` behave in a schema?",
+    qVi: "`\"enum\": [\"admin\", \"viewer\"]` hoạt động như thế nào trong schema?",
+    choices: [
+      "The field must be a string type",
+      "The field value must be exactly one of the listed values",
+      "The field is optional and defaults to the first value",
+      "The field can be any string that starts with 'admin' or 'viewer'"
+    ],
+    choicesVi: [
+      "Trường phải có kiểu string",
+      "Giá trị trường phải chính xác là một trong các giá trị được liệt kê",
+      "Trường là tùy chọn và mặc định là giá trị đầu tiên",
+      "Trường có thể là bất kỳ chuỗi nào bắt đầu bằng 'admin' hoặc 'viewer'"
+    ],
+    answer: 1,
+    explain: "The 'enum' keyword validates that the actual value is strictly equal to one of the listed values. Any other value — including 'superadmin' or 'ADMIN' — causes a ValidationError. It works across all types, not just strings.",
+    explainVi: "Từ khóa 'enum' xác thực rằng giá trị thực tế bằng đúng một trong các giá trị được liệt kê. Bất kỳ giá trị nào khác — bao gồm 'superadmin' hoặc 'ADMIN' — gây ra ValidationError. Nó hoạt động trên tất cả các kiểu, không chỉ string."
+  },
+  {
+    q: "What keywords control the allowed range for a numeric field in JSON Schema?",
+    qVi: "Những từ khóa nào kiểm soát phạm vi được phép cho một trường số trong JSON Schema?",
+    choices: [
+      "minValue and maxValue",
+      "minimum and maximum",
+      "minNumber and maxNumber",
+      "range and limit"
+    ],
+    choicesVi: [
+      "minValue và maxValue",
+      "minimum và maximum",
+      "minNumber và maxNumber",
+      "range và limit"
+    ],
+    answer: 1,
+    explain: "JSON Schema uses 'minimum' and 'maximum' for inclusive number range validation. There are also 'exclusiveMinimum' and 'exclusiveMaximum' for exclusive bounds. Example: { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 150 } rejects 0 and 151.",
+    explainVi: "JSON Schema dùng 'minimum' và 'maximum' để xác thực phạm vi số bao gồm. Còn có 'exclusiveMinimum' và 'exclusiveMaximum' cho giới hạn loại trừ. Ví dụ: { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 150 } từ chối 0 và 151."
+  },
+  {
+    q: "How do you define a JSON Schema for a response that is an ARRAY of objects?",
+    qVi: "Làm thế nào để định nghĩa JSON Schema cho response là một MẢNG các object?",
+    choices: [
+      "Use `\"type\": \"array\"` and define each item in `\"properties\"`",
+      "Use `\"type\": \"array\"` with `\"items\"` pointing to the object schema",
+      "Use `\"type\": \"list\"` with `\"elements\"` pointing to the object schema",
+      "Wrap the object schema in square brackets"
+    ],
+    choicesVi: [
+      "Dùng `\"type\": \"array\"` và định nghĩa từng phần tử trong `\"properties\"`",
+      "Dùng `\"type\": \"array\"` với `\"items\"` trỏ đến schema object",
+      "Dùng `\"type\": \"list\"` với `\"elements\"` trỏ đến schema object",
+      "Bọc schema object trong dấu ngoặc vuông"
+    ],
+    answer: 1,
+    explain: "For an array response, set `\"type\": \"array\"` and use `\"items\"` to define the schema that each element must satisfy. You can also add `\"minItems\"` to ensure the array is not empty. Example: { \"type\": \"array\", \"items\": POST_SCHEMA, \"minItems\": 1 }.",
+    explainVi: "Với response dạng mảng, đặt `\"type\": \"array\"` và dùng `\"items\"` để định nghĩa schema mà mỗi phần tử phải thỏa mãn. Bạn cũng có thể thêm `\"minItems\"` để đảm bảo mảng không rỗng. Ví dụ: { \"type\": \"array\", \"items\": POST_SCHEMA, \"minItems\": 1 }."
+  },
+  {
+    q: "What exception does the `jsonschema` library raise when validation fails?",
+    qVi: "Thư viện `jsonschema` raise exception nào khi xác thực thất bại?",
+    choices: [
+      "ValueError",
+      "ValidationError",
+      "SchemaError",
+      "AssertionError"
+    ],
+    choicesVi: [
+      "ValueError",
+      "ValidationError",
+      "SchemaError",
+      "AssertionError"
+    ],
+    answer: 1,
+    explain: "The jsonschema library raises jsonschema.ValidationError when data does not match the schema. You can catch it to read e.message (human-readable explanation) and e.path (which field failed). SchemaError is raised separately if the schema itself is malformed.",
+    explainVi: "Thư viện jsonschema raise jsonschema.ValidationError khi dữ liệu không khớp với schema. Bạn có thể bắt nó để đọc e.message (giải thích dễ đọc) và e.path (trường nào thất bại). SchemaError được raise riêng nếu bản thân schema bị sai định dạng."
+  },
+  {
+    q: "When should you store JSON schemas in separate `.json` files instead of inline dicts?",
+    qVi: "Khi nào nên lưu JSON schema trong các file `.json` riêng thay vì dict nội tuyến?",
+    choices: [
+      "Always — inline dicts are not valid Python",
+      "When schemas are large, complex, or reused across multiple test files",
+      "Only when the schema contains nested objects",
+      "Never — inline dicts load faster than file I/O"
+    ],
+    choicesVi: [
+      "Luôn luôn — dict nội tuyến không phải Python hợp lệ",
+      "Khi schema lớn, phức tạp hoặc được dùng lại ở nhiều file test",
+      "Chỉ khi schema chứa object lồng nhau",
+      "Không bao giờ — dict nội tuyến tải nhanh hơn I/O file"
+    ],
+    answer: 1,
+    explain: "Storing schemas in separate .json files makes sense when: (1) the schema is large enough to clutter the test file, (2) multiple test files need the same schema, or (3) you want non-developers (QA leads, API designers) to review and update schemas independently of test code.",
+    explainVi: "Lưu schema trong file .json riêng có ý nghĩa khi: (1) schema đủ lớn để làm rối file test, (2) nhiều file test cần cùng một schema, hoặc (3) bạn muốn người không phải developer (QA lead, API designer) xem xét và cập nhật schema độc lập với code test."
   }
 ]} />
 

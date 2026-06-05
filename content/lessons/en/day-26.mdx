@@ -2,161 +2,758 @@
 id: 26
 title: "Waiting strategies"
 phase: 3
-estMinutes: 60
+estMinutes: 75
 tags: ["playwright", "waiting"]
 ---
 
 ## Intro
 
 <En>
-Flaky tests — tests that sometimes pass and sometimes fail without any code change — are the number one problem in browser automation. The most common cause is timing: the test tries to interact with an element before it is ready. Playwright's approach to waiting is fundamentally different from older tools, and understanding it is what separates stable test suites from unreliable ones.
+Flaky tests — tests that sometimes pass and sometimes fail without any code change — are the biggest pain in UI automation. The root cause is almost always **timing**: the test tried to interact with something that wasn't ready yet.
+
+Playwright's auto-wait eliminates most timing issues automatically. But some situations require explicit waiting: navigations that take time, elements that appear after an API call, animations that must complete, or network requests that need to finish. Knowing when to use which waiting strategy is what separates a senior automation engineer from a beginner.
+
+**The golden rule:** Never use `time.sleep()` in production tests. It makes tests slow without making them more reliable. Use Playwright's built-in waits instead.
 </En>
 <Vi>
-Test không ổn định — test đôi khi pass đôi khi fail mà không có thay đổi code — là vấn đề số một trong tự động hoá trình duyệt. Nguyên nhân phổ biến nhất là timing: test cố tương tác với phần tử trước khi nó sẵn sàng. Cách tiếp cận của Playwright về việc chờ về cơ bản khác với các công cụ cũ hơn, và hiểu điều này là điều phân biệt bộ test ổn định với bộ test không đáng tin cậy.
+Test không ổn định — test đôi khi pass, đôi khi fail mà không có thay đổi code nào — là nỗi đau lớn nhất trong tự động hoá UI. Nguyên nhân gốc rễ hầu như luôn là **timing**: test cố tương tác với thứ gì đó chưa sẵn sàng.
+
+Auto-wait của Playwright loại bỏ hầu hết các vấn đề timing tự động. Nhưng một số tình huống cần chờ rõ ràng: điều hướng mất thời gian, phần tử xuất hiện sau lời gọi API, animation phải hoàn thành, hoặc network request cần kết thúc. Biết khi nào dùng chiến lược chờ nào là điều phân biệt kỹ sư automation cao cấp với người mới bắt đầu.
+
+**Quy tắc vàng:** Không bao giờ dùng `time.sleep()` trong test thực. Nó làm test chậm mà không đáng tin hơn. Thay vào đó dùng các lệnh chờ tích hợp của Playwright.
 </Vi>
 
 ## Concept
 
 <En>
-**Playwright's auto-wait (built-in):**
-Before any action (click, fill, etc.), Playwright checks that the element:
-1. Is attached to the DOM
-2. Is visible (not hidden or `display: none`)
-3. Is stable (not animating)
-4. Is enabled (not disabled)
-5. Receives events (not obscured by another element)
+**Layer 1 — Auto-wait (built in, always on):**
+Every action (`.click()`, `.fill()`, `.press()`) and every `expect()` assertion automatically waits for the target element to be ready. You don't write any wait code — it just works.
 
-This eliminates most timing issues without any extra code.
+**Layer 2 — `expect()` assertions with retry:**
+Playwright's `expect()` assertions poll and retry until the condition is true or the timeout expires. The default timeout is **5 seconds**.
 
-**Explicit waits — when you need them:**
+```python
+# These all retry automatically every ~100ms until timeout:
+expect(locator).to_be_visible()         # wait for element to appear
+expect(locator).to_be_hidden()          # wait for element to disappear
+expect(locator).to_contain_text("OK")  # wait for text to appear
+expect(locator).to_have_count(3)       # wait for correct number of items
+expect(page).to_have_url("/dashboard") # wait for navigation
 
-| Wait method | When to use |
-|-------------|-------------|
-| `expect(locator).to_be_visible()` | Wait for element to appear |
-| `expect(locator).to_contain_text("...")` | Wait for text to load |
-| `page.wait_for_url("**/dashboard")` | Wait for navigation |
-| `page.wait_for_load_state("networkidle")` | Wait for network to be quiet |
-| `page.wait_for_selector(".spinner", state="hidden")` | Wait for a spinner to disappear |
+# Override the timeout for a single assertion (in milliseconds):
+expect(locator).to_be_visible(timeout=10_000)  # wait up to 10s for this one assertion
+expect(locator).to_contain_text("Saved", timeout=15_000)  # slow async operation
+```
 
-**Timeouts:**
-- Default action timeout: 30 seconds
-- Default assertion timeout: 5 seconds
-- Override per-action: `locator.click(timeout=60_000)`
-- Override globally in `pytest.ini` or `conftest.py`
+**Layer 3 — Explicit page waits (when you need to wait for something global):**
 
-**Anti-patterns to avoid:**
-- `time.sleep(3)` — fixed delay. Don't do this. It's slow when the element is ready early, and still fails when the network is slow.
-- `page.wait_for_timeout(2000)` — Playwright's own sleep. Also an anti-pattern except for very specific debugging.
-- Checking `is_visible()` in a loop — reinventing what `expect()` already does.
+```python
+# Wait for a specific URL pattern (supports glob and regex)
+page.wait_for_url("**/dashboard")
+page.wait_for_url("https://app.com/user/*")
+
+# Wait for the page load state — choose based on what the page does:
+page.wait_for_load_state("load")             # HTML + deferred resources (images, scripts)
+page.wait_for_load_state("domcontentloaded") # HTML only — fast, before images load
+page.wait_for_load_state("networkidle")      # no network requests for 500ms — all API calls done
+
+# Wait for a specific element to appear — returns the ElementHandle when found
+page.wait_for_selector(".success-banner")
+page.wait_for_selector(".success-banner", state="visible")   # default
+page.wait_for_selector(".spinner", state="hidden")           # wait for element to disappear
+
+# Wait for a network response from a specific endpoint
+with page.expect_response("**/api/users") as response_info:
+    page.get_by_role("button", name="Load Users").click()
+response = response_info.value
+print(f"API status: {response.status}")
+
+# Wait for navigation triggered by a click
+with page.expect_navigation():
+    page.get_by_role("button", name="Submit").click()
+```
+
+**`domcontentloaded` vs `networkidle` — which to use:**
+
+- `domcontentloaded` fires when the HTML is fully parsed, before images, stylesheets, and scripts finish loading. It's **fast** — use this when you only need the page structure.
+- `load` fires when all synchronously loaded resources (images, CSS) are done. Good for most traditional pages.
+- `networkidle` waits until no network requests have been made for 500ms — meaning all API calls finished. **Use this for SPAs** that fetch data after the initial HTML loads. It's the slowest but most complete.
+
+**Choosing the right wait strategy — decision guide:**
+
+```
+What are you waiting for?
+│
+├── An element to appear or disappear?
+│   └── Use: expect(locator).to_be_visible() / .to_be_hidden()
+│
+├── Text to appear after an async call?
+│   └── Use: expect(locator).to_contain_text("...")
+│
+├── The URL to change after a click?
+│   └── Use: page.wait_for_url("**/path") or expect(page).to_have_url(...)
+│
+├── A specific number of items to load?
+│   └── Use: expect(locator).to_have_count(n)
+│
+├── All page resources and API calls to finish?
+│   └── Use: page.wait_for_load_state("networkidle")
+│
+├── A specific API endpoint to respond?
+│   └── Use: page.expect_response() as a context manager
+│
+└── A custom JavaScript condition to become true?
+    └── Use: page.wait_for_function("window.myFlag === true")
+```
+
+**`page.wait_for_function()` — waiting for a JavaScript condition:**
+Use this when no DOM element signals readiness, but a JavaScript variable or computed state does:
+
+```python
+# Wait until a JS variable is set by the application
+page.wait_for_function("window.appReady === true")
+
+# Wait until a specific number of items are in a list
+page.wait_for_function("document.querySelectorAll('.item').length >= 10")
+
+# Wait for a custom app event to fire
+page.wait_for_function("window.__lastApiCallDone === true")
+```
+
+**`page.wait_for_event()` — waiting for browser events:**
+Use this to wait for browser-level events that aren't tied to a specific DOM element:
+
+```python
+# Wait for a new tab/popup to open
+with page.expect_popup() as popup_info:
+    page.get_by_role("button", name="Open in new tab").click()
+popup = popup_info.value
+popup.wait_for_load_state()
+print(f"Popup URL: {popup.url}")
+
+# Wait for a download to start
+with page.expect_download() as download_info:
+    page.get_by_role("button", name="Download Report").click()
+download = download_info.value
+download.save_as("report.pdf")
+```
+
+**Layer 4 — Polling with `expect()` (for dynamic UI):**
+When content loads asynchronously (e.g., infinite scroll, live updates), `expect()` handles it:
+
+```python
+# Wait up to 15 seconds for a slow element (override default 5s)
+expect(page.locator(".result-table")).to_be_visible(timeout=15_000)
+
+# Wait for text to appear after an API call
+expect(page.locator(".toast")).to_contain_text("Saved successfully")
+
+# Wait for all items to load in an infinite scroll list
+expect(page.locator(".list-item")).to_have_count(20, timeout=10_000)
+```
+
+**What to avoid:**
+```python
+import time
+
+# ❌ Bad — hard-coded sleep. Slow AND still sometimes fails.
+time.sleep(2)
+page.locator(".button").click()
+
+# ✅ Good — let Playwright wait intelligently
+page.locator(".button").click()  # auto-waits before clicking
+
+# ❌ Bad — checking is_visible() without retry
+assert page.locator(".result").is_visible()  # fails if not yet rendered
+
+# ✅ Good — use expect() which retries every ~100ms
+expect(page.locator(".result")).to_be_visible()
+```
+
+**Timeout configuration:**
+```python
+# Set a global default timeout for ALL actions and assertions (milliseconds)
+page.set_default_timeout(10_000)      # 10 seconds for everything
+
+# Set a longer timeout just for navigations (page.goto, wait_for_url, etc.)
+page.set_default_navigation_timeout(30_000)  # 30 seconds for navigations only
+
+# Per-call timeout (overrides the global default for that one call)
+expect(locator).to_be_visible(timeout=15_000)
+page.wait_for_url("**/account", timeout=10_000)
+```
 </En>
 <Vi>
-**Auto-wait của Playwright (tích hợp sẵn):**
-Trước bất kỳ action nào, Playwright kiểm tra phần tử:
-1. Được gắn vào DOM
-2. Hiển thị (không ẩn hoặc `display: none`)
-3. Ổn định (không đang animate)
-4. Được kích hoạt (không bị disable)
-5. Nhận sự kiện (không bị che bởi phần tử khác)
+**Lớp 1 — Auto-wait (tích hợp sẵn, luôn hoạt động):**
+Mọi action (`.click()`, `.fill()`, `.press()`) và mọi assertion `expect()` tự động chờ phần tử đích sẵn sàng. Bạn không cần viết code chờ — nó tự hoạt động.
 
-Điều này loại bỏ hầu hết các vấn đề timing mà không cần thêm code.
+**Lớp 2 — Assertion `expect()` với retry:**
+Assertion `expect()` của Playwright thử lại mỗi ~100ms cho đến khi điều kiện đúng hoặc hết timeout. Timeout mặc định là **5 giây**.
 
-**Chờ tường minh — khi nào cần:**
+```python
+# Tất cả đều tự retry:
+expect(locator).to_be_visible()         # chờ phần tử xuất hiện
+expect(locator).to_be_hidden()          # chờ phần tử biến mất
+expect(locator).to_contain_text("OK")  # chờ text xuất hiện
+expect(locator).to_have_count(3)       # chờ đúng số lượng phần tử
+expect(page).to_have_url("/dashboard") # chờ điều hướng
 
-| Phương thức chờ | Khi nào dùng |
-|-------------|-------------|
-| `expect(locator).to_be_visible()` | Chờ phần tử xuất hiện |
-| `expect(locator).to_contain_text("...")` | Chờ văn bản tải |
-| `page.wait_for_url("**/dashboard")` | Chờ điều hướng |
-| `page.wait_for_load_state("networkidle")` | Chờ mạng yên |
-| `page.wait_for_selector(".spinner", state="hidden")` | Chờ spinner biến mất |
+# Override timeout cho một assertion cụ thể:
+expect(locator).to_be_visible(timeout=10_000)       # chờ tối đa 10s
+expect(locator).to_contain_text("Saved", timeout=15_000)  # thao tác async chậm
+```
 
-**Anti-pattern cần tránh:**
-- `time.sleep(3)` — độ trễ cố định. Đừng làm vậy.
-- `page.wait_for_timeout(2000)` — cũng là anti-pattern ngoại trừ debug.
+**Lớp 3 — Chờ trang rõ ràng:**
+
+```python
+# Chờ URL thay đổi
+page.wait_for_url("**/dashboard")
+
+# Chờ trạng thái tải trang:
+page.wait_for_load_state("load")             # HTML + tài nguyên defer
+page.wait_for_load_state("domcontentloaded") # chỉ HTML — nhanh
+page.wait_for_load_state("networkidle")      # không có network request trong 500ms
+
+# Chờ phần tử cụ thể xuất hiện — trả về ElementHandle khi tìm thấy
+page.wait_for_selector(".success-banner")
+page.wait_for_selector(".spinner", state="hidden")  # chờ phần tử biến mất
+```
+
+**`domcontentloaded` vs `networkidle` — nên dùng cái nào:**
+
+- `domcontentloaded` kích hoạt khi HTML được phân tích xong, trước khi ảnh và script tải xong. **Nhanh** — dùng khi chỉ cần cấu trúc trang.
+- `load` kích hoạt khi tất cả tài nguyên đồng bộ (ảnh, CSS) đã xong. Tốt cho hầu hết trang truyền thống.
+- `networkidle` chờ đến khi không có network request nào trong 500ms — nghĩa là tất cả API call đã xong. **Dùng cho SPA** lấy dữ liệu sau khi HTML ban đầu tải.
+
+**Hướng dẫn chọn chiến lược chờ:**
+
+```
+Bạn đang chờ gì?
+│
+├── Phần tử xuất hiện hoặc biến mất?
+│   └── Dùng: expect(locator).to_be_visible() / .to_be_hidden()
+│
+├── Text xuất hiện sau async call?
+│   └── Dùng: expect(locator).to_contain_text("...")
+│
+├── URL thay đổi sau khi click?
+│   └── Dùng: page.wait_for_url("**/path") hoặc expect(page).to_have_url(...)
+│
+├── Một số lượng item cụ thể tải xong?
+│   └── Dùng: expect(locator).to_have_count(n)
+│
+├── Tất cả tài nguyên và API call xong?
+│   └── Dùng: page.wait_for_load_state("networkidle")
+│
+├── Một endpoint API cụ thể phản hồi?
+│   └── Dùng: page.expect_response() như context manager
+│
+└── Điều kiện JavaScript tùy chỉnh trở thành true?
+    └── Dùng: page.wait_for_function("window.myFlag === true")
+```
+
+**`page.wait_for_function()` — chờ điều kiện JavaScript:**
+```python
+# Chờ đến khi biến JS được set bởi ứng dụng
+page.wait_for_function("window.appReady === true")
+
+# Chờ đến khi có đủ số item trong danh sách
+page.wait_for_function("document.querySelectorAll('.item').length >= 10")
+```
+
+**`page.wait_for_event()` — chờ sự kiện trình duyệt:**
+```python
+# Chờ tab/popup mới mở
+with page.expect_popup() as popup_info:
+    page.get_by_role("button", name="Open in new tab").click()
+popup = popup_info.value
+print(f"Popup URL: {popup.url}")
+```
+
+**Tránh:**
+```python
+# ❌ Xấu
+time.sleep(2)
+assert page.locator(".result").is_visible()  # không retry — không đáng tin
+
+# ✅ Tốt — dùng expect() để retry
+expect(page.locator(".result")).to_be_visible()
+```
+
+**Cấu hình timeout:**
+```python
+# Đặt timeout mặc định toàn cục cho TẤT CẢ actions và assertions
+page.set_default_timeout(10_000)      # 10 giây
+
+# Chỉ cho navigation
+page.set_default_navigation_timeout(30_000)  # 30 giây
+
+# Per-call (override global)
+expect(locator).to_be_visible(timeout=15_000)
+```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Navigation and load state waits**
+
+</En>
+<Vi>
+
+**Phần 1 — Chờ điều hướng và trạng thái tải trang**
+
+</Vi>
+
 ```python
-# tests/test_waiting.py
-from playwright.sync_api import Page, expect
+# demo_wait_navigation.py
+# Run with: python demo_wait_navigation.py
+from playwright.sync_api import sync_playwright, expect
 
-def test_navigation_wait(page: Page):
-    page.goto("https://example.com")
-    # Playwright waits for navigation to complete automatically
-    link = page.get_by_role("link", name="More information")
-    link.click()
-    # Wait for the new URL
-    page.wait_for_url("https://www.iana.org/**")
-    expect(page).to_have_url("https://www.iana.org/domains/reserved")
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
 
-def test_element_appears_after_action(page: Page):
-    # Using the Playwright TodoMVC demo
-    page.goto("https://demo.playwright.dev/todomvc")
-    # Add an item
-    new_todo = page.get_by_placeholder("What needs to be done?")
-    new_todo.fill("Learn waiting strategies")
-    new_todo.press("Enter")
-    # Playwright auto-waits for the new item to be visible
-    item = page.get_by_role("listitem").filter(has_text="Learn waiting strategies")
-    expect(item).to_be_visible()  # this auto-retries up to 5 seconds
+    # Navigate to login page and wait for the page to fully settle
+    # networkidle ensures the page's API calls finish before we start interacting
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+    page.wait_for_load_state("networkidle")
+    print(f"Login page loaded: {page.url}")
 
-def test_wait_for_network_idle(page: Page):
-    # Wait for the page to finish all network requests
-    page.goto("https://example.com", wait_until="networkidle")
-    expect(page).to_have_title("Example Domain")
+    # Fill credentials — auto-wait handles element readiness
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
 
-def test_custom_timeout_per_assertion(page: Page):
-    page.goto("https://example.com")
-    heading = page.locator("h1")
-    # Override timeout for this specific assertion only
-    expect(heading).to_be_visible(timeout=10_000)  # 10 seconds
+    # Click Login — the button triggers a POST request and then a redirect
+    # We MUST wait for the URL to change — the click() itself returns immediately
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url("**/account", timeout=10_000)  # wait up to 10s for redirect
+    print(f"After login URL: {page.url}")
 
-# BAD EXAMPLE — included to illustrate what NOT to do:
-# def test_bad_sleep(page: Page):
-#     page.goto("https://example.com")
-#     time.sleep(3)  # NEVER do this — fixed delays cause flaky tests
-#     assert page.title() == "Example Domain"
+    # Now assert the dashboard heading is visible
+    # expect() retries for 5s — safe even if the page is still rendering
+    expect(page.get_by_role("heading", name="My account")).to_be_visible()
+    print("Dashboard heading visible — test passed!")
+
+    browser.close()
+
+# Expected output:
+# Login page loaded: https://practicesoftwaretesting.com/auth/login
+# After login URL: https://practicesoftwaretesting.com/account
+# Dashboard heading visible — test passed!
+```
+
+<En>
+
+**Part 2 — Waiting for dynamic content**
+
+</En>
+<Vi>
+
+**Phần 2 — Chờ nội dung động**
+
+</Vi>
+
+```python
+# demo_wait_dynamic.py
+# Demonstrates waiting for search results that load asynchronously via API
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.goto("https://practicesoftwaretesting.com")
+
+    # Type in the search box and submit
+    search = page.get_by_role("textbox", name="Search")
+    search.fill("Hammer")
+    search.press("Enter")
+
+    # The results load via an API call — we must wait for them before asserting
+    #
+    # Option 1: networkidle — wait for ALL network activity to stop (broad, sometimes overkill)
+    page.wait_for_load_state("networkidle")
+
+    # Option 2: to_have_count — more specific: wait until a specific number of cards appear
+    # Use this when you know the expected count; prefer over networkidle for SPA search results
+    expect(page.locator(".card")).to_have_count(1, timeout=8_000)
+
+    cards = page.locator(".card")
+    assert cards.count() > 0, "No results found for 'Hammer'"
+    print(f"Found {cards.count()} result(s) for 'Hammer'")
+
+    # Wait for specific text to appear within the first card
+    expect(page.locator(".card").first).to_contain_text("Hammer", timeout=5_000)
+    print("First result contains 'Hammer' — correct!")
+
+    browser.close()
+
+# Expected output:
+# Found 1 result(s) for 'Hammer'
+# First result contains 'Hammer' — correct!
+```
+
+<En>
+
+**Part 3 — Network response interception**
+
+</En>
+<Vi>
+
+**Phần 3 — Chặn response mạng**
+
+</Vi>
+
+```python
+# demo_wait_network.py
+# Wait for a specific API call to complete before asserting
+# This is the most precise technique: you get the exact API response
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.goto("https://practicesoftwaretesting.com")
+
+    # expect_response() as a context manager:
+    # 1. Playwright starts listening for the matching response BEFORE the click
+    # 2. The action inside the `with` block triggers the network call
+    # 3. When the `with` block exits, response_info.value holds the response
+    # This guarantees zero race conditions — no sleep needed
+    with page.expect_response(
+        lambda response: "/products/search" in response.url and response.status == 200,
+        timeout=10_000
+    ) as response_info:
+        # Trigger the search — this fires the API call we're listening for
+        page.get_by_role("textbox", name="Search").fill("Pliers")
+        page.get_by_role("textbox", name="Search").press("Enter")
+
+    response = response_info.value
+    print(f"API responded with status: {response.status}")
+    print(f"API URL: {response.url}")
+
+    # Now the results are guaranteed to be in the DOM
+    # The API has responded — the UI must have rendered the data
+    cards = page.locator(".card")
+    print(f"Products found: {cards.count()}")
+
+    browser.close()
+
+# Expected output:
+# API responded with status: 200
+# API URL: https://practicesoftwaretesting.com/products/search?q=Pliers&...
+# Products found: 3
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a test that clicks a link, waits for the URL to change using `wait_for_url()`, then asserts the new page has the expected title
-- [ ] Add a test that adds a TodoMVC item and uses `expect(item).to_be_visible(timeout=3000)` — then explain what would happen if the default timeout was 0
-- [ ] Identify two places in your existing tests where `time.sleep()` might have been used and explain which Playwright waiting method should replace it
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Replace time.sleep() with proper Playwright waits",
+    code: `# tests/test_waiting_exercise.py
+# Run with: pytest tests/test_waiting_exercise.py -v
+import time
+from playwright.sync_api import Page, expect
+
+BASE = "https://practicesoftwaretesting.com"
+
+def test_search_waits_for_results(page: Page):
+    """Search should show results — replace sleep with a proper wait."""
+    page.goto(BASE)
+    page.get_by_role("textbox", name="Search").fill("Bolt")
+    page.get_by_role("textbox", name="Search").press("Enter")
+
+    # Fix this: replace time.sleep with a proper wait strategy
+    # Hint: use page.wait_for_load_state("networkidle") or
+    #       expect(page.locator(".card")).to_have_count(..., timeout=8_000)
+    # TODO (EN): Replace with page.wait_for_load_state("networkidle")
+    # TODO (VI): Thay bằng page.wait_for_load_state("networkidle")
+    time.sleep(3)  # TODO: replace with the appropriate wait
+
+    cards = page.locator(".card")
+    assert cards.count() > 0, "Expected search results"
+    print(f"Found {cards.count()} result(s)")
+
+def test_login_waits_for_redirect(page: Page):
+    """Login should redirect to /account — replace sleep with proper wait."""
+    page.goto(f"{BASE}/auth/login")
+    page.get_by_label("Email").fill("customer@practicesoftwaretesting.com")
+    page.get_by_label("Password").fill("welcome01")
+    page.get_by_role("button", name="Login").click()
+
+    # Fix this: replace time.sleep with page.wait_for_url or expect(page).to_have_url
+    # Hint: page.wait_for_url("**/account", timeout=10_000)
+    # TODO (EN): Replace with page.wait_for_url("**/account", timeout=10_000)
+    # TODO (VI): Thay bằng page.wait_for_url("**/account", timeout=10_000)
+    time.sleep(4)  # TODO: replace
+
+    assert "/account" in page.url, f"Expected /account in URL, got: {page.url}"
+    print(f"Redirected to: {page.url}")
+
+def test_contact_form_submitted(page: Page):
+    """Submit contact form and wait for confirmation message."""
+    page.goto(f"{BASE}/contact")
+    page.get_by_label("First name").fill("Test")
+    page.get_by_label("Last name").fill("User")
+    page.get_by_label("Email").fill("test@example.com")
+    page.select_option("select[name='subject']", label="Webmaster")
+    page.get_by_label("Message").fill("Automated test message - please ignore.")
+    page.get_by_role("button", name="Send").click()
+
+    # Fix this: replace sleep with expect() waiting for the success message
+    # Inspect the contact page after submission to find the selector
+    # Common patterns: .alert-success, [role='alert'], .toast, .message
+    # TODO (EN): Remove this sleep — expect().to_be_visible() already waits automatically
+    # TODO (VI): Xóa sleep này — expect().to_be_visible() đã tự động chờ
+    time.sleep(2)  # TODO: replace
+
+    # Find the success selector by inspecting the page — replace "???" with the real selector
+    # TODO (EN): Inspect the page after form submission to find the success alert selector
+    # TODO (VI): Inspect trang sau khi submit form để tìm selector của thông báo thành công
+    success = page.locator("???")
+    expect(success).to_be_visible()`
+  }
+]}>
+
+<En>
+Replace every \`time.sleep()\` with the appropriate Playwright wait. The correct replacements are:
+- \`time.sleep(3)\` → \`page.wait_for_load_state("networkidle")\`
+- \`time.sleep(4)\` → \`page.wait_for_url("**/account", timeout=10_000)\`
+- \`time.sleep(2)\` → remove it; Playwright's \`expect().to_be_visible()\` already waits automatically
+
+**Expected output when fixed:**
+\`\`\`
+PASSED tests/test_waiting_exercise.py::test_search_waits_for_results
+PASSED tests/test_waiting_exercise.py::test_login_waits_for_redirect
+PASSED tests/test_waiting_exercise.py::test_contact_form_submitted
+3 passed in ~12s (vs ~25s with sleep)
+\`\`\`
+
+- [ ] Replace every \`time.sleep()\` with the appropriate Playwright wait
+- [ ] Identify the correct success message selector by inspecting the contact form page after clicking Send
+- [ ] Run \`pytest tests/test_waiting_exercise.py -v\` — all tests should pass without any sleep()
+</En>
+<Vi>
+Thay mỗi \`time.sleep()\` bằng phương thức chờ Playwright phù hợp. Cách thay đúng:
+- \`time.sleep(3)\` → \`page.wait_for_load_state("networkidle")\`
+- \`time.sleep(4)\` → \`page.wait_for_url("**/account", timeout=10_000)\`
+- \`time.sleep(2)\` → xóa đi; \`expect().to_be_visible()\` của Playwright đã tự động chờ
+
+**Kết quả mong đợi sau khi sửa:**
+\`\`\`
+PASSED tests/test_waiting_exercise.py::test_search_waits_for_results
+PASSED tests/test_waiting_exercise.py::test_login_waits_for_redirect
+PASSED tests/test_waiting_exercise.py::test_contact_form_submitted
+3 passed in ~12s (so với ~25s khi dùng sleep)
+\`\`\`
+
+- [ ] Thay mỗi \`time.sleep()\` bằng phương thức chờ Playwright phù hợp
+- [ ] Tìm selector thông báo thành công bằng cách inspect trang contact sau khi click Send
+- [ ] Chạy \`pytest tests/test_waiting_exercise.py -v\` — tất cả test phải pass mà không có sleep()
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "Why should you avoid `time.sleep()` in Playwright tests?",
+    q: "Why is `time.sleep(2)` considered bad practice in Playwright tests?",
+    qVi: "Tại sao `time.sleep(2)` được coi là thực hành xấu trong Playwright tests?",
     choices: [
-      "Because Python's time module is not available in Playwright",
-      "Because fixed delays are too slow when elements are ready early, and too short when the app is slow",
-      "Because Playwright blocks sleep() calls",
-      "Because sleep() only works in async code"
+      "time.sleep() is not available in Python",
+      "It adds a fixed delay regardless of whether the element is ready — making tests slow AND still flaky if the page takes longer than expected",
+      "Playwright does not allow importing the time module",
+      "It only works on Windows"
+    ],
+    choicesVi: [
+      "time.sleep() không có sẵn trong Python",
+      "Nó thêm độ trễ cố định bất kể phần tử đã sẵn sàng hay chưa — khiến test chậm VÀ vẫn không ổn định nếu trang mất nhiều thời gian hơn dự kiến",
+      "Playwright không cho phép import module time",
+      "Nó chỉ hoạt động trên Windows"
     ],
     answer: 1,
-    explain: "time.sleep(3) waits 3 full seconds whether the element appears in 0.1 seconds or 3.1 seconds. It's slow, brittle, and non-deterministic. Playwright's expect() and wait_for_* methods poll efficiently and react as soon as the condition is met."
+    explain: "time.sleep(2) always waits the full 2 seconds, even if the element is ready in 200ms (slow). And if the page occasionally takes 3 seconds, the test still fails (flaky). Playwright's waits are intelligent — they check repeatedly and stop as soon as the condition is met.",
+    explainVi: "time.sleep(2) luôn chờ đủ 2 giây, dù phần tử đã sẵn sàng trong 200ms (chậm). Và nếu trang đôi khi mất 3 giây, test vẫn thất bại (không ổn định). Các lệnh chờ của Playwright thông minh hơn — chúng kiểm tra liên tục và dừng ngay khi điều kiện được đáp ứng."
   },
   {
-    q: "What does Playwright check before executing a click() action?",
+    q: "What does `page.wait_for_load_state('networkidle')` wait for?",
+    qVi: "`page.wait_for_load_state('networkidle')` chờ điều gì?",
     choices: [
-      "Only that the element exists in the DOM",
-      "That the element is attached, visible, stable, enabled, and not obscured",
-      "That the page has finished loading",
-      "Nothing — it clicks immediately"
+      "The page title to be set",
+      "All images to finish rendering",
+      "No network requests for at least 500ms — meaning all API calls have completed",
+      "The DOM to be fully parsed"
+    ],
+    choicesVi: [
+      "Tiêu đề trang được đặt",
+      "Tất cả ảnh hoàn thành việc render",
+      "Không có network request nào trong ít nhất 500ms — nghĩa là tất cả API call đã hoàn thành",
+      "DOM được phân tích hoàn toàn"
+    ],
+    answer: 2,
+    explain: "'networkidle' waits until there are no active network connections for 500ms. This is useful for SPAs that load data via API calls after the initial HTML is parsed. Use 'load' for simpler pages, 'domcontentloaded' for the fastest check.",
+    explainVi: "'networkidle' chờ đến khi không có kết nối mạng nào đang hoạt động trong 500ms. Điều này hữu ích cho các SPA tải dữ liệu qua API sau khi HTML ban đầu được phân tích. Dùng 'load' cho các trang đơn giản hơn, 'domcontentloaded' để kiểm tra nhanh nhất."
+  },
+  {
+    q: "What is the default timeout for Playwright's `expect()` assertions?",
+    qVi: "Timeout mặc định cho các assertion `expect()` của Playwright là bao lâu?",
+    choices: [
+      "1 second",
+      "5 seconds",
+      "30 seconds",
+      "There is no timeout — they retry forever"
+    ],
+    choicesVi: [
+      "1 giây",
+      "5 giây",
+      "30 giây",
+      "Không có timeout — chúng retry mãi mãi"
     ],
     answer: 1,
-    explain: "Playwright's auto-wait checks multiple actionability conditions before interacting. This is why most tests don't need explicit waits — Playwright handles the common timing issues automatically."
+    explain: "The default timeout for expect() assertions is 5 seconds (5000ms). You can override it per-assertion with timeout=10_000 or globally with page.set_default_timeout().",
+    explainVi: "Timeout mặc định cho các assertion expect() là 5 giây (5000ms). Bạn có thể override cho từng assertion bằng timeout=10_000 hoặc toàn cục bằng page.set_default_timeout()."
+  },
+  {
+    q: "You click a button that triggers a navigation. Which is the correct way to wait?",
+    qVi: "Bạn click một button kích hoạt điều hướng. Cách chờ đúng là gì?",
+    choices: [
+      "time.sleep(3) after the click",
+      "page.wait_for_url('**/target-page') after the click, or use expect(page).to_have_url()",
+      "page.wait_for_selector('body') after the click",
+      "Navigation waits are automatic — no code needed"
+    ],
+    choicesVi: [
+      "time.sleep(3) sau khi click",
+      "page.wait_for_url('**/target-page') sau khi click, hoặc dùng expect(page).to_have_url()",
+      "page.wait_for_selector('body') sau khi click",
+      "Chờ điều hướng là tự động — không cần code"
+    ],
+    answer: 1,
+    explain: "page.wait_for_url() or expect(page).to_have_url() are the correct ways to wait for a navigation. The click itself doesn't guarantee the navigation is complete — you need to explicitly wait for the URL to change.",
+    explainVi: "page.wait_for_url() hoặc expect(page).to_have_url() là cách đúng để chờ điều hướng. Bản thân click() không đảm bảo điều hướng hoàn thành — bạn cần chờ rõ ràng để URL thay đổi."
+  },
+  {
+    q: "When would you use `page.expect_response()` as a context manager?",
+    qVi: "Khi nào bạn sẽ dùng `page.expect_response()` như một context manager?",
+    choices: [
+      "To block all network responses from the server",
+      "To intercept and wait for a specific API response before continuing, ensuring the data is loaded",
+      "To mock an API endpoint",
+      "To count the total number of network requests"
+    ],
+    choicesVi: [
+      "Để chặn tất cả response mạng từ server",
+      "Để chặn và chờ một API response cụ thể trước khi tiếp tục, đảm bảo dữ liệu đã được tải",
+      "Để mock một API endpoint",
+      "Để đếm tổng số network request"
+    ],
+    answer: 1,
+    explain: "Using expect_response() as a `with` block captures a specific network response. You trigger the action inside the block, and when the block exits, response_info.value contains the actual response. This gives you a precise moment to assert — the data is guaranteed to be in the DOM.",
+    explainVi: "Dùng expect_response() như khối `with` bắt một network response cụ thể. Bạn kích hoạt action bên trong block, và khi block kết thúc, response_info.value chứa response thực tế. Điều này cho bạn thời điểm chính xác để assert — dữ liệu được đảm bảo đã có trong DOM."
+  },
+  {
+    q: "What does `page.wait_for_selector('.success-banner')` return when the element appears?",
+    qVi: "`page.wait_for_selector('.success-banner')` trả về gì khi phần tử xuất hiện?",
+    choices: [
+      "True (a boolean)",
+      "The matching ElementHandle — a reference to the DOM node",
+      "A Locator for the element",
+      "The element's text content"
+    ],
+    choicesVi: [
+      "True (một boolean)",
+      "ElementHandle khớp — tham chiếu đến DOM node",
+      "Một Locator cho phần tử",
+      "Nội dung text của phần tử"
+    ],
+    answer: 1,
+    explain: "wait_for_selector() returns an ElementHandle when the element appears. Unlike Locators (which are lazy), an ElementHandle is a direct reference to a specific DOM node at a point in time. For most cases, prefer expect(locator).to_be_visible() which is more resilient.",
+    explainVi: "wait_for_selector() trả về một ElementHandle khi phần tử xuất hiện. Không giống Locator (vốn là lazy), ElementHandle là tham chiếu trực tiếp đến một DOM node cụ thể tại một thời điểm. Trong hầu hết trường hợp, ưu tiên expect(locator).to_be_visible() vì ổn định hơn."
+  },
+  {
+    q: "How do you increase the timeout for one specific `expect()` assertion to 15 seconds?",
+    qVi: "Làm thế nào để tăng timeout cho một assertion `expect()` cụ thể lên 15 giây?",
+    choices: [
+      "expect(locator, timeout=15_000).to_be_visible()",
+      "expect(locator).to_be_visible(timeout=15_000)",
+      "locator.set_timeout(15_000); expect(locator).to_be_visible()",
+      "page.set_default_timeout(15_000) then expect(locator).to_be_visible()"
+    ],
+    choicesVi: [
+      "expect(locator, timeout=15_000).to_be_visible()",
+      "expect(locator).to_be_visible(timeout=15_000)",
+      "locator.set_timeout(15_000); expect(locator).to_be_visible()",
+      "page.set_default_timeout(15_000) rồi expect(locator).to_be_visible()"
+    ],
+    answer: 1,
+    explain: "Most expect() matchers accept a timeout parameter in milliseconds directly: expect(locator).to_be_visible(timeout=15_000). This overrides only that single assertion's timeout, leaving all others at the default 5 seconds.",
+    explainVi: "Hầu hết các matcher của expect() chấp nhận tham số timeout tính bằng millisecond trực tiếp: expect(locator).to_be_visible(timeout=15_000). Điều này chỉ override timeout của assertion đó, các assertion khác vẫn ở mức mặc định 5 giây."
+  },
+  {
+    q: "What does `page.set_default_timeout(10_000)` affect?",
+    qVi: "`page.set_default_timeout(10_000)` ảnh hưởng đến điều gì?",
+    choices: [
+      "Only navigation timeouts like goto() and wait_for_url()",
+      "All actions (click, fill) and all expect() assertions — anything that waits for an element",
+      "Only time.sleep() calls in the test",
+      "Only the expect() assertions, not the actions"
+    ],
+    choicesVi: [
+      "Chỉ navigation timeout như goto() và wait_for_url()",
+      "Tất cả actions (click, fill) và tất cả assertion expect() — mọi thứ chờ phần tử",
+      "Chỉ các lời gọi time.sleep() trong test",
+      "Chỉ assertion expect(), không ảnh hưởng actions"
+    ],
+    answer: 1,
+    explain: "set_default_timeout() sets the global default timeout for both actions (auto-wait before click/fill) and expect() assertions. Individual calls can still override it. This is useful when testing slow staging environments where the default 5s is too short.",
+    explainVi: "set_default_timeout() đặt timeout mặc định toàn cục cho cả actions (auto-wait trước click/fill) và assertion expect(). Các lời gọi riêng lẻ vẫn có thể override nó. Điều này hữu ích khi test trên môi trường staging chậm, nơi mức mặc định 5 giây là quá ngắn."
+  },
+  {
+    q: "What is the practical difference between `domcontentloaded` and `networkidle` load states?",
+    qVi: "Sự khác biệt thực tế giữa trạng thái tải `domcontentloaded` và `networkidle` là gì?",
+    choices: [
+      "They are identical — both wait for the full page to load",
+      "domcontentloaded fires when the HTML is parsed (fast); networkidle waits until all API calls finish (slower but more complete)",
+      "networkidle only works on SPAs",
+      "domcontentloaded waits for images; networkidle waits for scripts"
+    ],
+    choicesVi: [
+      "Chúng giống hệt nhau — cả hai đều chờ trang tải hoàn toàn",
+      "domcontentloaded kích hoạt khi HTML được phân tích (nhanh); networkidle chờ tất cả API call xong (chậm hơn nhưng đầy đủ hơn)",
+      "networkidle chỉ hoạt động trên SPA",
+      "domcontentloaded chờ ảnh; networkidle chờ script"
+    ],
+    answer: 1,
+    explain: "domcontentloaded is fast — it fires when the HTML document is parsed, before images/scripts finish loading. networkidle waits until no network requests are in-flight for 500ms — meaning all API calls completed. For SPAs that render data after API calls, networkidle is essential.",
+    explainVi: "domcontentloaded nhanh — kích hoạt khi tài liệu HTML được phân tích, trước khi ảnh/script tải xong. networkidle chờ đến khi không có network request nào đang hoạt động trong 500ms — nghĩa là tất cả API call đã hoàn thành. Đối với SPA render dữ liệu sau API call, networkidle là thiết yếu."
+  },
+  {
+    q: "How do you wait for an element to disappear (become hidden) from the page?",
+    qVi: "Làm thế nào để chờ một phần tử biến mất (bị ẩn) khỏi trang?",
+    choices: [
+      "page.wait_for_selector('.spinner', state='hidden')",
+      "expect(page.locator('.spinner')).to_be_hidden()",
+      "Both of the above work correctly",
+      "page.wait_for_selector('.spinner').disappear()"
+    ],
+    choicesVi: [
+      "page.wait_for_selector('.spinner', state='hidden')",
+      "expect(page.locator('.spinner')).to_be_hidden()",
+      "Cả hai đều hoạt động đúng",
+      "page.wait_for_selector('.spinner').disappear()"
+    ],
+    answer: 2,
+    explain: "Both work: page.wait_for_selector('.spinner', state='hidden') waits for the element to be hidden or removed. expect(page.locator('.spinner')).to_be_hidden() is the preferred modern approach — it's a polling assertion that retries until hidden. Use the expect() style for consistency with other assertions.",
+    explainVi: "Cả hai đều hoạt động: page.wait_for_selector('.spinner', state='hidden') chờ phần tử bị ẩn hoặc bị xóa. expect(page.locator('.spinner')).to_be_hidden() là cách tiếp cận hiện đại được ưa dùng — đây là polling assertion retry cho đến khi bị ẩn. Dùng kiểu expect() để nhất quán với các assertion khác."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Waiting Guide", url: "https://playwright.dev/python/docs/actionability" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "Playwright Python — Waits", url: "https://playwright.dev/python/docs/waiting" },
+  { title: "Playwright Python — Network", url: "https://playwright.dev/python/docs/network" },
+  { title: "Playwright — Auto-waiting", url: "https://playwright.dev/python/docs/actionability" }
 ]} />

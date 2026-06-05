@@ -1,205 +1,605 @@
 ---
 id: 32
-title: "Debugging Playwright tests"
+title: "Data-driven tests with parametrize"
 phase: 3
 estMinutes: 60
-tags: ["playwright", "debugging"]
+tags: ["pytest", "parametrize"]
 ---
 
 ## Intro
 
 <En>
-Tests fail, and when they do, you need to find out why quickly. Playwright provides a powerful set of debugging tools: the Inspector for step-through debugging, `--headed` mode to watch the browser, trace files for post-mortem analysis, and strategic screenshot and console logging. Mastering these tools cuts debugging time dramatically.
+Testing one input is good. Testing ten inputs with one test function is powerful. **Data-driven testing** means running the same test logic with multiple sets of inputs — valid credentials, invalid credentials, edge cases, boundary values — all from a single test definition.
+
+pytest's `@pytest.mark.parametrize` decorator makes this clean and easy. Instead of copying a test five times with different values, you write it once and provide a list of inputs. Each combination becomes its own test case with its own pass/fail result in the report.
+
+Data-driven testing is how you achieve thorough coverage without code duplication.
 </En>
 <Vi>
-Test thất bại, và khi chúng thất bại, bạn cần tìm ra lý do nhanh chóng. Playwright cung cấp một bộ công cụ gỡ lỗi mạnh mẽ: Inspector để gỡ lỗi từng bước, chế độ `--headed` để xem trình duyệt, file trace để phân tích sau sự cố, và chụp ảnh màn hình chiến lược và ghi log console. Thành thạo các công cụ này giảm đáng kể thời gian gỡ lỗi.
+Kiểm thử một đầu vào là tốt. Kiểm thử mười đầu vào với một hàm test là mạnh mẽ. **Kiểm thử theo dữ liệu** có nghĩa là chạy cùng logic test với nhiều bộ đầu vào — thông tin đăng nhập hợp lệ, không hợp lệ, trường hợp biên, giá trị ranh giới — tất cả từ một định nghĩa test duy nhất.
+
+Decorator `@pytest.mark.parametrize` của pytest làm cho điều này sạch sẽ và dễ dàng. Thay vì sao chép test năm lần với các giá trị khác nhau, bạn viết một lần và cung cấp danh sách đầu vào. Mỗi tổ hợp trở thành một test case riêng với kết quả pass/fail riêng trong báo cáo.
 </Vi>
 
 ## Concept
 
 <En>
-**Debugging toolkit — in order of use:**
+**Basic syntax — single parameter:**
 
-**1. `--headed` — watch the browser:**
-```bash
-pytest tests/ --headed
-```
-The browser window opens — you see every click, fill, and navigation happen in real time.
-
-**2. `--slowmo` — slow down actions:**
-```bash
-pytest tests/ --headed --slowmo 500   # 500ms delay between actions
-```
-
-**3. Playwright Inspector:**
-```bash
-PWDEBUG=1 pytest tests/test_file.py::test_name
-```
-Opens the Inspector with a step-through debugger and locator explorer.
-
-**4. Trace viewer — full post-mortem:**
 ```python
-# In conftest.py or test:
-context.tracing.start(screenshots=True, snapshots=True)
-# ... run test ...
-context.tracing.stop(path="trace.zip")
-```
-```bash
-playwright show-trace trace.zip
-```
-Shows every action, DOM snapshot, and screenshot at each step.
+import pytest
 
-**5. `page.pause()` — pause in the middle of a test:**
+@pytest.mark.parametrize("search_term", [
+    "Hammer",
+    "Pliers",
+    "Screwdriver",
+    "Drill",
+])
+def test_search_returns_results(page, search_term):
+    page.goto("https://practicesoftwaretesting.com")
+    page.get_by_role("textbox", name="Search").fill(search_term)
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+    assert page.locator(".card").count() > 0
+# This generates 4 separate test cases:
+# test_search_returns_results[Hammer]
+# test_search_returns_results[Pliers]
+# test_search_returns_results[Screwdriver]
+# test_search_returns_results[Drill]
+```
+
+**Multiple parameters — tuples:**
+
 ```python
-page.goto("https://example.com")
-page.pause()  # execution stops here; Inspector opens
-page.click("button")
+@pytest.mark.parametrize("email,password,expected_url", [
+    # (email, password, expected_url_fragment)
+    ("customer@practicesoftwaretesting.com", "welcome01", "/account"),   # valid
+    ("admin@practicesoftwaretesting.com",    "AKZo8tZ6",  "/admin"),     # admin
+])
+def test_login_redirects(page, email, password, expected_url):
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Password").fill(password)
+    page.get_by_role("button", name="Login").click()
+    assert expected_url in page.url
 ```
 
-**6. Screenshots at failure — see Day 27's pattern**
+**Naming parameters with `pytest.param` and `ids`:**
 
-**7. Console logs:**
 ```python
-page.on("console", lambda msg: print(f"Browser console: {msg.text}"))
+@pytest.mark.parametrize("email,password", [
+    pytest.param("customer@practicesoftwaretesting.com", "welcome01",
+                 id="valid-customer"),
+    pytest.param("invalid@example.com", "wrongpassword",
+                 id="invalid-credentials"),
+    pytest.param("", "welcome01",
+                 id="empty-email"),
+], )
+def test_login_cases(page, email, password):
+    # ...
+```
+
+**Expected failures — `pytest.param` with `marks`:**
+
+```python
+@pytest.mark.parametrize("search_term,min_results", [
+    ("Hammer", 1),
+    ("Pliers", 1),
+    pytest.param("XYZ_NONEXISTENT_PRODUCT_999", 0, id="no-results"),
+])
+def test_search(page, search_term, min_results):
+    # ...
+    assert page.locator(".card").count() >= min_results
+```
+
+**Combining parametrize with fixtures:**
+
+```python
+@pytest.mark.parametrize("product_name", ["Bolt Cutters", "Pliers", "Hammer"])
+def test_product_appears_in_search(page, product_name):
+    """Parametrize works with pytest fixtures — just declare both."""
+    page.goto("https://practicesoftwaretesting.com")
+    page.get_by_role("textbox", name="Search").fill(product_name)
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+    expect(page.locator(".card")).not_to_have_count(0)
+```
+
+**Loading data from a list or file:**
+
+```python
+# Store test data separately — easy to extend without touching test logic
+INVALID_LOGINS = [
+    ("wrong@example.com", "correctpassword"),
+    ("customer@example.com", "wrongpassword"),
+    ("", "password"),
+    ("notanemail", "password"),
+]
+
+@pytest.mark.parametrize("email,password", INVALID_LOGINS)
+def test_invalid_logins_show_error(page, email, password):
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Password").fill(password)
+    page.get_by_role("button", name="Login").click()
+    error = page.locator(".alert-danger")
+    expect(error).to_be_visible()
 ```
 </En>
 <Vi>
-**Bộ công cụ gỡ lỗi — theo thứ tự sử dụng:**
+**Cú pháp cơ bản — tham số đơn:**
 
-**1. `--headed` — xem trình duyệt:**
-```bash
-pytest tests/ --headed
-```
-
-**2. `--slowmo` — làm chậm các action:**
-```bash
-pytest tests/ --headed --slowmo 500   # độ trễ 500ms giữa các action
-```
-
-**3. Playwright Inspector:**
-```bash
-PWDEBUG=1 pytest tests/test_file.py::test_name
-```
-
-**4. Trace viewer — phân tích sau sự cố đầy đủ:**
 ```python
-context.tracing.start(screenshots=True, snapshots=True)
-# ... chạy test ...
-context.tracing.stop(path="trace.zip")
-```
-```bash
-playwright show-trace trace.zip
+@pytest.mark.parametrize("search_term", [
+    "Hammer",
+    "Pliers",
+    "Screwdriver",
+])
+def test_search_returns_results(page, search_term):
+    # Tạo ra 3 test case riêng biệt
+    page.goto("https://practicesoftwaretesting.com")
+    page.get_by_role("textbox", name="Search").fill(search_term)
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+    assert page.locator(".card").count() > 0
 ```
 
-**5. `page.pause()` — tạm dừng giữa test:**
+**Nhiều tham số — dùng tuple:**
+
 ```python
-page.pause()  # dừng thực thi; Inspector mở
+@pytest.mark.parametrize("email,password,expected_url", [
+    ("customer@practicesoftwaretesting.com", "welcome01", "/account"),
+    ("admin@practicesoftwaretesting.com",    "AKZo8tZ6",  "/admin"),
+])
+def test_login_redirects(page, email, password, expected_url):
+    # ...
 ```
 
-**6. Log console trình duyệt:**
+**Đặt tên với `pytest.param`:**
+
 ```python
-page.on("console", lambda msg: print(f"Browser console: {msg.text}"))
+@pytest.mark.parametrize("email,password", [
+    pytest.param("customer@example.com", "welcome01", id="valid-login"),
+    pytest.param("wrong@example.com",    "wrongpw",   id="invalid-login"),
+])
+def test_login(page, email, password):
+    # ...
 ```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Basic parametrize: testing multiple search terms**
+
+</En>
+<Vi>
+
+**Phần 1 — Parametrize cơ bản: test nhiều từ tìm kiếm**
+
+</Vi>
+
 ```python
-# tests/test_debugging_patterns.py
+# tests/test_parametrize_search.py
+# Run with: pytest tests/test_parametrize_search.py -v
 import pytest
-from playwright.sync_api import Page, BrowserContext, expect
+from playwright.sync_api import Page, expect
 
-def test_with_console_logging(page: Page):
-    """Capture browser console messages during the test."""
-    console_messages = []
-    page.on("console", lambda msg: console_messages.append(msg.text))
+BASE = "https://practicesoftwaretesting.com"
 
-    page.goto("https://example.com")
-    # Trigger a console log via JS
-    page.evaluate("console.log('Test navigation completed')")
+@pytest.mark.parametrize("search_term", [
+    "Hammer",
+    "Pliers",
+    "Bolt Cutters",
+    "Screwdriver",
+])
+def test_search_term_returns_results(page: Page, search_term: str):
+    """Each search term should return at least one product."""
+    page.goto(BASE)
+    search = page.get_by_role("textbox", name="Search")
+    search.fill(search_term)
+    search.press("Enter")
+    page.wait_for_load_state("networkidle")
 
-    assert any("Test navigation" in m for m in console_messages), \
-        f"Expected log not found. Got: {console_messages}"
+    cards = page.locator(".card")
+    assert cards.count() > 0, f"No results found for '{search_term}'"
 
-def test_screenshot_at_step(page: Page, tmp_path):
-    """Take screenshots at key steps for debugging."""
-    page.goto("https://demo.playwright.dev/todomvc")
-    page.screenshot(path=str(tmp_path / "step1_empty.png"))
+# Run output:
+# test_parametrize_search.py::test_search_term_returns_results[Hammer]       PASSED
+# test_parametrize_search.py::test_search_term_returns_results[Pliers]       PASSED
+# test_parametrize_search.py::test_search_term_returns_results[Bolt Cutters] PASSED
+# test_parametrize_search.py::test_search_term_returns_results[Screwdriver]  PASSED
+```
 
-    inp = page.get_by_placeholder("What needs to be done?")
-    inp.fill("Debug me")
-    inp.press("Enter")
-    page.screenshot(path=str(tmp_path / "step2_added.png"))
+<En>
 
-    item = page.get_by_role("listitem").filter(has_text="Debug me")
-    expect(item).to_be_visible()
-    page.screenshot(path=str(tmp_path / "step3_verified.png"))
+**Part 2 — Multiple parameters and login scenarios**
 
-    print(f"Debug screenshots in: {tmp_path}")
+</En>
+<Vi>
 
-def test_with_tracing(context: BrowserContext, tmp_path):
-    """Record a trace for post-mortem debugging."""
-    context.tracing.start(screenshots=True, snapshots=True, sources=True)
+**Phần 2 — Nhiều tham số và kịch bản đăng nhập**
 
-    page = context.new_page()
-    page.goto("https://example.com")
-    assert page.title() == "Example Domain"
+</Vi>
 
-    trace_path = str(tmp_path / "trace.zip")
-    context.tracing.stop(path=trace_path)
-    print(f"Trace saved: {trace_path}")
-    # View with: playwright show-trace trace.zip
+```python
+# tests/test_parametrize_login.py
+# Run with: pytest tests/test_parametrize_login.py -v
+import pytest
+from playwright.sync_api import Page, expect
 
-def test_page_errors_captured(page: Page):
-    """Capture JavaScript errors from the browser."""
-    errors = []
-    page.on("pageerror", lambda err: errors.append(str(err)))
+BASE = "https://practicesoftwaretesting.com"
+LOGIN_URL = f"{BASE}/auth/login"
 
-    page.goto("https://example.com")
-    page.evaluate("undefined.property")  # triggers a JS error
+# Test data: (description_id, email, password, should_succeed, expected_url_fragment)
+LOGIN_CASES = [
+    pytest.param(
+        "customer@practicesoftwaretesting.com", "welcome01", True, "/account",
+        id="valid-customer-login"
+    ),
+    pytest.param(
+        "wrong@example.com", "welcome01", False, "/auth/login",
+        id="wrong-email"
+    ),
+    pytest.param(
+        "customer@practicesoftwaretesting.com", "wrongpassword", False, "/auth/login",
+        id="wrong-password"
+    ),
+    pytest.param(
+        "", "welcome01", False, "/auth/login",
+        id="empty-email"
+    ),
+]
 
-    assert len(errors) > 0, "Expected a page error to be captured"
-    print(f"Page errors: {errors}")
+@pytest.mark.parametrize("email,password,should_succeed,expected_url", LOGIN_CASES)
+def test_login_scenarios(page: Page, email: str, password: str,
+                         should_succeed: bool, expected_url: str):
+    """Parametrized login: tests both valid and invalid credential combos."""
+    page.goto(LOGIN_URL)
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Password").fill(password)
+    page.get_by_role("button", name="Login").click()
+
+    if should_succeed:
+        page.wait_for_url("**/account")
+        assert expected_url in page.url, f"Expected {expected_url}, got {page.url}"
+    else:
+        # Stay on login or show error
+        error = page.locator(".alert-danger")
+        assert expected_url in page.url or error.is_visible(), \
+            f"Expected error or stay on login, got URL: {page.url}"
+```
+
+<En>
+
+**Part 3 — Combining parametrize with fixtures**
+
+</En>
+<Vi>
+
+**Phần 3 — Kết hợp parametrize với fixture**
+
+</Vi>
+
+```python
+# tests/test_parametrize_with_fixture.py
+# Demonstrates parametrize + fixtures working together
+import pytest
+from playwright.sync_api import Page
+
+BASE = "https://practicesoftwaretesting.com"
+
+@pytest.fixture
+def homepage(page: Page):
+    page.goto(BASE)
+    page.wait_for_load_state("networkidle")
+    return page
+
+@pytest.mark.parametrize("category,min_count", [
+    ("Hammer", 1),
+    ("Pliers", 1),
+    ("Wrench", 1),
+])
+def test_category_search_has_results(homepage: Page, category: str, min_count: int):
+    """Uses homepage fixture AND parametrize — they compose cleanly."""
+    homepage.get_by_role("textbox", name="Search").fill(category)
+    homepage.get_by_role("textbox", name="Search").press("Enter")
+    homepage.wait_for_load_state("networkidle")
+
+    count = homepage.locator(".card").count()
+    assert count >= min_count, f"Expected >= {min_count} results for '{category}', got {count}"
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Run an existing test with `PWDEBUG=1` and use the Inspector to step through it — note what each step shows in the Inspector panel
-- [ ] Add a `conftest.py` fixture that captures a browser trace for every test and saves it with the test name — run a failing test and open the trace with `playwright show-trace`
-- [ ] Add a console listener to a test and use `page.evaluate()` to inject a custom `console.log()` — verify the message appears in your Python output
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Complete the parametrized tests",
+    code: `# tests/test_parametrize_exercise.py
+# Run with: pytest tests/test_parametrize_exercise.py -v
+import pytest
+from playwright.sync_api import Page, expect
+
+BASE = "https://practicesoftwaretesting.com"
+
+# Task 1: Add at least 3 more search terms to this list
+SEARCH_TERMS = [
+    "Hammer",
+    # TODO (EN): Add real search terms found on the site (e.g. "Pliers", "Wrench", "Screwdriver")
+    # TODO (VI): Thêm từ tìm kiếm thực tế có trên trang (ví dụ "Pliers", "Wrench", "Screwdriver")
+    "???",
+    "???",
+    "???",
+]
+
+@pytest.mark.parametrize("term", SEARCH_TERMS)
+def test_all_searches_return_results(page: Page, term: str):
+    """Every term in SEARCH_TERMS should return at least 1 product."""
+    page.goto(BASE)
+    page.get_by_role("textbox", name="Search").fill(term)
+    page.get_by_role("textbox", name="Search").press("Enter")
+    # TODO (EN): "networkidle" — waits for all network requests to finish
+    # TODO (VI): "networkidle" — chờ tất cả request mạng hoàn thành
+    page.wait_for_load_state("???")  # which load state to use?
+    assert page.locator(".card").count() > 0, f"No results for '{term}'"
+
+# Task 2: Complete this parametrized invalid-login test
+INVALID_CREDS = [
+    # TODO (EN): A short id for this test case, e.g. "wrong-credentials"
+    # TODO (VI): ID ngắn cho test case này, ví dụ "wrong-credentials"
+    pytest.param("notauser@xyz.com",  "wrongpass", id="???"),
+    pytest.param("",                   "welcome01", id="empty-email"),
+    pytest.param("customer@practicesoftwaretesting.com", "", id="empty-password"),
+]
+
+@pytest.mark.parametrize("email,password", INVALID_CREDS)
+def test_invalid_creds_show_error(page: Page, email: str, password: str):
+    page.goto(f"{BASE}/auth/login")
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Password").fill(password)
+    page.get_by_role("button", name="Login").click()
+
+    # TODO (EN): Inspect the login page to find the error alert selector, e.g. ".alert-danger"
+    # TODO (VI): Inspect trang login để tìm selector thông báo lỗi, ví dụ ".alert-danger"
+    error = page.locator("???")  # find the error element selector
+    # TODO (EN): "login" — the URL substring that confirms we're still on the login page
+    # TODO (VI): "login" — chuỗi URL xác nhận chúng ta vẫn đang ở trang login
+    on_login = "???" in page.url
+    assert on_login or error.is_visible(), \\
+        f"Expected error for email='{email}' password='{password}'"
+
+# Task 3: Write your own parametrized test
+@pytest.mark.parametrize("path,expected_heading", [
+    # TODO (EN): Inspect each page to find its main heading text
+    # TODO (VI): Inspect từng trang để tìm text heading chính
+    ("/", "???"),           # homepage heading
+    ("/auth/login", "???"), # login page heading
+    ("/contact", "???"),    # contact page heading
+])
+def test_pages_have_headings(page: Page, path: str, expected_heading: str):
+    page.goto(f"{BASE}{path}")
+    heading = page.get_by_role("heading", name=expected_heading)
+    expect(heading).to_be_visible()`
+  }
+]}>
+
+<En>
+- [ ] Add 3 more real search terms to `SEARCH_TERMS` (verify them on the site first)
+- [ ] Fill in `???` for the invalid credentials test (error locator, URL substring, and the id for the first param)
+- [ ] Inspect the homepage, login, and contact pages to find the correct heading text
+- [ ] Run `pytest tests/test_parametrize_exercise.py -v` and check all tests pass
+- [ ] Run `pytest tests/test_parametrize_exercise.py -v --tb=short` and note how each test case is named
+</En>
+<Vi>
+- [ ] Thêm 3 từ tìm kiếm thực tế vào `SEARCH_TERMS` (kiểm tra trên trang trước)
+- [ ] Điền `???` cho test invalid credentials (selector lỗi, chuỗi URL, id cho param đầu tiên)
+- [ ] Inspect homepage, login và contact page để tìm heading text đúng
+- [ ] Chạy `pytest tests/test_parametrize_exercise.py -v` và kiểm tra tất cả test pass
+- [ ] Chạy `pytest tests/test_parametrize_exercise.py -v --tb=short` và chú ý cách mỗi test case được đặt tên
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What does `PWDEBUG=1` do when running pytest?",
+    q: "What does `@pytest.mark.parametrize('x,y', [(1,2),(3,4)])` generate?",
+    qVi: "`@pytest.mark.parametrize('x,y', [(1,2),(3,4)])` tạo ra gì?",
     choices: [
-      "Enables verbose pytest output",
-      "Launches Playwright Inspector, which pauses execution and lets you step through actions",
-      "Runs tests in headless mode",
-      "Prints every locator to the terminal"
+      "One test that runs twice internally",
+      "Two separate test cases — one with x=1,y=2 and one with x=3,y=4",
+      "A test that receives a list [(1,2),(3,4)] as a single parameter",
+      "Four test cases — one for each number"
+    ],
+    choicesVi: [
+      "Một test chạy hai lần nội bộ",
+      "Hai test case riêng biệt — một với x=1,y=2 và một với x=3,y=4",
+      "Một test nhận danh sách [(1,2),(3,4)] làm tham số duy nhất",
+      "Bốn test case — một cho mỗi số"
     ],
     answer: 1,
-    explain: "PWDEBUG=1 activates Playwright's debug mode, which opens the Inspector GUI. You can step forward one action at a time, inspect the DOM, and evaluate locators interactively — very useful when a locator isn't matching."
+    explain: "parametrize with a list of tuples generates one test case per tuple. With two tuples, you get two test cases, each with its own x and y values. They appear as separate entries in the test report: test_name[1-2] and test_name[3-4].",
+    explainVi: "parametrize với danh sách tuple tạo ra một test case cho mỗi tuple. Với hai tuple, bạn nhận được hai test case, mỗi cái có giá trị x và y riêng. Chúng xuất hiện là các mục riêng biệt trong báo cáo test: test_name[1-2] và test_name[3-4]."
   },
   {
-    q: "What information does a Playwright trace file contain?",
+    q: "How do you give a parametrize case a readable name instead of the auto-generated one?",
+    qVi: "Làm thế nào để đặt tên dễ đọc cho test case của parametrize thay vì tên tự động tạo?",
     choices: [
-      "Only error messages",
-      "A full recording: every action, DOM snapshot before/after, network requests, and screenshots",
-      "The Python source code that ran the test",
-      "Only the final page screenshot"
+      "Add a comment above the tuple",
+      "Use pytest.param(..., id='my-name')",
+      "Add a name= keyword to the tuple",
+      "Use @pytest.mark.name('my-name')"
+    ],
+    choicesVi: [
+      "Thêm comment phía trên tuple",
+      "Dùng pytest.param(..., id='my-name')",
+      "Thêm keyword name= vào tuple",
+      "Dùng @pytest.mark.name('my-name')"
     ],
     answer: 1,
-    explain: "Playwright trace files (trace.zip) are comprehensive — they include every action's timing, DOM snapshots at each step, screenshots, network traffic, and console logs. Open with 'playwright show-trace trace.zip' for an interactive timeline."
+    explain: "pytest.param(*values, id='readable-name') replaces the auto-generated ID (which is just the values stringified) with a human-readable name. The test appears as test_login[valid-customer-login] instead of test_login[customer@example-welcome01-True-/account].",
+    explainVi: "pytest.param(*values, id='readable-name') thay thế ID tự động tạo (chỉ là chuỗi hóa các giá trị) bằng tên dễ đọc. Test xuất hiện là test_login[valid-customer-login] thay vì test_login[customer@example-welcome01-True-/account]."
+  },
+  {
+    q: "Can `@pytest.mark.parametrize` be combined with pytest fixtures?",
+    qVi: "`@pytest.mark.parametrize` có thể kết hợp với pytest fixture không?",
+    choices: [
+      "No — you must choose one or the other",
+      "Yes — declare both as test function parameters; pytest injects fixtures and parametrize provides the data",
+      "Only if the fixture has function scope",
+      "Only if parametrize is defined in conftest.py"
+    ],
+    choicesVi: [
+      "Không — bạn phải chọn một trong hai",
+      "Có — khai báo cả hai làm tham số hàm test; pytest inject fixture và parametrize cung cấp dữ liệu",
+      "Chỉ khi fixture có function scope",
+      "Chỉ khi parametrize được định nghĩa trong conftest.py"
+    ],
+    answer: 1,
+    explain: "parametrize and fixtures compose naturally. A test can declare `page: Page` (a fixture) and `search_term: str` (from parametrize) as parameters at the same time. pytest handles both injections.",
+    explainVi: "parametrize và fixture kết hợp tự nhiên. Một test có thể khai báo `page: Page` (fixture) và `search_term: str` (từ parametrize) làm tham số cùng lúc. pytest xử lý cả hai injection."
+  },
+  {
+    q: "You have 5 parametrize cases and 2 fail. What does pytest report?",
+    qVi: "Bạn có 5 test case parametrize và 2 cái fail. pytest báo cáo gì?",
+    choices: [
+      "The entire parametrized test fails",
+      "5 individual results: 3 PASSED and 2 FAILED — each case is independent",
+      "The first failing case stops all remaining cases",
+      "Parametrized cases are reported as warnings, not failures"
+    ],
+    choicesVi: [
+      "Toàn bộ test parametrize fail",
+      "5 kết quả riêng lẻ: 3 PASSED và 2 FAILED — mỗi case độc lập",
+      "Case fail đầu tiên dừng tất cả các case còn lại",
+      "Các case parametrize được báo cáo là cảnh báo, không phải lỗi"
+    ],
+    answer: 1,
+    explain: "Each parametrize case is an independent test. If 2 fail, you see 3 passed and 2 failed in the report. The failing cases don't stop the passing ones. This is one of the key benefits — you can see exactly which inputs fail.",
+    explainVi: "Mỗi case parametrize là một test độc lập. Nếu 2 cái fail, bạn thấy 3 passed và 2 failed trong báo cáo. Các case fail không dừng các case pass. Đây là một trong những lợi ích chính — bạn thấy chính xác đầu vào nào thất bại."
+  },
+  {
+    q: "What is the main advantage of data-driven testing over copying tests manually?",
+    qVi: "Ưu điểm chính của kiểm thử theo dữ liệu so với sao chép test thủ công là gì?",
+    choices: [
+      "Tests run faster because parametrize reuses browser sessions",
+      "You write the test logic once and add new cases by adding data, avoiding code duplication",
+      "parametrize automatically generates test data",
+      "It reduces the number of assertions needed"
+    ],
+    choicesVi: [
+      "Test chạy nhanh hơn vì parametrize tái sử dụng browser session",
+      "Bạn viết logic test một lần và thêm case mới bằng cách thêm dữ liệu, tránh trùng lặp code",
+      "parametrize tự động tạo dữ liệu test",
+      "Nó giảm số lượng assertion cần thiết"
+    ],
+    answer: 1,
+    explain: "With parametrize, adding a new test case is as simple as adding one more entry to the data list. The test logic stays in one place — no copy-paste, no risk of tests diverging. When you find a bug in the test logic, you fix it once and all cases benefit.",
+    explainVi: "Với parametrize, thêm một test case mới đơn giản như thêm một mục vào danh sách dữ liệu. Logic test ở một nơi — không copy-paste, không có nguy cơ test phân kỳ. Khi bạn tìm thấy bug trong logic test, bạn sửa một lần và tất cả case đều hưởng lợi."
+  },
+  {
+    q: "What happens when you stack two `@pytest.mark.parametrize` decorators on the same test function?",
+    qVi: "Điều gì xảy ra khi bạn xếp chồng hai decorator `@pytest.mark.parametrize` trên cùng một hàm test?",
+    choices: [
+      "The second decorator overrides the first",
+      "pytest raises an error — only one parametrize is allowed per test",
+      "pytest generates the cross product — all combinations of both parameter sets",
+      "Both parameter sets run sequentially, one after the other"
+    ],
+    choicesVi: [
+      "Decorator thứ hai ghi đè decorator đầu tiên",
+      "pytest báo lỗi — chỉ cho phép một parametrize mỗi test",
+      "pytest tạo ra tích Cartesian — tất cả tổ hợp của cả hai bộ tham số",
+      "Cả hai bộ tham số chạy tuần tự, lần lượt từng cái"
+    ],
+    answer: 2,
+    explain: "Stacking two @pytest.mark.parametrize decorators creates the Cartesian product. With @parametrize('x', [1, 2]) and @parametrize('y', ['a', 'b']), you get 4 tests: (1,'a'), (1,'b'), (2,'a'), (2,'b'). This is powerful for testing all combinations of independent variables.",
+    explainVi: "Xếp chồng hai decorator @pytest.mark.parametrize tạo ra tích Cartesian. Với @parametrize('x', [1, 2]) và @parametrize('y', ['a', 'b']), bạn nhận được 4 test: (1,'a'), (1,'b'), (2,'a'), (2,'b'). Điều này rất mạnh mẽ để test tất cả tổ hợp của các biến độc lập."
+  },
+  {
+    q: "How do you mark a specific parametrize case to be skipped?",
+    qVi: "Làm thế nào để đánh dấu một case parametrize cụ thể bị bỏ qua?",
+    choices: [
+      "Comment out the tuple in the parameter list",
+      "Use `pytest.param(value, marks=pytest.mark.skip)` for that specific case",
+      "Add a skip condition inside the test function body",
+      "pytest.mark.skip can only be applied to the entire test, not individual cases"
+    ],
+    choicesVi: [
+      "Comment out tuple trong danh sách tham số",
+      "Dùng `pytest.param(value, marks=pytest.mark.skip)` cho case cụ thể đó",
+      "Thêm điều kiện skip bên trong thân hàm test",
+      "pytest.mark.skip chỉ có thể áp dụng cho toàn bộ test, không áp dụng cho từng case"
+    ],
+    answer: 1,
+    explain: "pytest.param() accepts a marks argument for per-case marks: `pytest.param('bad_input', marks=pytest.mark.skip(reason='not implemented yet'))`. You can also use pytest.mark.xfail for cases expected to fail. This keeps the skip inline with the data, not buried in the test body.",
+    explainVi: "pytest.param() chấp nhận tham số marks cho từng case: `pytest.param('bad_input', marks=pytest.mark.skip(reason='not implemented yet'))`. Bạn cũng có thể dùng pytest.mark.xfail cho các case dự kiến thất bại. Điều này giữ skip gắn với dữ liệu, không bị chôn vùi trong thân test."
+  },
+  {
+    q: "What is the separator character used in auto-generated parametrize test IDs?",
+    qVi: "Ký tự phân cách nào được dùng trong ID test tự động tạo của parametrize?",
+    choices: [
+      "Comma (,)",
+      "Hyphen (-)",
+      "Dash-hyphen combination: value1-value2",
+      "Underscore (_)"
+    ],
+    choicesVi: [
+      "Dấu phẩy (,)",
+      "Dấu gạch ngang (-)",
+      "Kết hợp dấu gạch: value1-value2",
+      "Dấu gạch dưới (_)"
+    ],
+    answer: 1,
+    explain: "pytest uses a hyphen (-) to separate parameter values in auto-generated IDs: `test_login[alice@example.com-secret-True]`. For tuples with multiple values, each value is separated by a hyphen. This is why pytest.param(..., id='descriptive-name') is recommended — auto IDs become unreadable for complex data.",
+    explainVi: "pytest dùng dấu gạch ngang (-) để phân cách các giá trị tham số trong ID tự động tạo: `test_login[alice@example.com-secret-True]`. Đối với tuple có nhiều giá trị, mỗi giá trị được phân cách bằng dấu gạch ngang. Đây là lý do tại sao pytest.param(..., id='descriptive-name') được khuyến nghị — ID tự động trở nên khó đọc với dữ liệu phức tạp."
+  },
+  {
+    q: "What does `indirect=True` in `@pytest.mark.parametrize('browser', ['chromium', 'firefox'], indirect=True)` do?",
+    qVi: "`indirect=True` trong `@pytest.mark.parametrize('browser', ['chromium', 'firefox'], indirect=True)` làm gì?",
+    choices: [
+      "It makes pytest run the test cases indirectly in a subprocess",
+      "It tells pytest to pass the parameter values through the fixture named 'browser' instead of directly to the test",
+      "It marks the test as an indirect dependency test",
+      "It disables parametrize for that specific argument"
+    ],
+    choicesVi: [
+      "Khiến pytest chạy các test case gián tiếp trong subprocess",
+      "Yêu cầu pytest truyền giá trị tham số qua fixture tên 'browser' thay vì trực tiếp vào test",
+      "Đánh dấu test là test phụ thuộc gián tiếp",
+      "Vô hiệu hóa parametrize cho tham số cụ thể đó"
+    ],
+    answer: 1,
+    explain: "indirect=True makes pytest pass each parameter value to a fixture of the same name via request.param, instead of injecting the raw value directly into the test. This allows complex setup per parameter value — e.g., a 'browser' fixture that launches a different browser for each parametrize case.",
+    explainVi: "indirect=True khiến pytest truyền mỗi giá trị tham số vào fixture cùng tên qua request.param, thay vì inject trực tiếp giá trị thô vào test. Điều này cho phép setup phức tạp theo từng giá trị tham số — ví dụ: fixture 'browser' khởi động browser khác nhau cho mỗi case parametrize."
+  },
+  {
+    q: "How does parametrize affect the total test count reported by pytest?",
+    qVi: "Parametrize ảnh hưởng đến tổng số test được báo cáo bởi pytest như thế nào?",
+    choices: [
+      "It doesn't affect the count — parametrize cases are grouped as one test",
+      "Each parametrize case counts as a separate test in the report",
+      "pytest reports one test with multiple 'sub-results'",
+      "The count depends on whether indirect=True is used"
+    ],
+    choicesVi: [
+      "Không ảnh hưởng đến số lượng — các case parametrize được nhóm thành một test",
+      "Mỗi case parametrize được tính là một test riêng trong báo cáo",
+      "pytest báo cáo một test với nhiều 'sub-result'",
+      "Số lượng phụ thuộc vào việc có dùng indirect=True hay không"
+    ],
+    answer: 1,
+    explain: "Each parametrize case is an independent test. If you parametrize with 5 values, pytest reports 5 separate tests (5 passed, or some mix of passed/failed). This is visible in the test summary: `5 passed`, and each appears on its own line with its unique ID in -v mode.",
+    explainVi: "Mỗi case parametrize là một test độc lập. Nếu bạn parametrize với 5 giá trị, pytest báo cáo 5 test riêng biệt (5 passed, hoặc kết hợp nào đó). Điều này hiển thị trong tóm tắt test: `5 passed`, và mỗi test xuất hiện trên dòng riêng với ID duy nhất ở chế độ -v."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Debugging Guide", url: "https://playwright.dev/python/docs/debug" },
-  { title: "Playwright Trace Viewer", url: "https://playwright.dev/python/docs/trace-viewer-intro" }
+  { title: "pytest — Parametrize", url: "https://docs.pytest.org/en/stable/how-to/parametrize.html" },
+  { title: "pytest — pytest.param", url: "https://docs.pytest.org/en/stable/reference/pytest.html#pytest.param" },
+  { title: "Playwright Python — pytest integration", url: "https://playwright.dev/python/docs/test-runners" }
 ]} />

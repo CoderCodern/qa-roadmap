@@ -2,163 +2,612 @@
 id: 24
 title: "Locators"
 phase: 3
-estMinutes: 60
+estMinutes: 75
 tags: ["playwright", "locators"]
 ---
 
 ## Intro
 
 <En>
-A locator tells Playwright which element on the page to interact with. Choosing the right locator strategy is one of the most important skills in browser automation — good locators make tests stable, bad ones make them flaky. Playwright's recommended locators are designed to match how users find elements, not how developers structure HTML.
+A **locator** is Playwright's way of finding elements on a page. Before you can click a button, fill an input, or assert that a message appeared, you need to locate the element first. Choosing the right locator strategy is one of the most important skills in UI automation — a fragile locator breaks your test every time the developer renames a CSS class; a good locator survives redesigns.
+
+Playwright's locators are also **lazy and auto-waiting** — they don't query the DOM when you create them; they query it right before the action and retry until the element is ready.
 </En>
 <Vi>
-Locator cho Playwright biết phần tử nào trên trang cần tương tác. Chọn chiến lược locator đúng là một trong những kỹ năng quan trọng nhất trong tự động hoá trình duyệt — locator tốt làm cho test ổn định, locator xấu làm cho chúng không ổn định. Các locator được khuyến nghị của Playwright được thiết kế để khớp với cách người dùng tìm phần tử, không phải cách developer cấu trúc HTML.
+**Locator** là cách Playwright tìm phần tử trên trang. Trước khi có thể nhấp vào nút, điền vào input, hoặc kiểm tra một thông báo đã xuất hiện, bạn cần phải tìm phần tử đó trước. Chọn đúng chiến lược locator là một trong những kỹ năng quan trọng nhất trong tự động hoá UI — một locator mỏng manh sẽ làm hỏng test mỗi khi developer đổi tên CSS class; một locator tốt sẽ tồn tại qua các lần thiết kế lại.
+
+Locator của Playwright cũng **lười biếng và tự động chờ** — chúng không truy vấn DOM khi bạn tạo chúng; chúng truy vấn ngay trước hành động và thử lại cho đến khi phần tử sẵn sàng.
 </Vi>
 
 ## Concept
 
 <En>
-**Playwright's recommended locators (in priority order):**
+**Locator priority — from most to least preferred:**
 
-| Locator | Code | When to use |
-|---------|------|-------------|
-| Role + name | `page.get_by_role("button", name="Login")` | Best — matches ARIA semantics |
-| Label text | `page.get_by_label("Email address")` | Form inputs associated to a label |
-| Placeholder | `page.get_by_placeholder("Enter email")` | Inputs without labels |
-| Text content | `page.get_by_text("Sign in")` | Any visible text |
-| Test ID | `page.get_by_test_id("login-btn")` | Explicit test hooks (`data-testid`) |
-| CSS selector | `page.locator("input.email-field")` | Last resort — brittle |
-| XPath | `page.locator("//button[@id='login']")` | Avoid — very brittle |
+| Priority | Locator | When to use |
+|----------|---------|-------------|
+| 🥇 Best | `get_by_role()` | Interactive elements — buttons, links, inputs, headings |
+| 🥈 Good | `get_by_label()` | Form inputs with an associated `<label>` |
+| 🥈 Good | `get_by_placeholder()` | Inputs with a `placeholder` attribute |
+| 🥉 OK | `get_by_text()` | Static text you need to click or assert on |
+| 🥉 OK | `get_by_test_id()` | Elements with `data-testid` attribute (set by devs for testing) |
+| ⚠️ Last resort | `locator("css selector")` | When no semantic locator fits |
+| ❌ Avoid | `locator("xpath=...")` | Very fragile — breaks on any structural change |
 
-**Why role-based locators are preferred:**
-- They survive CSS class renames and DOM restructuring
-- They test accessibility at the same time — if `get_by_role("button")` can't find it, screen readers may not either
-- They are self-documenting
+**Why prefer role/label/text locators?**
+They target **what the user sees and interacts with**, not implementation details like CSS class names or element IDs. A button labelled "Submit" is still called "Submit" even after a complete redesign. A CSS class like `.btn-primary-v2` can change at any commit.
 
-**Filtering locators:**
+**get_by_role() — the most powerful locator:**
+Matches elements by their ARIA role and optional accessible name. Works for buttons, links, headings, checkboxes, textboxes, and more.
+
 ```python
-# Multiple matches? Filter to narrow down
-page.locator("li").filter(has_text="Alice")
-page.get_by_role("row").nth(0)          # first matching element
-page.locator(".card").last               # last matching element
+# Buttons
+page.get_by_role("button", name="Submit")
+page.get_by_role("button", name="Delete", exact=True)   # exact=True prevents partial matches
+
+# Links
+page.get_by_role("link", name="Sign in")
+page.get_by_role("link", name="Home")
+
+# Headings
+page.get_by_role("heading", name="Welcome back")
+page.get_by_role("heading", level=1)   # <h1> only
+
+# Checkboxes and radios
+page.get_by_role("checkbox", name="I agree to the terms")
+page.get_by_role("radio", name="Female")
+
+# Text inputs
+page.get_by_role("textbox", name="Email address")
 ```
 
-**Chaining locators:**
+**The `exact` parameter:** By default, `get_by_role()` and `get_by_text()` do a case-insensitive partial match. Pass `exact=True` when the page has multiple elements with similar text and you need one specific one:
+
 ```python
-form = page.locator("form#login")
-email_input = form.get_by_label("Email")  # search within form only
+# Without exact=True: matches "Delete", "Delete account", "Delete all"
+page.get_by_role("button", name="Delete")
+
+# With exact=True: matches ONLY the button whose accessible name is exactly "Delete"
+page.get_by_role("button", name="Delete", exact=True)
+
+# Same principle for get_by_text()
+page.get_by_text("Submit")              # matches "Submit form", "Submit order", etc.
+page.get_by_text("Submit", exact=True)  # matches only the element whose full text is "Submit"
+```
+
+**Chaining locators to narrow scope:**
+```python
+# Find a button inside a specific section — avoids matching unrelated buttons
+page.locator(".sidebar").get_by_role("button", name="Close")
+
+# Find elements within a specific container (parent → child)
+page.locator(".product-grid").locator(".card-title")
+
+# Find a form field scoped to one form (when the page has multiple forms)
+page.locator("form#login-form").get_by_label("Email")
+
+# Filter by text among multiple matching elements
+page.locator("li").filter(has_text="Item 2")
+
+# Find the nth match (0-indexed)
+page.locator("tr").nth(2)   # third table row
+
+# First and last shortcuts — prefer these over [0] indexing
+page.locator("li").first    # same as .nth(0) but more readable
+page.locator("li").last     # same as .nth(-1)
+```
+
+**CSS locators — use sparingly:**
+```python
+# By ID  (IDs can be auto-generated and unstable)
+page.locator("#submit-btn")
+
+# By class (fragile — classes change with refactoring)
+page.locator(".error-message")
+
+# Attribute selectors (more stable than class names)
+page.locator("[data-testid='login-form']")
+page.locator("input[type='email']")
+page.locator("button[disabled]")
+```
+
+**Checking how many elements match:**
+```python
+count = page.locator("li").count()   # returns an integer immediately (no auto-wait)
+# NOTE: count() does NOT auto-wait. It returns the current count at call time.
+# If you need to wait for a specific count, use:
+# expect(page.locator("li")).to_have_count(5)  ← this retries until count equals 5
 ```
 </En>
 <Vi>
-**Các locator được Playwright khuyến nghị (theo thứ tự ưu tiên):**
+**Ưu tiên locator — từ tốt nhất đến kém nhất:**
 
-| Locator | Code | Khi nào dùng |
-|---------|------|-------------|
-| Role + name | `page.get_by_role("button", name="Login")` | Tốt nhất — khớp ngữ nghĩa ARIA |
-| Label text | `page.get_by_label("Email address")` | Input form liên kết với label |
-| Placeholder | `page.get_by_placeholder("Enter email")` | Input không có label |
-| Text content | `page.get_by_text("Sign in")` | Bất kỳ văn bản hiển thị nào |
-| Test ID | `page.get_by_test_id("login-btn")` | Hook test tường minh (`data-testid`) |
-| CSS selector | `page.locator("input.email-field")` | Phương án cuối — dễ vỡ |
+| Ưu tiên | Locator | Khi nào dùng |
+|----------|---------|-------------|
+| 🥇 Tốt nhất | `get_by_role()` | Phần tử tương tác — nút, link, input, tiêu đề |
+| 🥈 Tốt | `get_by_label()` | Input form với `<label>` liên kết |
+| 🥈 Tốt | `get_by_placeholder()` | Input với thuộc tính `placeholder` |
+| 🥉 Được | `get_by_text()` | Text tĩnh cần nhấp hoặc kiểm tra |
+| 🥉 Được | `get_by_test_id()` | Phần tử có `data-testid` do dev đặt để test |
+| ⚠️ Cuối cùng | `locator("css")` | Khi không có locator ngữ nghĩa nào phù hợp |
+| ❌ Tránh | `locator("xpath=...")` | Rất mỏng manh — hỏng khi cấu trúc thay đổi |
 
-**Tại sao locator dựa trên role được ưu tiên:**
-- Chúng tồn tại qua các lần đổi tên class CSS và tái cấu trúc DOM
-- Chúng kiểm tra khả năng tiếp cận cùng lúc
-- Chúng tự ghi lại ý nghĩa
+**Tại sao ưu tiên locator theo role/label/text?**
+Chúng nhắm vào **những gì người dùng nhìn thấy và tương tác**, không phải chi tiết triển khai như tên CSS class hoặc ID phần tử. Một nút có nhãn "Submit" vẫn được gọi là "Submit" dù thiết kế lại hoàn toàn. CSS class như `.btn-primary-v2` có thể thay đổi bất kỳ lúc nào.
 
-**Lọc locator:**
+**Tham số `exact`:** Mặc định, `get_by_role()` và `get_by_text()` khớp một phần, không phân biệt hoa thường. Dùng `exact=True` khi cần khớp chính xác:
+
 ```python
-page.locator("li").filter(has_text="Alice")
-page.get_by_role("row").nth(0)
-page.locator(".card").last
+# Không có exact=True: khớp "Delete", "Delete account", "Delete all"
+page.get_by_role("button", name="Delete")
+
+# Với exact=True: chỉ khớp nút có accessible name chính xác là "Delete"
+page.get_by_role("button", name="Delete", exact=True)
+```
+
+**Chaining locator để thu hẹp phạm vi:**
+```python
+# Tìm nút trong một section cụ thể
+page.locator(".sidebar").get_by_role("button", name="Close")
+
+# Tìm phần tử trong container cụ thể (cha → con)
+page.locator(".product-grid").locator(".card-title")
+
+# Lọc theo text trong nhiều phần tử khớp
+page.locator("li").filter(has_text="Item 2")
+
+# Phần tử đầu và cuối — ưu tiên hơn indexing [0]
+page.locator("li").first    # tương đương .nth(0)
+page.locator("li").last     # tương đương .nth(-1)
+```
+
+**Kiểm tra số lượng phần tử khớp:**
+```python
+count = page.locator("li").count()   # trả về số nguyên ngay lập tức (không auto-wait)
+# LƯU Ý: count() KHÔNG auto-wait. Dùng expect().to_have_count(n) nếu cần chờ.
 ```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — All locator types**
+
+</En>
+<Vi>
+
+**Phần 1 — Tất cả loại locator**
+
+</Vi>
+
+```python
+# demo_locators.py
+# Run with: python demo_locators.py
+# Uses https://practicesoftwaretesting.com — a free QA practice site
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.goto("https://practicesoftwaretesting.com")
+
+    # --- get_by_role ---  Priority: BEST
+    # Targets the ARIA role + accessible name — survives CSS class changes and DOM restructuring
+    search = page.get_by_role("textbox", name="Search")
+    print(f"Search input visible: {search.is_visible()}")
+
+    # Find a link by its visible text
+    sign_in = page.get_by_role("link", name="Sign in")
+    print(f"Sign in link visible: {sign_in.is_visible()}")
+
+    # Find a heading by level — useful when there is exactly one <h1>
+    heading = page.get_by_role("heading", level=1)
+    print(f"H1 text: {heading.text_content()}")
+
+    # --- get_by_placeholder ---  Priority: GOOD
+    # Targets the placeholder text shown when the input is empty
+    # More resilient than CSS attribute selectors and maps to what users see
+    page.goto("https://practicesoftwaretesting.com/auth/login")
+    email_input = page.get_by_placeholder("Your email")
+    print(f"Email input enabled: {email_input.is_enabled()}")
+
+    # --- get_by_label ---  Priority: GOOD
+    # Finds inputs associated with a <label> via `for` attribute or by wrapping
+    password_input = page.get_by_label("Password")
+    print(f"Password input found: {password_input.is_visible()}")
+
+    # --- get_by_text ---  Priority: OK
+    # Use exact=True to avoid matching elements that only contain this text as a substring
+    login_heading = page.get_by_text("Login", exact=True)
+    print(f"Login heading text: {login_heading.text_content()}")
+
+    # --- CSS locator with attribute selector ---  Priority: LAST RESORT
+    # More stable than class names, but still an implementation detail
+    submit_btn = page.locator("input[type='submit']")
+    print(f"Submit button count: {submit_btn.count()}")
+
+    browser.close()
+```
+
+<En>
+
+**Part 2 — Chaining and filtering**
+
+</En>
+<Vi>
+
+**Phần 2 — Kết hợp và lọc**
+
+</Vi>
+
+```python
+# demo_chaining.py
+# Demonstrates chaining locators to narrow down to specific elements.
+# Chaining is key when the same locator pattern matches multiple places on the page.
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.goto("https://practicesoftwaretesting.com")
+
+    # Count all product cards on the current page
+    products = page.locator(".card")
+    print(f"Product cards on page: {products.count()}")
+
+    # Get the first product card using .first — prefer this over .nth(0) for readability.
+    # .first makes the intent clear at a glance: "I want the first one."
+    # .nth(0) and .first are equivalent in behavior, but .first is idiomatic Playwright.
+    first_card = products.first
+    first_title = first_card.locator(".card-title")
+    print(f"First product: {first_title.text_content()}")
+
+    # Similarly, .last is preferred over .nth(-1)
+    last_card = products.last
+    last_title = last_card.locator(".card-title")
+    print(f"Last product: {last_title.text_content()}")
+
+    # Iterate over the first 3 products with .nth()
+    product_items = page.locator(".card-title")
+    print(f"All product titles:")
+    for i in range(min(3, product_items.count())):
+        print(f"  [{i}] {product_items.nth(i).text_content()}")
+
+    # Chain: find nav links by scoping the locator to the nav element.
+    # This prevents accidentally matching <a> tags in the footer or hero section.
+    nav = page.locator("nav")
+    nav_links = nav.locator("a")
+    print(f"Nav links: {nav_links.count()}")
+
+    browser.close()
+```
+
+<En>
+
+**Part 3 — Pytest tests using locators**
+
+</En>
+<Vi>
+
+**Phần 3 — Pytest test dùng locator**
+
+</Vi>
+
 ```python
 # tests/test_locators.py
+# Run with: pytest tests/test_locators.py -v
 from playwright.sync_api import Page, expect
 
-def test_role_locator(page: Page):
-    page.goto("https://example.com")
-    # Role + accessible name
-    link = page.get_by_role("link", name="More information")
-    expect(link).to_be_visible()
-    print(f"Link href: {link.get_attribute('href')}")
+BASE = "https://practicesoftwaretesting.com"
 
-def test_text_locator(page: Page):
-    page.goto("https://example.com")
-    # Find by visible text
-    para = page.get_by_text("for use in illustrative examples")
-    expect(para).to_be_visible()
+def test_homepage_has_search_input(page: Page):
+    page.goto(BASE)
+    # get_by_role — most resilient locator; survives full CSS refactors
+    search = page.get_by_role("textbox", name="Search")
+    expect(search).to_be_visible()   # EXPECTED: PASSED — search input found and visible
+    expect(search).to_be_enabled()   # EXPECTED: PASSED — input is interactive
 
-def test_locator_count(page: Page):
-    page.goto("https://example.com")
-    # Count elements matching a selector
-    links = page.locator("a")
-    count = links.count()
-    assert count >= 1, f"Expected at least 1 link, found {count}"
-    print(f"Found {count} link(s) on page")
+def test_login_form_has_email_and_password(page: Page):
+    page.goto(f"{BASE}/auth/login")
+    # get_by_label matches <label> text — survives any CSS/class changes
+    expect(page.get_by_label("Email")).to_be_visible()      # EXPECTED: PASSED
+    expect(page.get_by_label("Password")).to_be_visible()   # EXPECTED: PASSED
 
-def test_first_and_last_locator(page: Page):
-    page.goto("https://example.com")
-    links = page.locator("a")
-    first_link = links.first
-    last_link = links.last
-    # Both should exist (same element if only one link)
-    expect(first_link).to_be_visible()
-    expect(last_link).to_be_visible()
+def test_sign_in_link_in_nav(page: Page):
+    page.goto(BASE)
+    sign_in = page.get_by_role("link", name="Sign in")
+    expect(sign_in).to_be_visible()   # EXPECTED: PASSED — link is in the nav bar
 
-def test_heading_selector(page: Page):
-    page.goto("https://example.com")
-    # Heading via role
-    h1 = page.get_by_role("heading", level=1)
-    expect(h1).to_contain_text("Example Domain")
-
-    # Heading via CSS (less preferred)
-    h1_css = page.locator("h1")
-    expect(h1_css).to_have_count(1)
+def test_products_appear_on_homepage(page: Page):
+    page.goto(BASE)
+    # CSS locator acceptable here — .card is the product grid structure
+    # No semantic locator uniquely identifies "product card" by role
+    cards = page.locator(".card")
+    count = cards.count()
+    assert count > 0, f"Expected product cards, found {count}"
+    # EXPECTED: PASSED — the homepage loads product cards from the API
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] For a page of your choice (e.g., a demo login page), identify and write locators for: the email input, password input, submit button, and a link — prefer role/label-based locators over CSS selectors
-- [ ] Use `.filter(has_text="...")` to narrow a locator that matches multiple elements to a specific one
-- [ ] Run Playwright's codegen tool (`playwright codegen https://example.com`) and observe which locators it suggests — note which ones use roles vs CSS
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Locate elements on the login form",
+    code: `# tests/test_login_locators.py
+# Run with: pytest tests/test_login_locators.py -v
+from playwright.sync_api import Page, expect
+
+LOGIN_URL = "https://practicesoftwaretesting.com/auth/login"
+
+def test_email_input_is_visible(page: Page):
+    page.goto(LOGIN_URL)
+    # Use get_by_label — matches the <label> associated with the email input
+    # hint: inspect the page to find what text the <label> shows
+    # TODO (EN): Find the exact <label> text for the email field by inspecting the page
+    # TODO (VI): Tìm text <label> chính xác cho trường email bằng cách inspect trang
+    email = page.get_by_label("???")
+    # TODO (EN): to_be_visible() — the email field should be visible
+    # TODO (VI): to_be_visible() — trường email phải hiển thị
+    expect(email).to_be_???()
+    # Expected: PASSED — email input is visible on the login form
+
+def test_password_input_is_visible(page: Page):
+    page.goto(LOGIN_URL)
+    # TODO (EN): Find the <label> text for the password field
+    # TODO (VI): Tìm text <label> cho trường mật khẩu
+    password = page.get_by_label("???")
+    expect(password).to_be_visible()
+    # Expected: PASSED — password input is visible
+
+def test_login_button_is_present(page: Page):
+    page.goto(LOGIN_URL)
+    # hint: inspect the button element — what text does it show? ("Login"? "Sign in"?)
+    # TODO (EN): Inspect the button — what text does it show?
+    # TODO (VI): Inspect button — text hiển thị là gì?
+    btn = page.get_by_role("button", name="???")
+    # TODO (EN): to_be_visible() — the login button should be visible
+    # TODO (VI): to_be_visible() — nút login phải hiển thị
+    expect(btn).to_be_???()
+    # Expected: PASSED — login button found and visible/enabled
+
+def test_register_link_exists(page: Page):
+    page.goto(LOGIN_URL)
+    # TODO (EN): Find the register link text by inspecting the page
+    # TODO (VI): Tìm text link đăng ký bằng cách inspect trang
+    link = page.get_by_role("link", name="???")
+    # TODO (EN): to_be_visible() — the register link should be present
+    # TODO (VI): to_be_visible() — link đăng ký phải hiển thị
+    expect(link).???
+    # Expected: PASSED — register link is present on the login page
+
+def test_page_heading(page: Page):
+    page.goto(LOGIN_URL)
+    # hint: use get_by_role("heading", name="Login")
+    # TODO (EN): The heading text — likely "Login"
+    # TODO (VI): Text heading — có thể là "Login"
+    heading = page.get_by_role("heading", name="???")
+    expect(heading).to_be_visible()
+    # Expected: PASSED — "Login" heading is visible at the top of the form`
+  }
+]}>
+
+<En>
+Open \`https://practicesoftwaretesting.com/auth/login\` in your browser and use DevTools (right-click → Inspect) to find the correct label text, button text, and link text before filling in the \`???\` placeholders.
+
+- [ ] Open the login page in DevTools and inspect elements to find the correct labels and button text
+- [ ] Fill in all \`???\` and run \`pytest tests/test_login_locators.py -v\` — all 5 tests should pass
+- [ ] Add a bonus test: assert that the email input has a \`placeholder\` attribute using \`get_by_placeholder()\`
+</En>
+<Vi>
+Mở \`https://practicesoftwaretesting.com/auth/login\` trong trình duyệt và dùng DevTools (nhấp chuột phải → Inspect) để tìm label text, button text và link text chính xác trước khi điền vào \`???\`.
+
+- [ ] Mở trang login trong DevTools và inspect element để tìm label và button text đúng
+- [ ] Điền tất cả \`???\` và chạy \`pytest tests/test_login_locators.py -v\` — tất cả 5 test phải pass
+- [ ] Thêm bonus test: kiểm tra email input có thuộc tính \`placeholder\` bằng \`get_by_placeholder()\`
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "Which locator strategy is most resilient to code changes?",
+    q: "Which locator is generally considered the best practice in Playwright?",
+    qVi: "Locator nào thường được coi là cách thực hành tốt nhất trong Playwright?",
     choices: [
-      "CSS class selectors like .login-button",
-      "XPath expressions like //button[@id='btn1']",
-      "Role-based locators like get_by_role('button', name='Login')",
-      "Index-based locators like locator('button').nth(3)"
+      "page.locator('.css-class')",
+      "page.locator('xpath=//button')",
+      "page.get_by_role('button', name='Submit')",
+      "page.locator('#element-id')"
+    ],
+    choicesVi: [
+      "page.locator('.css-class')",
+      "page.locator('xpath=//button')",
+      "page.get_by_role('button', name='Submit')",
+      "page.locator('#element-id')"
     ],
     answer: 2,
-    explain: "Role-based locators target ARIA semantics, not DOM structure. They survive CSS refactors, DOM restructuring, and ID changes — because the accessible role and name are stable contract, tied to what the element means to users."
+    explain: "get_by_role() matches elements by their ARIA role and accessible name — the same information a screen reader uses. It targets what the user sees and interacts with, making it resilient to CSS class renames and DOM restructuring.",
+    explainVi: "get_by_role() khớp phần tử theo ARIA role và tên truy cập — thông tin giống như trình đọc màn hình sử dụng. Nó nhắm vào những gì người dùng nhìn thấy và tương tác, khiến nó chịu được khi đổi tên CSS class hoặc cấu trúc lại DOM."
+  },
+  {
+    q: "What does `page.locator('li').nth(0)` return?",
+    qVi: "`page.locator('li').nth(0)` trả về gì?",
+    choices: [
+      "The last <li> element on the page",
+      "The first <li> element on the page (0-indexed)",
+      "A list of all <li> elements",
+      "An error — nth() is not a valid method"
+    ],
+    choicesVi: [
+      "Phần tử <li> cuối cùng trên trang",
+      "Phần tử <li> đầu tiên trên trang (đánh số từ 0)",
+      "Danh sách tất cả phần tử <li>",
+      "Lỗi — nth() không phải phương thức hợp lệ"
+    ],
+    answer: 1,
+    explain: "nth() is 0-indexed, so nth(0) gives you the first matching element. Use .first as a shortcut for nth(0) and .last for the final match.",
+    explainVi: "nth() đánh số từ 0, nên nth(0) cho bạn phần tử khớp đầu tiên. Dùng .first làm phím tắt cho nth(0) và .last cho phần tử cuối cùng."
+  },
+  {
+    q: "When is get_by_label() the right locator to use?",
+    qVi: "Khi nào get_by_label() là locator phù hợp để dùng?",
+    choices: [
+      "When you want to find an element by its ARIA role",
+      "When an input has an associated <label> element (which is good accessibility practice)",
+      "When you want to find text content on the page",
+      "When you need to find an element by its CSS class"
+    ],
+    choicesVi: [
+      "Khi bạn muốn tìm phần tử theo ARIA role",
+      "Khi input có phần tử <label> liên kết (đây là thực hành truy cập tốt)",
+      "Khi bạn muốn tìm nội dung văn bản trên trang",
+      "Khi bạn cần tìm phần tử theo CSS class"
+    ],
+    answer: 1,
+    explain: "get_by_label() finds form inputs that are associated with a <label> element via the `for` attribute or by wrapping. It's the best locator for labelled form fields because it mirrors how users identify inputs.",
+    explainVi: "get_by_label() tìm các input form được liên kết với phần tử <label> qua thuộc tính `for` hoặc bằng cách bao bọc. Đây là locator tốt nhất cho các trường form có nhãn vì nó phản ánh cách người dùng nhận biết input."
+  },
+  {
+    q: "Why should you avoid XPath locators in most cases?",
+    qVi: "Tại sao nên tránh dùng XPath locator trong hầu hết trường hợp?",
+    choices: [
+      "XPath is slower than CSS by 10x",
+      "XPath locators are tied to the DOM structure and break whenever a parent element is added, removed, or rearranged",
+      "Playwright does not support XPath",
+      "XPath only works in Firefox"
+    ],
+    choicesVi: [
+      "XPath chậm hơn CSS 10 lần",
+      "XPath locator gắn với cấu trúc DOM và hỏng bất cứ khi nào phần tử cha được thêm, xóa hoặc sắp xếp lại",
+      "Playwright không hỗ trợ XPath",
+      "XPath chỉ hoạt động trên Firefox"
+    ],
+    answer: 1,
+    explain: "XPath selectors like //div/div[2]/button are extremely fragile — adding a single wrapper div breaks them. Semantic locators (role, label, text) survive most UI changes because they target meaning, not structure.",
+    explainVi: "Selector XPath như //div/div[2]/button cực kỳ mỏng manh — thêm một div bao bọc là hỏng ngay. Locator ngữ nghĩa (role, label, text) tồn tại qua hầu hết thay đổi UI vì chúng nhắm vào ý nghĩa, không phải cấu trúc."
+  },
+  {
+    q: "What does `page.locator('.card').filter(has_text='Laptop')` do?",
+    qVi: "`page.locator('.card').filter(has_text='Laptop')` làm gì?",
+    choices: [
+      "Finds all elements with class 'card' anywhere on the page",
+      "Finds elements with class 'card' that contain the text 'Laptop'",
+      "Removes all cards that contain the text 'Laptop'",
+      "Returns the count of cards containing 'Laptop'"
+    ],
+    choicesVi: [
+      "Tìm tất cả phần tử có class 'card' ở bất kỳ đâu trên trang",
+      "Tìm các phần tử có class 'card' chứa văn bản 'Laptop'",
+      "Xóa tất cả thẻ chứa văn bản 'Laptop'",
+      "Trả về số lượng thẻ chứa 'Laptop'"
+    ],
+    answer: 1,
+    explain: "filter(has_text=) narrows a locator to only the matching elements that contain the given text. It's useful when multiple elements share the same selector but you need a specific one.",
+    explainVi: "filter(has_text=) thu hẹp locator chỉ còn các phần tử khớp có chứa văn bản đã cho. Hữu ích khi nhiều phần tử dùng cùng selector nhưng bạn cần một phần tử cụ thể."
+  },
+  {
+    q: "A locator was created with `btn = page.get_by_role('button', name='Save')`. When does Playwright actually search the DOM for this button?",
+    qVi: "Một locator được tạo với `btn = page.get_by_role('button', name='Save')`. Playwright thực sự tìm kiếm DOM cho nút này khi nào?",
+    choices: [
+      "Immediately when the line executes",
+      "When you perform an action (click, fill) or assertion on it",
+      "Only when the page finishes loading",
+      "When you call btn.resolve()"
+    ],
+    choicesVi: [
+      "Ngay lập tức khi dòng lệnh thực thi",
+      "Khi bạn thực hiện hành động (click, fill) hoặc assertion trên nó",
+      "Chỉ khi trang hoàn thành tải",
+      "Khi bạn gọi btn.resolve()"
+    ],
+    answer: 1,
+    explain: "Playwright locators are lazy. Creating a locator object does not touch the DOM. The actual element lookup happens right before you interact with it (click, fill, expect). This is why locators auto-wait — they have a chance to retry until the element appears.",
+    explainVi: "Locator Playwright là lười biếng. Tạo đối tượng locator không chạm vào DOM. Việc tìm kiếm phần tử thực sự xảy ra ngay trước khi bạn tương tác với nó (click, fill, expect). Đây là lý do locator auto-wait — chúng có cơ hội thử lại cho đến khi phần tử xuất hiện."
   },
   {
     q: "What does `page.locator('.card').first` return?",
+    qVi: "`page.locator('.card').first` trả về gì?",
     choices: [
-      "The number of .card elements",
-      "A Locator representing the first element matching .card",
-      "The text of the first .card",
-      "A list of all .card elements"
+      "The count of matching elements",
+      "A Locator pointing to the first matching element — equivalent to .nth(0)",
+      "A list of all matching elements",
+      "The first element's text content"
+    ],
+    choicesVi: [
+      "Số lượng phần tử khớp",
+      "Một Locator trỏ đến phần tử khớp đầu tiên — tương đương .nth(0)",
+      "Danh sách tất cả phần tử khớp",
+      "Nội dung văn bản của phần tử đầu tiên"
     ],
     answer: 1,
-    explain: ".first is a shortcut for .nth(0) — it returns a Locator targeting only the first matched element. Locators are lazy — they don't query the DOM until you interact with them."
+    explain: ".first is a shortcut for .nth(0). It returns a Locator pointing to the first match. Similarly, .last gives the last match. These are preferred over .nth(0) and .nth(-1) for readability.",
+    explainVi: ".first là phím tắt cho .nth(0). Nó trả về Locator trỏ đến phần tử khớp đầu tiên. Tương tự, .last cho phần tử khớp cuối cùng. Chúng được ưu tiên hơn .nth(0) và .nth(-1) vì dễ đọc hơn."
+  },
+  {
+    q: "How do you find an input element by its placeholder text?",
+    qVi: "Làm thế nào để tìm phần tử input theo văn bản placeholder của nó?",
+    choices: [
+      "page.get_by_role('input', placeholder='Search')",
+      "page.get_by_placeholder('Search')",
+      "page.locator('input[value=\"Search\"]')",
+      "page.get_by_attribute('placeholder', 'Search')"
+    ],
+    choicesVi: [
+      "page.get_by_role('input', placeholder='Search')",
+      "page.get_by_placeholder('Search')",
+      "page.locator('input[value=\"Search\"]')",
+      "page.get_by_attribute('placeholder', 'Search')"
+    ],
+    answer: 1,
+    explain: "get_by_placeholder() finds inputs and textareas by their placeholder attribute — the grey hint text shown when the input is empty. It's more resilient than a CSS attribute selector and directly maps to what users see before they type.",
+    explainVi: "get_by_placeholder() tìm input và textarea theo thuộc tính placeholder — văn bản gợi ý màu xám hiển thị khi input trống. Nó bền vững hơn CSS attribute selector và trực tiếp ánh xạ những gì người dùng thấy trước khi gõ."
+  },
+  {
+    q: "What is `get_by_test_id()` and what HTML attribute does it look for by default?",
+    qVi: "`get_by_test_id()` là gì và mặc định nó tìm thuộc tính HTML nào?",
+    choices: [
+      "It finds elements by their CSS id attribute",
+      "It finds elements with a `data-testid` attribute — a dedicated test hook added by developers",
+      "It finds elements by their `test-id` CSS class",
+      "It runs a test on the element and returns its ID"
+    ],
+    choicesVi: [
+      "Nó tìm phần tử theo thuộc tính CSS id",
+      "Nó tìm phần tử có thuộc tính `data-testid` — hook test chuyên dụng do developer thêm vào",
+      "Nó tìm phần tử theo CSS class `test-id`",
+      "Nó chạy test trên phần tử và trả về ID của nó"
+    ],
+    answer: 1,
+    explain: "get_by_test_id() looks for elements with data-testid='value'. Developers add data-testid attributes specifically for test automation — they're stable (don't change with UI redesigns) and communicate intent. You can configure a different attribute name in playwright config.",
+    explainVi: "get_by_test_id() tìm phần tử có data-testid='value'. Developer thêm thuộc tính data-testid đặc biệt cho tự động hoá test — chúng ổn định (không thay đổi khi thiết kế lại UI) và truyền đạt ý định. Bạn có thể cấu hình tên thuộc tính khác trong playwright config."
+  },
+  {
+    q: "What does `page.locator('li').count()` return?",
+    qVi: "`page.locator('li').count()` trả về gì?",
+    choices: [
+      "A Locator for the element at the nth position",
+      "An integer — the number of DOM elements currently matching the selector",
+      "A boolean — True if at least one element matches",
+      "A list of all matching elements"
+    ],
+    choicesVi: [
+      "Một Locator cho phần tử ở vị trí thứ n",
+      "Một số nguyên — số phần tử DOM hiện đang khớp với selector",
+      "Một boolean — True nếu ít nhất một phần tử khớp",
+      "Danh sách tất cả phần tử khớp"
+    ],
+    answer: 1,
+    explain: "count() queries the DOM immediately and returns the integer count of matching elements. Unlike most Playwright methods, count() does NOT auto-wait — it returns the current count at the moment it's called. Use expect(locator).to_have_count(n) if you need to wait for a specific count.",
+    explainVi: "count() truy vấn DOM ngay lập tức và trả về số nguyên là số phần tử khớp. Không giống hầu hết phương thức Playwright, count() KHÔNG auto-wait — nó trả về số lượng hiện tại tại thời điểm gọi. Dùng expect(locator).to_have_count(n) nếu bạn cần chờ một số lượng cụ thể."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Locators Guide", url: "https://playwright.dev/python/docs/locators" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "Playwright Python — Locators", url: "https://playwright.dev/python/docs/locators" },
+  { title: "Playwright Python — Best Practices", url: "https://playwright.dev/python/docs/best-practices" },
+  { title: "Practice site: practicesoftwaretesting.com", url: "https://practicesoftwaretesting.com" }
 ]} />

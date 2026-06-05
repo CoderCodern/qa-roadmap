@@ -1,153 +1,631 @@
 ---
 id: 35
-title: "Phase 3 review"
+title: "Mini project: 10-test suite"
 phase: 3
-estMinutes: 60
-tags: ["playwright", "review"]
+estMinutes: 120
+tags: ["playwright", "project"]
 ---
 
 ## Intro
 
 <En>
-You have covered two weeks of Playwright. Today consolidates the key skills: locators, actions, waiting, POM, fixtures, debugging, and CI. Use this session to close any gaps before moving to API testing in Phase 4, which requires a different mindset — less about what the user sees and more about what the server responds with.
+You have learned all the building blocks of professional Playwright automation: locators, actions, waiting, screenshots, POM, fixtures, parametrize, debugging, and CI. Now it is time to put them all together.
+
+Your mini project is to build a **complete, professional-grade test suite** with at least 10 tests against `https://practicesoftwaretesting.com`. The suite must use Page Object Model, pytest fixtures, parametrize where appropriate, and produce meaningful failure output (screenshots on failure). This is the kind of suite you would show in a job interview or add to your GitHub portfolio.
 </En>
 <Vi>
-Bạn đã học hai tuần về Playwright. Hôm nay củng cố các kỹ năng chính: locator, action, chờ, POM, fixture, gỡ lỗi và CI. Dùng buổi này để bít các lỗ hổng trước khi chuyển sang kiểm thử API trong Phase 4, yêu cầu tư duy khác — ít về những gì người dùng thấy hơn và nhiều hơn về những gì server phản hồi.
+Bạn đã học tất cả các khối xây dựng của tự động hoá Playwright chuyên nghiệp: locator, action, chờ đợi, screenshot, POM, fixture, parametrize, debug và CI. Bây giờ là lúc kết hợp tất cả lại.
+
+Dự án nhỏ của bạn là xây dựng một **bộ test hoàn chỉnh, chuyên nghiệp** với ít nhất 10 test cho `https://practicesoftwaretesting.com`. Bộ test phải dùng Page Object Model, pytest fixture, parametrize khi thích hợp và tạo ra output thất bại có ý nghĩa (screenshot khi thất bại). Đây là loại bộ test bạn sẽ trình bày trong phỏng vấn hoặc thêm vào portfolio GitHub.
 </Vi>
 
 ## Concept
 
 <En>
-**Phase 3 recap — the essential skills:**
+**Project structure for a professional suite:**
 
-| Skill | Key insight |
-|-------|-------------|
-| Browser automation | Playwright launches a real browser; it's not mocking |
-| Locators | Role-based > label-based > placeholder > text > testid > CSS > XPath |
-| Auto-wait | Playwright checks 5 actionability conditions before every action |
-| Assertions | `expect()` retries; `assert` is one-shot — use the right tool |
-| Screenshots | Debug tool and visual regression baseline |
-| POM | Encapsulate locators in classes; tests call methods, not locators |
-| Fixtures | `yield` = setup before / teardown after |
-| parametrize | One test function, many inputs; avoids duplication |
-| CI | `.github/workflows/*.yml`; always upload artifacts on failure |
+```
+phase3-project/
+├── pages/
+│   ├── __init__.py
+│   ├── home_page.py          ← search, navigation
+│   ├── login_page.py         ← login, error handling
+│   ├── account_page.py       ← post-login state
+│   └── product_page.py       ← product detail, add to cart
+├── tests/
+│   ├── conftest.py           ← shared fixtures, base URL, logged_in
+│   ├── test_search.py        ← 3-4 search tests (parametrized)
+│   ├── test_auth.py          ← 3-4 login tests (valid + invalid)
+│   └── test_product.py       ← 2-3 product tests
+├── requirements.txt
+└── .github/
+    └── workflows/
+        └── playwright.yml
+```
 
-**Common mistakes to avoid going forward:**
-- Mixing locators into test functions (use POM)
-- Using `time.sleep()` instead of `expect()` waits
-- Ignoring browser console errors (add a console listener)
-- Writing tests that depend on execution order (each test must be independent)
-- Not cleaning up after tests (each test should leave no trace for the next)
+**10 test ideas across 3 areas:**
+
+| # | Area | Test |
+|---|------|------|
+| 1 | Search | Multiple search terms return results (parametrized) |
+| 2 | Search | Empty search shows all products |
+| 3 | Search | Nonexistent term shows "no results" |
+| 4 | Auth | Valid login redirects to /account |
+| 5 | Auth | Invalid password shows error |
+| 6 | Auth | Empty email prevents submission |
+| 7 | Auth | Valid credentials (multiple users, parametrized) |
+| 8 | Product | Product page has title, price, and Add to cart |
+| 9 | Product | Can navigate product → cart |
+| 10 | Navigation | All nav links lead to correct pages |
+
+**Quality checklist for a professional suite:**
+- [ ] POM — no raw locators in test files
+- [ ] Fixtures — login is in a shared fixture, not copied
+- [ ] Parametrize — repeated logic uses `@pytest.mark.parametrize`
+- [ ] Clear test names — readable, describe what is being tested
+- [ ] Assertions with messages — `assert x > 0, "Expected at least one product"`
+- [ ] No `time.sleep()` — use Playwright waits
+- [ ] CI workflow — tests run on push to main
+- [ ] Failure artifacts — screenshots and traces on failure
 </En>
 <Vi>
-**Tóm tắt Phase 3 — các kỹ năng thiết yếu:**
+**Cấu trúc project chuyên nghiệp:**
 
-| Kỹ năng | Điểm mấu chốt |
-|-------|-------------|
-| Tự động hoá trình duyệt | Playwright khởi chạy trình duyệt thực; không phải mock |
-| Locator | Role-based > label-based > placeholder > text > testid > CSS > XPath |
-| Auto-wait | Playwright kiểm tra 5 điều kiện hành động trước mỗi action |
-| Assertion | `expect()` thử lại; `assert` là một lần — dùng đúng công cụ |
-| Ảnh chụp màn hình | Công cụ gỡ lỗi và baseline hồi quy trực quan |
-| POM | Đóng gói locator trong class; test gọi method, không phải locator |
-| Fixture | `yield` = setup trước / teardown sau |
-| parametrize | Một hàm test, nhiều đầu vào |
-| CI | `.github/workflows/*.yml`; luôn tải artifact khi thất bại |
+```
+phase3-project/
+├── pages/
+│   ├── __init__.py
+│   ├── home_page.py
+│   ├── login_page.py
+│   ├── account_page.py
+│   └── product_page.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_search.py
+│   ├── test_auth.py
+│   └── test_product.py
+├── requirements.txt
+└── .github/workflows/playwright.yml
+```
 
-**Các lỗi phổ biến cần tránh:**
-- Trộn locator vào hàm test (dùng POM)
-- Dùng `time.sleep()` thay vì `expect()` wait
-- Bỏ qua lỗi console trình duyệt
-- Viết test phụ thuộc vào thứ tự thực thi
+**10 ý tưởng test:**
+
+| # | Lĩnh vực | Test |
+|---|------|------|
+| 1-3 | Tìm kiếm | Nhiều từ khoá (parametrize), trống, không có kết quả |
+| 4-7 | Xác thực | Đăng nhập hợp lệ, mật khẩu sai, email trống, nhiều user |
+| 8-9 | Sản phẩm | Trang sản phẩm có tiêu đề/giá, có thể thêm vào giỏ |
+| 10 | Điều hướng | Tất cả link nav dẫn đến đúng trang |
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — ProductPage Page Object**
+
+</En>
+<Vi>
+
+**Phần 1 — Page Object cho ProductPage**
+
+</Vi>
+
 ```python
-# A complete, well-structured Playwright test — demonstrating all Phase 3 skills
+# pages/product_page.py
+from __future__ import annotations
+from playwright.sync_api import Page, Locator
+
+class ProductPage:
+    """
+    Page Object for individual product pages at:
+    https://practicesoftwaretesting.com/product/{id}
+    """
+
+    def __init__(self, page: Page) -> None:
+        self.page = page
+
+        # ── Locators ────────────────────────────────────────────────
+        self.product_title: Locator = page.locator(".product-title, h1")
+        self.product_price: Locator = page.locator(".product-price, .price")
+        self.add_to_cart_btn: Locator = page.get_by_role("button", name="Add to cart")
+        self.quantity_input: Locator = page.locator("input[type='number']")
+        self.success_toast: Locator = page.locator(".toast-success, .alert-success")
+
+    # ── Queries ─────────────────────────────────────────────────────
+    def get_title(self) -> str:
+        return self.product_title.text_content() or ""
+
+    def get_price(self) -> str:
+        return self.product_price.text_content() or ""
+
+    def is_add_to_cart_visible(self) -> bool:
+        return self.add_to_cart_btn.is_visible()
+
+    # ── Actions ─────────────────────────────────────────────────────
+    def add_to_cart(self, quantity: int = 1) -> "ProductPage":
+        if quantity > 1:
+            self.quantity_input.fill(str(quantity))
+        self.add_to_cart_btn.click()
+        return self
+
+    def wait_for_success_toast(self) -> "ProductPage":
+        self.success_toast.wait_for(timeout=5_000)
+        return self
+```
+
+<En>
+
+**Part 2 — conftest.py for the mini project**
+
+</En>
+<Vi>
+
+**Phần 2 — conftest.py cho mini project**
+
+</Vi>
+
+```python
+# tests/conftest.py
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
+from playwright.sync_api import Page
+from pages.login_page import LoginPage
+
+BASE_URL = "https://practicesoftwaretesting.com"
+CUSTOMER_EMAIL = "customer@practicesoftwaretesting.com"
+CUSTOMER_PASSWORD = "welcome01"
+
+@pytest.fixture(scope="session")
+def base_url() -> str:
+    return BASE_URL
+
+@pytest.fixture(scope="function")
+def authenticated_page(page: Page) -> Page:
+    """Pre-authenticated page at /account. Use in any test needing login."""
+    LoginPage(page).navigate().login(CUSTOMER_EMAIL, CUSTOMER_PASSWORD)
+    page.wait_for_url("**/account")
+    return page
+
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    return {
+        **browser_context_args,
+        "viewport": {"width": 1280, "height": 720},
+    }
+```
+
+<En>
+
+**Part 3 — test_search.py with parametrize**
+
+</En>
+<Vi>
+
+**Phần 3 — test_search.py với parametrize**
+
+</Vi>
+
+```python
+# tests/test_search.py
+# Run with: pytest tests/test_search.py -v
+import pytest
 from playwright.sync_api import Page, expect
-from pages.todo_page import TodoPage  # POM import
 
-# Fixture — setup and teardown
-@pytest.fixture
-def fresh_todo(page: Page) -> TodoPage:
-    todo = TodoPage(page)
-    todo.navigate()
-    yield todo
-    # Teardown: nothing to clean — fresh browser context per test
+BASE = "https://practicesoftwaretesting.com"
 
-# Parametrize — data-driven testing
-@pytest.mark.parametrize("items,expected_count", [
-    (["Task 1"], 1),
-    (["Task A", "Task B", "Task C"], 3),
+def do_search(page: Page, term: str) -> None:
+    """Helper: navigate to homepage, search, wait for results."""
+    page.goto(BASE)
+    page.wait_for_load_state("networkidle")
+    page.get_by_role("textbox", name="Search").fill(term)
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+
+# Parametrized: 4 search terms, all should return results
+@pytest.mark.parametrize("term", [
+    "Hammer",
+    "Pliers",
+    "Screwdriver",
+    "Bolt Cutters",
 ])
-def test_add_items_count(fresh_todo: TodoPage, items: list, expected_count: int):
-    for item in items:
-        fresh_todo.add(item)
-    assert fresh_todo.get_count() == expected_count
+def test_search_term_returns_results(page: Page, term: str):
+    """Valid product names should return at least one result."""
+    do_search(page, term)
+    count = page.locator(".card").count()
+    assert count > 0, f"Expected results for '{term}', found {count}"
 
-# Clear assertion — uses expect() for auto-retry
-def test_item_visible_after_add(fresh_todo: TodoPage):
-    fresh_todo.add("Automation is fun")
-    # expect() auto-retries until visible or timeout
-    expect(fresh_todo.page.get_by_role("listitem")).to_contain_text("Automation is fun")
+def test_nonexistent_search_shows_no_results(page: Page):
+    """Searching for a nonexistent product should show no results."""
+    do_search(page, "XYZNONEXISTENTPRODUCT99999")
+    # Either cards = 0 or a "no results" message appears
+    card_count = page.locator(".card").count()
+    no_results = page.locator("[class*='no-result'], .alert, p:has-text('no')").count()
+    assert card_count == 0 or no_results > 0, \
+        "Expected no results or a 'no results' message"
+```
 
-# Negative test — verifying something does NOT happen
-def test_empty_submit_does_not_add(fresh_todo: TodoPage):
-    fresh_todo.new_todo_input.press("Enter")
-    assert fresh_todo.get_count() == 0
+<En>
 
-# Screenshot on key step
-def test_complete_flow_with_screenshot(fresh_todo: TodoPage, tmp_path):
-    fresh_todo.add("Review Phase 3")
-    fresh_todo.page.screenshot(path=str(tmp_path / "before_complete.png"))
-    fresh_todo.complete("Review Phase 3")
-    fresh_todo.page.screenshot(path=str(tmp_path / "after_complete.png"))
-    completed = fresh_todo.page.locator(".todo-list li.completed")
-    assert completed.count() == 1
+**Part 4 — test_auth.py**
+
+</En>
+<Vi>
+
+**Phần 4 — test_auth.py**
+
+</Vi>
+
+```python
+# tests/test_auth.py
+import pytest
+from playwright.sync_api import Page, expect
+
+BASE = "https://practicesoftwaretesting.com"
+LOGIN_URL = f"{BASE}/auth/login"
+
+VALID_USERS = [
+    pytest.param(
+        "customer@practicesoftwaretesting.com", "welcome01", "/account",
+        id="customer"
+    ),
+    # Add more user roles if the site has them (admin, etc.)
+]
+
+INVALID_CREDS = [
+    pytest.param("wrong@example.com",  "welcome01", id="wrong-email"),
+    pytest.param("customer@practicesoftwaretesting.com", "wrongpass", id="wrong-password"),
+    pytest.param("",                    "welcome01",   id="empty-email"),
+]
+
+@pytest.mark.parametrize("email,password,expected_path", VALID_USERS)
+def test_valid_login(page: Page, email: str, password: str, expected_path: str):
+    """Valid credentials should redirect to the expected path."""
+    page.goto(LOGIN_URL)
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Password").fill(password)
+    page.get_by_role("button", name="Login").click()
+    page.wait_for_url(f"**{expected_path}")
+    assert expected_path in page.url
+
+@pytest.mark.parametrize("email,password", INVALID_CREDS)
+def test_invalid_login_shows_error(page: Page, email: str, password: str):
+    """Invalid credentials should keep user on login page or show error."""
+    page.goto(LOGIN_URL)
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Password").fill(password)
+    page.get_by_role("button", name="Login").click()
+    error = page.locator(".alert-danger, .invalid-feedback, [role='alert']")
+    assert "login" in page.url or error.is_visible(), \
+        f"Expected error for email='{email}', password='{password}'"
+
+def test_account_heading_visible_after_login(authenticated_page: Page):
+    """After login, account heading should be visible."""
+    heading = authenticated_page.get_by_role("heading", name="My account")
+    expect(heading).to_be_visible()
+
+def test_sign_out_returns_to_home(authenticated_page: Page):
+    """Signing out should navigate away from /account."""
+    sign_out = authenticated_page.get_by_role("link", name="Sign out")
+    sign_out.click()
+    assert "/account" not in authenticated_page.url
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Without looking at previous lessons, write a complete Playwright test for a "Register" page: navigate, fill name/email/password fields, submit, and assert a success message — use POM
-- [ ] Review your Phase 3 mini-project from Day 34 and identify one test that could be improved with parametrize — implement the improvement
-- [ ] Explain to someone else (or write it down) what happens inside Playwright between `page.get_by_role("button", name="Login").click()` and the click actually executing
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Complete the product test suite",
+    code: `# tests/test_product.py
+# Fill in ??? to complete the product test suite
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from playwright.sync_api import Page, expect
+from pages.product_page import ProductPage
+
+BASE = "https://practicesoftwaretesting.com"
+
+def test_product_page_has_title(page: Page):
+    """Product page should display a non-empty title."""
+    page.goto(BASE)
+    page.get_by_role("textbox", name="Search").fill("Hammer")
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+
+    # TODO (EN): ".card" — the CSS selector for product cards
+    # TODO (VI): ".card" — CSS selector cho thẻ sản phẩm
+    page.locator("???").first.click()    # hint: ".card" selects product cards
+    page.wait_for_load_state("networkidle")
+
+    product = ProductPage(page)
+    title = product.get_title()
+    assert len(title) > 0, f"Expected a product title, got: '{title}'"
+    print(f"Product title: {title}")
+
+def test_product_page_has_price(page: Page):
+    """Product page should display a price."""
+    page.goto(BASE)
+    page.get_by_role("textbox", name="Search").fill("Pliers")
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+    page.locator(".card").first.click()
+    page.wait_for_load_state("networkidle")
+
+    product = ProductPage(page)
+    price = product.get_price()
+    assert "$" in price or "€" in price or len(price) > 0, \\
+        f"Expected a price, got: '{price}'"
+
+def test_add_to_cart_button_visible(page: Page):
+    """Add to cart button should be visible on the product page."""
+    page.goto(BASE)
+    # TODO (EN): Any product name that exists on the site, e.g. "Bolt"
+    # TODO (VI): Bất kỳ tên sản phẩm nào có trên trang, ví dụ "Bolt"
+    page.get_by_role("textbox", name="Search").fill("???")  # any product name
+    page.get_by_role("textbox", name="Search").press("Enter")
+    page.wait_for_load_state("networkidle")
+    page.locator(".card").first.click()
+    page.wait_for_load_state("networkidle")
+
+    product = ProductPage(page)
+    # TODO (EN): to_be_visible() — the button should be visible
+    # TODO (VI): to_be_visible() — nút phải hiển thị
+    expect(product.add_to_cart_btn).to_be_???()
+
+def test_navigation_links_work(page: Page):
+    """Key navigation links should lead to the expected pages."""
+    page.goto(BASE)
+
+    # Test at least 2 navigation links
+    # TODO (EN): Inspect the navbar — find a link like "Sign in" or "Categories"
+    # TODO (VI): Inspect navbar — tìm link như "Sign in" hoặc "Categories"
+    page.get_by_role("link", name="???").click()
+    # TODO (EN): The expected URL after clicking — e.g. "https://practicesoftwaretesting.com/auth/login"
+    # TODO (VI): URL mong đợi sau khi click — ví dụ "https://practicesoftwaretesting.com/auth/login"
+    expect(page).to_have_url("???")
+    page.goto(BASE)
+
+    # Test another nav link
+    # TODO (EN): Add another navigation link test — find a different nav link and assert its destination URL
+    # TODO (VI): Thêm test navigation link khác — tìm link nav khác và kiểm tra URL đích
+    ???`
+  }
+]}>
+
+<En>
+```bash
+# Run the complete 10-test suite:
+pytest tests/ -v --tb=short
+
+# Run with screenshots on failure:
+pytest tests/ -v --screenshot=only-on-failure --output=test-results
+```
+
+- [ ] Fill in all `???` — use `.card` as the product card selector, and inspect the site for nav link text
+- [ ] Run `pytest tests/ -v --tb=short` — all 10+ tests should pass
+- [ ] Fix any failures by adjusting selectors or assertions
+- [ ] Upload your project to GitHub and add a README explaining what it tests
+</En>
+<Vi>
+```bash
+# Chạy toàn bộ bộ test 10 bài:
+pytest tests/ -v --tb=short
+
+# Chạy với screenshot khi fail:
+pytest tests/ -v --screenshot=only-on-failure --output=test-results
+```
+
+- [ ] Điền tất cả `???` — dùng `.card` cho selector thẻ sản phẩm, inspect trang để tìm nav link text
+- [ ] Chạy `pytest tests/ -v --tb=short` — tất cả 10+ test phải pass
+- [ ] Sửa các lỗi bằng cách điều chỉnh selector hoặc assertion
+- [ ] Upload dự án lên GitHub và thêm README giải thích những gì được test
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "A test passes locally but fails intermittently in CI. What is the most likely cause?",
+    q: "In a professional test suite, where should page locators be defined?",
+    qVi: "Trong bộ test chuyên nghiệp, locator của trang nên được định nghĩa ở đâu?",
     choices: [
-      "The test file is in the wrong directory",
-      "A timing issue — the CI runner is slower, and a fixed sleep or one-shot assertion fails before the element is ready",
-      "GitHub Actions does not support Playwright",
-      "The test is using the wrong browser"
+      "Directly inside each test function for clarity",
+      "In Page Object classes in the pages/ directory — imported by tests",
+      "In conftest.py so fixtures can use them",
+      "In a separate locators.py file at the project root"
+    ],
+    choicesVi: [
+      "Trực tiếp trong mỗi hàm test để rõ ràng",
+      "Trong các class Page Object trong thư mục pages/ — được test import",
+      "Trong conftest.py để fixture có thể sử dụng chúng",
+      "Trong file locators.py riêng biệt ở thư mục gốc dự án"
     ],
     answer: 1,
-    explain: "CI runners are often slower than local machines. If tests use fixed sleeps or assert is_visible() instead of expect().to_be_visible(), they pass locally (fast) but fail in CI (slow). Replace all fixed sleeps with expect() assertions to fix this."
+    explain: "Locators belong in Page Object classes. Test files import the Page Object and call action methods — they never use raw locators like page.locator('.css-class') directly. This enforces POM and keeps tests readable and maintainable.",
+    explainVi: "Locator thuộc về các class Page Object. File test import Page Object và gọi các phương thức action — chúng không bao giờ dùng locator trực tiếp như page.locator('.css-class'). Điều này áp dụng POM và giữ test dễ đọc và bảo trì."
   },
   {
-    q: "What is the key difference between POM with a fixture and POM without one?",
+    q: "You have 3 test files each needing login. Where should the login fixture go?",
+    qVi: "Bạn có 3 file test mỗi cái đều cần đăng nhập. Fixture đăng nhập nên đặt ở đâu?",
     choices: [
-      "Fixtures are required to use page objects in Playwright",
-      "A fixture handles the creation and navigation setup, so every test gets a ready-to-use page object without repeating setup code",
-      "Page objects cannot be used without fixtures",
-      "Fixtures run tests faster"
+      "Copy the login code into each test file",
+      "In conftest.py at the project root — available to all test files automatically",
+      "In a separate fixtures.py that each test file imports",
+      "In the first test file, then import it in the others"
+    ],
+    choicesVi: [
+      "Sao chép code đăng nhập vào mỗi file test",
+      "Trong conftest.py ở thư mục gốc dự án — tự động có sẵn cho tất cả file test",
+      "Trong fixtures.py riêng biệt mà mỗi file test import",
+      "Trong file test đầu tiên, sau đó import vào các file khác"
     ],
     answer: 1,
-    explain: "Without a fixture, every test would call TodoPage(page) and todo.navigate() — that's duplication. A fixture encapsulates the creation and common setup, so tests declare 'todo: TodoPage' and immediately start testing the feature."
+    explain: "Shared fixtures belong in conftest.py. pytest automatically discovers and injects them into any test that declares them as parameters — no import needed. The project root conftest.py applies to all tests in all subdirectories.",
+    explainVi: "Fixture dùng chung thuộc về conftest.py. pytest tự động phát hiện và inject chúng vào bất kỳ test nào khai báo chúng làm tham số — không cần import. conftest.py ở thư mục gốc dự án áp dụng cho tất cả test trong tất cả thư mục con."
+  },
+  {
+    q: "What should a test name communicate?",
+    qVi: "Tên test nên truyền đạt điều gì?",
+    choices: [
+      "The file it's in and the line number",
+      "What is being tested and what the expected outcome is — readable by someone unfamiliar with the code",
+      "The implementation steps the test performs",
+      "The name of the page it tests"
+    ],
+    choicesVi: [
+      "File chứa nó và số dòng",
+      "Cái gì đang được test và kết quả mong đợi là gì — có thể đọc bởi người không quen thuộc với code",
+      "Các bước triển khai mà test thực hiện",
+      "Tên trang mà nó test"
+    ],
+    answer: 1,
+    explain: "Good test names read as specifications: test_invalid_password_shows_error is clearer than test_login_case_2. When a test fails in CI, the name is the first thing you read — it should tell you immediately what broke.",
+    explainVi: "Tên test tốt đọc như đặc tả: test_invalid_password_shows_error rõ ràng hơn test_login_case_2. Khi test thất bại trong CI, tên là điều đầu tiên bạn đọc — nó phải cho bạn biết ngay điều gì bị hỏng."
+  },
+  {
+    q: "Why should `assert count > 0, 'message'` be preferred over `assert count > 0`?",
+    qVi: "Tại sao `assert count > 0, 'message'` nên được ưu tiên hơn `assert count > 0`?",
+    choices: [
+      "The message is required by pytest",
+      "The message is shown in the failure output, making it immediately clear what was expected — saving debugging time",
+      "It makes the assertion run faster",
+      "It prevents false positives"
+    ],
+    choicesVi: [
+      "Tin nhắn là bắt buộc bởi pytest",
+      "Tin nhắn được hiển thị trong output thất bại, làm rõ ngay lập tức những gì được mong đợi — tiết kiệm thời gian debug",
+      "Nó làm cho assertion chạy nhanh hơn",
+      "Nó ngăn chặn false positive"
+    ],
+    answer: 1,
+    explain: "Python's assert statement shows only 'AssertionError' without a message. With a message — assert count > 0, f'Expected at least one product, found {count}' — the failure output tells you exactly what went wrong and what the actual value was.",
+    explainVi: "Câu lệnh assert của Python chỉ hiển thị 'AssertionError' không có thông báo. Với thông báo — assert count > 0, f'Expected at least one product, found {count}' — output thất bại cho bạn biết chính xác điều gì sai và giá trị thực tế là gì."
+  },
+  {
+    q: "Which of these is NOT part of a professional Playwright test suite?",
+    qVi: "Cái nào trong số này KHÔNG phải là một phần của bộ test Playwright chuyên nghiệp?",
+    choices: [
+      "Page Object Model for all locators",
+      "time.sleep(3) before each assertion to ensure the page is ready",
+      "pytest fixtures for shared setup like login",
+      "GitHub Actions workflow to run tests on push"
+    ],
+    choicesVi: [
+      "Page Object Model cho tất cả locator",
+      "time.sleep(3) trước mỗi assertion để đảm bảo trang sẵn sàng",
+      "pytest fixture cho setup dùng chung như đăng nhập",
+      "Workflow GitHub Actions để chạy test khi push"
+    ],
+    answer: 1,
+    explain: "time.sleep() is never part of a professional test suite. It makes tests slow and still leaves them flaky if the page takes longer than the sleep. Use Playwright's built-in waits (expect(), wait_for_url(), wait_for_load_state()) which are intelligent and don't waste time.",
+    explainVi: "time.sleep() không bao giờ là một phần của bộ test chuyên nghiệp. Nó làm test chậm và vẫn để chúng không ổn định nếu trang mất nhiều thời gian hơn thời gian sleep. Sử dụng các wait tích hợp của Playwright (expect(), wait_for_url(), wait_for_load_state()) thông minh và không lãng phí thời gian."
+  },
+  {
+    q: "After completing Phase 3, what should you do with your test suite to make it portfolio-ready?",
+    qVi: "Sau khi hoàn thành Phase 3, bạn nên làm gì với bộ test để nó sẵn sàng cho portfolio?",
+    choices: [
+      "Delete all test files and rewrite from scratch",
+      "Push to a public GitHub repo with a README explaining what it tests, how to run it, and include the CI badge",
+      "Convert all tests to Selenium to show versatility",
+      "Add time.sleep() to make it more stable before sharing"
+    ],
+    choicesVi: [
+      "Xóa tất cả file test và viết lại từ đầu",
+      "Push lên GitHub repo công khai với README giải thích những gì được test, cách chạy và bao gồm CI badge",
+      "Chuyển đổi tất cả test sang Selenium để thể hiện sự linh hoạt",
+      "Thêm time.sleep() để ổn định hơn trước khi chia sẻ"
+    ],
+    answer: 1,
+    explain: "A portfolio-ready test suite on GitHub should: have a clear README (what it tests, how to run locally, how CI works), a green Actions badge showing tests pass, and clean code using all the patterns learned. Recruiters and hiring managers look at this directly.",
+    explainVi: "Bộ test sẵn sàng cho portfolio trên GitHub nên: có README rõ ràng (những gì được test, cách chạy ở local, cách CI hoạt động), badge Actions xanh cho thấy test pass, và code sạch sử dụng tất cả các pattern đã học. Nhà tuyển dụng và quản lý tuyển dụng nhìn vào điều này trực tiếp."
+  },
+  {
+    q: "How do you run only tests marked `@pytest.mark.smoke` while skipping all others?",
+    qVi: "Làm thế nào để chỉ chạy các test được đánh dấu `@pytest.mark.smoke` trong khi bỏ qua tất cả test khác?",
+    choices: [
+      "pytest --smoke",
+      "pytest -k smoke",
+      "pytest -m smoke",
+      "pytest --only-mark=smoke"
+    ],
+    choicesVi: [
+      "pytest --smoke",
+      "pytest -k smoke",
+      "pytest -m smoke",
+      "pytest --only-mark=smoke"
+    ],
+    answer: 2,
+    explain: "pytest -m smoke runs only tests decorated with @pytest.mark.smoke. Register the mark in pytest.ini under [markers] to avoid warnings: `markers = smoke: Quick sanity checks for deployment verification`. Contrast with -k: that filters by test name substring, while -m filters by marker.",
+    explainVi: "pytest -m smoke chỉ chạy các test được trang trí với @pytest.mark.smoke. Đăng ký mark trong pytest.ini dưới [markers] để tránh cảnh báo: `markers = smoke: Kiểm tra nhanh cho xác minh triển khai`. So sánh với -k: cái đó lọc theo chuỗi con tên test, còn -m lọc theo marker."
+  },
+  {
+    q: "What is the best place to store reusable test data (e.g., test users, product IDs) in a large Playwright project?",
+    qVi: "Nơi tốt nhất để lưu dữ liệu test có thể tái sử dụng (ví dụ: test user, product ID) trong dự án Playwright lớn là đâu?",
+    choices: [
+      "Hardcode values directly in each test function",
+      "A `data/` or `fixtures/` directory with JSON or Python files, imported where needed",
+      "In conftest.py as global variables",
+      "In the README as a reference table"
+    ],
+    choicesVi: [
+      "Hardcode giá trị trực tiếp trong mỗi hàm test",
+      "Thư mục `data/` hoặc `fixtures/` với file JSON hoặc Python, được import khi cần",
+      "Trong conftest.py dưới dạng biến toàn cục",
+      "Trong README dưới dạng bảng tham khảo"
+    ],
+    answer: 1,
+    explain: "A data/ or fixtures/ directory with JSON or Python files keeps test data separate from test logic. JSON files are easy to edit without touching Python. Python files (with dictionaries or dataclasses) provide type safety. Hardcoding in tests creates duplication; global variables in conftest.py mix concerns.",
+    explainVi: "Thư mục data/ hoặc fixtures/ với file JSON hoặc Python giữ dữ liệu test tách biệt khỏi logic test. File JSON dễ chỉnh sửa mà không cần chạm vào Python. File Python (với dictionary hoặc dataclass) cung cấp type safety. Hardcode trong test tạo ra trùng lặp; biến toàn cục trong conftest.py trộn lẫn trách nhiệm."
+  },
+  {
+    q: "A conftest.py file placed in the `tests/` root applies its fixtures to which tests?",
+    qVi: "File conftest.py đặt ở thư mục gốc `tests/` áp dụng fixture của nó cho những test nào?",
+    choices: [
+      "Only tests in the same directory, not in subdirectories",
+      "Only tests explicitly imported from that conftest.py",
+      "All tests in tests/ and all subdirectories under it",
+      "Only tests registered in pytest.ini"
+    ],
+    choicesVi: [
+      "Chỉ test trong cùng thư mục, không áp dụng cho thư mục con",
+      "Chỉ test được import rõ ràng từ conftest.py đó",
+      "Tất cả test trong tests/ và tất cả thư mục con bên dưới",
+      "Chỉ test được đăng ký trong pytest.ini"
+    ],
+    answer: 2,
+    explain: "A conftest.py makes its fixtures available to all tests in the same directory AND all subdirectories recursively. This is why tests/conftest.py is the standard location for project-wide shared fixtures. A conftest.py in tests/e2e/ only applies to tests within tests/e2e/ and its children.",
+    explainVi: "conftest.py làm cho fixture của nó có sẵn cho tất cả test trong cùng thư mục VÀ tất cả thư mục con theo đệ quy. Đây là lý do tại sao tests/conftest.py là vị trí chuẩn cho fixture dùng chung toàn dự án. conftest.py trong tests/e2e/ chỉ áp dụng cho test trong tests/e2e/ và các thư mục con của nó."
+  },
+  {
+    q: "What is the purpose of registering custom pytest marks in `pytest.ini`?",
+    qVi: "Mục đích của việc đăng ký pytest mark tùy chỉnh trong `pytest.ini` là gì?",
+    choices: [
+      "Marks only work if registered in pytest.ini",
+      "It prevents pytest from printing 'PytestUnknownMarkWarning' for unrecognized marks and documents their purpose",
+      "It makes marked tests run faster",
+      "It automatically generates CI configuration for marked tests"
+    ],
+    choicesVi: [
+      "Mark chỉ hoạt động nếu được đăng ký trong pytest.ini",
+      "Nó ngăn pytest in 'PytestUnknownMarkWarning' cho các mark không nhận ra và ghi lại mục đích của chúng",
+      "Nó làm cho test được đánh dấu chạy nhanh hơn",
+      "Nó tự động tạo cấu hình CI cho test được đánh dấu"
+    ],
+    answer: 1,
+    explain: "Unregistered marks cause a PytestUnknownMarkWarning. Registering them in pytest.ini under [markers] suppresses the warning and documents what each mark means: `smoke: Fast sanity checks`, `regression: Full regression suite`, `flaky: Tests known to be intermittently unstable`. This makes the project's test organization self-documenting.",
+    explainVi: "Mark chưa đăng ký gây ra PytestUnknownMarkWarning. Đăng ký chúng trong pytest.ini dưới [markers] ngăn cảnh báo và ghi lại ý nghĩa của từng mark: `smoke: Kiểm tra nhanh`, `regression: Bộ hồi quy đầy đủ`, `flaky: Test không ổn định đã biết`. Điều này làm cho tổ chức test của dự án tự ghi lại."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" },
-  { title: "Test Automation University", url: "https://testautomationu.applitools.com/" },
-  { title: "Ministry of Testing", url: "https://www.ministryoftesting.com/" }
+  { title: "Practice site — full features", url: "https://practicesoftwaretesting.com" },
+  { title: "Playwright Python — Best Practices", url: "https://playwright.dev/python/docs/best-practices" },
+  { title: "pytest — Full Documentation", url: "https://docs.pytest.org/en/stable/" },
+  { title: "GitHub Actions — Quickstart", url: "https://docs.github.com/en/actions/quickstart" }
 ]} />

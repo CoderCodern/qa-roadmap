@@ -23,13 +23,17 @@ Trước khi tự động hoá API test trong Python, bạn cần hiểu và kh�
 | Concept | Description |
 |---------|-------------|
 | **Request** | One HTTP call (method + URL + headers + body) |
-| **Collection** | Group of related requests |
-| **Environment** | Set of variables (base URL, API key) for different contexts |
-| **Variable** | `{{base_url}}` — placeholder replaced at runtime |
-| **Test script** | JavaScript that runs after the response — like assertions |
-| **Pre-request script** | JavaScript that runs before sending — for dynamic data |
+| **Collection** | A group of related requests that can be run together or shared with the team |
+| **Environment** | A set of key-value variables (base URL, API key, tokens) scoped to a deployment context |
+| **Variable** | `{{base_url}}` — a named placeholder replaced at runtime with the current environment value |
+| **Test script** | JavaScript that runs *after* the response arrives — used to write assertions |
+| **Pre-request script** | JavaScript that runs *before* the request is sent — used to generate dynamic data or set variables |
+| **Runner** | Postman's built-in tool to execute an entire collection in sequence |
 
 **Postman test scripts (JavaScript):**
+
+Test scripts live in the **Tests** tab of any request. They run automatically after the response is received and appear in the **Test Results** panel.
+
 ```javascript
 pm.test("Status is 200", () => {
     pm.response.to.have.status(200);
@@ -45,27 +49,84 @@ pm.test("Response has id field", () => {
 pm.environment.set("user_id", pm.response.json().id);
 ```
 
-**Postman environments:**
-Environments hold key-value pairs like `base_url = https://staging.example.com`. Switch environments to run the same collection against dev, staging, or production.
+**The Postman assertion API — most used methods:**
+
+| Method | What it asserts |
+|--------|----------------|
+| `pm.response.to.have.status(200)` | Exact status code match |
+| `pm.expect(body).to.have.property("id")` | Key exists in object |
+| `pm.expect(body.name).to.be.a("string")` | Type check (string, number, boolean, object, array) |
+| `pm.expect(body.id).to.equal(42)` | Exact value match |
+| `pm.expect(body.items).to.be.an("array")` | Type check for array |
+| `pm.expect(body.items).to.have.lengthOf(10)` | Array length check |
+| `pm.expect(pm.response.responseTime).to.be.below(2000)` | Performance check |
+| `pm.expect(body.email).to.include("@")` | Substring check |
+
+**Postman environments — how they work:**
+
+An environment is a named set of key-value pairs. You switch between environments to run the same collection against different servers without changing any request.
+
+Example environment: **Staging**
+```
+base_url = https://staging.example.com
+api_key  = staging-key-abc123
+user_id  = (empty — set by a test script after login)
+```
+
+Example environment: **Production**
+```
+base_url = https://api.example.com
+api_key  = prod-key-xyz789
+user_id  = (empty)
+```
+
+Every `{{base_url}}` in your requests resolves to the active environment's value automatically.
+
+**Request chaining with environment variables:**
+
+A powerful Postman workflow is to chain requests: request A creates a resource and saves its `id` to the environment, then request B uses `{{resource_id}}` as part of its URL.
+
+```
+Request A: POST /users        → pm.environment.set("user_id", body.id)
+Request B: GET  /users/{{user_id}}  → uses the saved id automatically
+Request C: DELETE /users/{{user_id}}
+```
+
+**Pre-request scripts — when and why:**
+
+Pre-request scripts run before the request is sent. Common uses:
+- Generate a timestamp or random value: `pm.environment.set("timestamp", Date.now())`
+- Compute an HMAC signature for auth
+- Set up test data values before creating a resource
+
+**pm.test() behaviour on failure:**
+
+When a `pm.test()` assertion fails, it marks that test as failed in the results panel but *continues running the remaining tests in the script*. It does not stop the entire collection. To stop a collection run on failure, use the Collection Runner's stop-on-error option or a `postman.setNextRequest(null)` call.
 
 **Why use Postman even if you automate in Python:**
-- Fastest way to explore an unfamiliar API
-- Share collections with the team (no code needed)
+- Fastest way to explore an unfamiliar API before writing code
+- Share collections with team members who do not write code
 - Run collections in CI via Newman (Day 41)
-- Visual response inspection catches issues faster than reading JSON strings
+- Visual response inspection catches issues faster than reading raw JSON strings
+- Mock servers let you test against an API that is not built yet
 </En>
 <Vi>
 **Các khái niệm Postman quan trọng:**
 
 | Khái niệm | Mô tả |
-|---------|-------------|
+|-----------|-------|
 | **Request** | Một cuộc gọi HTTP (method + URL + headers + body) |
-| **Collection** | Nhóm các request liên quan |
-| **Environment** | Tập biến (base URL, API key) cho các ngữ cảnh khác nhau |
-| **Variable** | `{{base_url}}` — placeholder được thay thế lúc runtime |
-| **Test script** | JavaScript chạy sau response — như assertion |
+| **Collection** | Nhóm các request liên quan có thể chạy cùng nhau hoặc chia sẻ với nhóm |
+| **Environment** | Tập biến key-value (base URL, API key, token) cho một ngữ cảnh triển khai |
+| **Variable** | `{{base_url}}` — placeholder được thay thế lúc runtime bằng giá trị environment hiện tại |
+| **Test script** | JavaScript chạy *sau* khi response đến — dùng để viết assertion |
+| **Pre-request script** | JavaScript chạy *trước* khi request được gửi — dùng để tạo dữ liệu động hoặc đặt biến |
+| **Runner** | Công cụ tích hợp của Postman để chạy toàn bộ collection theo thứ tự |
 
 **Test script Postman (JavaScript):**
+
+Test script nằm trong tab **Tests** của bất kỳ request nào. Chúng chạy tự động sau khi response được nhận và hiện trong panel **Test Results**.
+
 ```javascript
 pm.test("Status is 200", () => {
     pm.response.to.have.status(200);
@@ -81,19 +142,73 @@ pm.test("Response has id field", () => {
 pm.environment.set("user_id", pm.response.json().id);
 ```
 
-**Tại sao dùng Postman ngay cả khi bạn tự động hoá bằng Python:**
-- Cách nhanh nhất để khám phá API chưa quen
-- Chia sẻ collection với nhóm (không cần code)
-- Chạy collection trong CI qua Newman
+**API assertion Postman — các method hay dùng nhất:**
+
+| Method | Assert gì |
+|--------|----------|
+| `pm.response.to.have.status(200)` | Khớp chính xác status code |
+| `pm.expect(body).to.have.property("id")` | Key tồn tại trong object |
+| `pm.expect(body.name).to.be.a("string")` | Kiểm tra kiểu (string, number, boolean, object, array) |
+| `pm.expect(body.id).to.equal(42)` | Khớp giá trị chính xác |
+| `pm.expect(body.items).to.be.an("array")` | Kiểm tra kiểu array |
+| `pm.expect(body.items).to.have.lengthOf(10)` | Kiểm tra độ dài array |
+| `pm.expect(pm.response.responseTime).to.be.below(2000)` | Kiểm tra hiệu năng |
+| `pm.expect(body.email).to.include("@")` | Kiểm tra chuỗi con |
+
+**Postman environment — cách hoạt động:**
+
+Environment là tập hợp có tên của các cặp key-value. Bạn chuyển đổi giữa các environment để chạy cùng một collection trên các server khác nhau mà không thay đổi bất kỳ request nào.
+
+Ví dụ environment: **Staging**
+```
+base_url = https://staging.example.com
+api_key  = staging-key-abc123
+user_id  = (rỗng — được đặt bởi test script sau khi đăng nhập)
+```
+
+Mỗi `{{base_url}}` trong request tự động resolve thành giá trị environment đang hoạt động.
+
+**Chaining request với biến environment:**
+
+Workflow Postman mạnh mẽ là chaining request: request A tạo tài nguyên và lưu `id` vào environment, rồi request B dùng `{{resource_id}}` trong URL.
+
+```
+Request A: POST /users        → pm.environment.set("user_id", body.id)
+Request B: GET  /users/{{user_id}}  → tự động dùng id đã lưu
+Request C: DELETE /users/{{user_id}}
+```
+
+**pm.test() khi thất bại:**
+
+Khi assertion `pm.test()` thất bại, nó đánh dấu test đó là failed trong panel kết quả nhưng *tiếp tục chạy các test còn lại trong script*. Nó không dừng toàn bộ collection.
+
+**Tại sao dùng Postman ngay cả khi tự động hoá bằng Python:**
+- Cách nhanh nhất để khám phá API chưa quen trước khi viết code
+- Chia sẻ collection với thành viên không viết code
+- Chạy collection trong CI qua Newman (Ngày 41)
+- Kiểm tra response trực quan phát hiện vấn đề nhanh hơn đọc JSON thô
 </Vi>
 
 ## Code / Demo
 
-```javascript
-// Postman test scripts for JSONPlaceholder API (free public test API)
-// Run these in Postman's "Tests" tab
+<En>
 
-// --- Test 1: GET /posts/1 ---
+**Part 1 — Testing a GET request in Postman**
+
+Open Postman, create a new request with `GET https://jsonplaceholder.typicode.com/posts/1`, paste the script below into the **Tests** tab, then click Send.
+
+</En>
+<Vi>
+
+**Phần 1 — Kiểm thử GET request trong Postman**
+
+Mở Postman, tạo request mới với `GET https://jsonplaceholder.typicode.com/posts/1`, dán script dưới đây vào tab **Tests**, rồi nhấn Send.
+
+</Vi>
+
+```javascript
+// Postman Tests tab — GET /posts/1
+
 pm.test("Status code is 200", function () {
     pm.response.to.have.status(200);
 });
@@ -114,15 +229,32 @@ pm.test("Field types are correct", function () {
     const post = pm.response.json();
     pm.expect(post.id).to.be.a("number");
     pm.expect(post.title).to.be.a("string");
-    pm.expect(post.title).to.have.length.above(0);
+    pm.expect(post.title.length).to.be.above(0);
+    pm.expect(post.userId).to.be.a("number");
 });
 
-// Save the post id for use in subsequent requests
+// Save the post id for use in subsequent requests in the collection
 pm.environment.set("post_id", pm.response.json().id);
 ```
 
+<En>
+
+**Part 2 — Testing a POST request and chaining with environment variables**
+
+Create a second request: `POST https://jsonplaceholder.typicode.com/posts` with body `{"title": "My Test Post", "body": "Test content", "userId": 1}`. Paste the following into its **Tests** tab.
+
+</En>
+<Vi>
+
+**Phần 2 — Kiểm thử POST request và chaining với biến environment**
+
+Tạo request thứ hai: `POST https://jsonplaceholder.typicode.com/posts` với body `{"title": "My Test Post", "body": "Test content", "userId": 1}`. Dán script sau vào tab **Tests** của nó.
+
+</Vi>
+
 ```javascript
-// --- Test 2: POST /posts ---
+// Postman Tests tab — POST /posts
+
 pm.test("Status code is 201", function () {
     pm.response.to.have.status(201);
 });
@@ -131,46 +263,369 @@ pm.test("Created resource has an id", function () {
     const newPost = pm.response.json();
     pm.expect(newPost).to.have.property("id");
     pm.expect(newPost.id).to.be.a("number");
+    pm.expect(newPost.id).to.be.above(0);
 });
 
 pm.test("Title matches what we sent", function () {
     const newPost = pm.response.json();
     pm.expect(newPost.title).to.equal("My Test Post");
 });
+
+pm.test("userId is present and correct", function () {
+    const newPost = pm.response.json();
+    pm.expect(newPost).to.have.property("userId");
+    pm.expect(newPost.userId).to.equal(1);
+});
+
+// Save the new post's id to the environment
+// The next request in the collection can now use {{new_post_id}}
+pm.environment.set("new_post_id", pm.response.json().id);
+```
+
+<En>
+
+**Part 3 — Using environments and a pre-request script**
+
+Create a Postman environment named **JSONPlaceholder**. Add a variable `base_url = https://jsonplaceholder.typicode.com`. Update your requests to use `{{base_url}}/posts`. Then use this pre-request script to generate a unique title before each POST.
+
+</En>
+<Vi>
+
+**Phần 3 — Dùng environment và pre-request script**
+
+Tạo Postman environment tên **JSONPlaceholder**. Thêm biến `base_url = https://jsonplaceholder.typicode.com`. Cập nhật request để dùng `{{base_url}}/posts`. Sau đó dùng pre-request script này để tạo tiêu đề duy nhất trước mỗi POST.
+
+</Vi>
+
+```javascript
+// Postman Pre-request Script tab — runs BEFORE the request is sent
+
+// Generate a unique title using a timestamp so each test run creates a different post
+const timestamp = Date.now();
+pm.environment.set("post_title", `Test Post ${timestamp}`);
+
+// Log so you can see it in the Postman Console (View → Show Postman Console)
+console.log("Generated post title:", pm.environment.get("post_title"));
+
+// Now reference {{post_title}} in the request body:
+// {
+//   "title": "{{post_title}}",
+//   "body": "Content generated at runtime",
+//   "userId": 1
+// }
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Download and install Postman, create a collection called "JSONPlaceholder Tests", and add a GET request to `https://jsonplaceholder.typicode.com/posts/1` — run it and inspect the response
-- [ ] Add 3 test scripts to that request: (1) verify status is 200, (2) verify `userId` is a number, (3) verify the response time is under 2000ms
-- [ ] Create an environment with `base_url = https://jsonplaceholder.typicode.com` and update your request to use `{{base_url}}/posts/1` — then duplicate the environment for a "staging" context with a different base URL
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Write tests for GET /posts/1",
+    code: `// Open Postman. Create a new request:
+//   Method: GET
+//   URL: https://jsonplaceholder.typicode.com/posts/1
+//
+// Paste this starter script into the Tests tab and complete the TODOs.
+// Click Send and verify all tests pass in the Test Results panel.
+
+pm.test("Status code is 200", function () {
+    // TODO (EN): Assert the status code is exactly 200.
+    // TODO (VI): Assert status code chính xác là 200.
+});
+
+pm.test("Response has all required fields", function () {
+    const post = pm.response.json();
+    // TODO (EN): Assert that post has all 4 required fields: id, title, body, userId.
+    // TODO (VI): Assert rằng post có đủ 4 trường bắt buộc: id, title, body, userId.
+});
+
+pm.test("id is a positive number", function () {
+    const post = pm.response.json();
+    // TODO (EN): Assert post.id is a number and greater than 0.
+    // TODO (VI): Assert post.id là number và lớn hơn 0.
+});
+
+pm.test("Response time is under 2000ms", function () {
+    // TODO (EN): Assert the response time is below 2000 milliseconds.
+    // TODO (VI): Assert thời gian response dưới 2000 milliseconds.
+});
+
+// TODO (EN): Save post.id to the environment variable "post_id".
+// TODO (VI): Lưu post.id vào biến environment "post_id".`
+  },
+  {
+    title: "Exercise 2 — Test POST /posts and save the new id",
+    code: `// Create a second request in the same collection:
+//   Method: POST
+//   URL: https://jsonplaceholder.typicode.com/posts
+//   Body (raw JSON):
+//   {
+//     "title": "QA Roadmap Test Post",
+//     "body": "Learning Postman on the QA Roadmap",
+//     "userId": 1
+//   }
+//
+// Paste this starter into the Tests tab and complete the TODOs.
+
+pm.test("Status code is 201", function () {
+    // TODO (EN): Assert the status code is 201 (Created).
+    // TODO (VI): Assert status code là 201 (Created).
+});
+
+pm.test("Response body has id", function () {
+    const body = pm.response.json();
+    // TODO (EN): Assert body has an "id" property and it is a number.
+    // TODO (VI): Assert body có thuộc tính "id" và nó là number.
+});
+
+pm.test("Title matches the sent value", function () {
+    const body = pm.response.json();
+    // TODO (EN): Assert body.title equals "QA Roadmap Test Post".
+    // TODO (VI): Assert body.title bằng "QA Roadmap Test Post".
+});
+
+// TODO (EN): Save the created post's id to pm.environment as "created_post_id".
+// TODO (VI): Lưu id của post vừa tạo vào pm.environment với tên "created_post_id".`
+  },
+  {
+    title: "Exercise 3 — Environment setup and variable chaining",
+    code: `// STEP 1: In Postman, create an Environment named "JSONPlaceholder":
+//   Add variable: base_url = https://jsonplaceholder.typicode.com
+//   Save the environment.
+//
+// STEP 2: Update both your requests to use {{base_url}} instead of the full URL:
+//   GET {{base_url}}/posts/1
+//   POST {{base_url}}/posts
+//
+// STEP 3: Create a third request to verify chaining:
+//   Method: GET
+//   URL: {{base_url}}/posts/{{created_post_id}}
+//
+// Paste this into the Tests tab of the THIRD request:
+
+pm.test("Status code is 200", function () {
+    // TODO (EN): Assert status is 200.
+    // TODO (VI): Assert status là 200.
+});
+
+pm.test("Post id matches the environment variable", function () {
+    const body = pm.response.json();
+    const savedId = pm.environment.get("created_post_id");
+    // TODO (EN): Assert body.id equals the saved created_post_id (convert type if needed).
+    // TODO (VI): Assert body.id bằng created_post_id đã lưu (chuyển kiểu nếu cần).
+    // Hint: pm.environment.get returns a string, body.id is a number.
+    // Use parseInt(savedId) or compare with == instead of ===.
+});
+
+// NOTE: JSONPlaceholder is a mock API — it does not actually persist POST data.
+// The GET for the new id will return 404 in practice.
+// In a real API with a real database this chain would work correctly.
+// The purpose of this exercise is to practice the Postman chaining pattern.`
+  }
+]}>
+<En>
+
+**Instructions:**
+
+These exercises are run inside Postman, not in a Python runner. Each starter code block is a JavaScript test script intended for Postman's **Tests** tab (or **Pre-request Script** tab where noted).
+
+How to run each exercise:
+1. Open Postman (download from [postman.com](https://www.postman.com/downloads/) if needed).
+2. Create a new Collection named **QA Roadmap — Phase 4**.
+3. Add a request as described in the exercise comment block.
+4. Paste the starter code into the **Tests** tab.
+5. Click **Send** and check the **Test Results** panel at the bottom.
+6. All tests should show a green checkmark when complete.
+
+- [ ] Exercise 1: Complete all 4 `pm.test()` calls and the `pm.environment.set` line. All 4 tests must pass.
+- [ ] Exercise 2: Complete the 3 `pm.test()` calls and the `pm.environment.set` for `created_post_id`. All 3 tests must pass.
+- [ ] Exercise 3: Create the JSONPlaceholder environment, update your request URLs to use `{{base_url}}`, then complete the Tests tab for the third (chaining) request.
+
+**Hints:**
+- `pm.response.json()` parses the response body as JSON — equivalent to `json.loads(body)` in Python.
+- `pm.expect(value).to.be.a("number")` checks the JavaScript type. Use `"string"`, `"number"`, `"boolean"`, `"object"`, `"array"` as type strings.
+- `pm.environment.get("key")` always returns a string. When comparing IDs, use `parseInt()` to convert to a number.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+
+Các bài tập này được chạy trong Postman, không phải trong Python runner. Mỗi block code starter là JavaScript test script dành cho tab **Tests** của Postman (hoặc tab **Pre-request Script** khi được ghi chú).
+
+Cách chạy mỗi bài tập:
+1. Mở Postman (tải từ [postman.com](https://www.postman.com/downloads/) nếu cần).
+2. Tạo Collection mới tên **QA Roadmap — Phase 4**.
+3. Thêm request như mô tả trong block comment của bài tập.
+4. Dán code starter vào tab **Tests**.
+5. Nhấn **Send** và kiểm tra panel **Test Results** ở phía dưới.
+6. Tất cả test nên hiện dấu tích xanh khi hoàn thành.
+
+- [ ] Bài 1: Hoàn thiện tất cả 4 lần gọi `pm.test()` và dòng `pm.environment.set`. Tất cả 4 test phải pass.
+- [ ] Bài 2: Hoàn thiện 3 lần gọi `pm.test()` và `pm.environment.set` cho `created_post_id`. Tất cả 3 test phải pass.
+- [ ] Bài 3: Tạo environment JSONPlaceholder, cập nhật URL request để dùng `{{base_url}}`, rồi hoàn thiện tab Tests cho request thứ ba (chaining).
+
+**Gợi ý:**
+- `pm.response.json()` parse body response dưới dạng JSON — tương đương `json.loads(body)` trong Python.
+- `pm.expect(value).to.be.a("number")` kiểm tra kiểu JavaScript. Dùng `"string"`, `"number"`, `"boolean"`, `"object"`, `"array"` làm chuỗi kiểu.
+- `pm.environment.get("key")` luôn trả về string. Khi so sánh ID, dùng `parseInt()` để chuyển thành number.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What is a Postman environment used for?",
+    qVi: "Postman environment dùng để làm gì?",
     choices: [
       "To install Postman on different operating systems",
       "To store variables like base_url and API keys so the same collection works in dev, staging, and production",
       "To save test results to disk",
       "To change the request method (GET/POST/etc.)"
     ],
+    choicesVi: [
+      "Để cài Postman trên các hệ điều hành khác nhau",
+      "Để lưu biến như base_url và API key để cùng một collection hoạt động ở dev, staging và production",
+      "Để lưu kết quả test vào đĩa",
+      "Để thay đổi request method (GET/POST/v.v.)"
+    ],
     answer: 1,
-    explain: "Environments hold key-value pairs that vary between contexts. With {{base_url}} in your requests, switching from a staging to a production environment updates every URL in the collection simultaneously."
+    explain: "Environments hold key-value pairs that vary between contexts. With {{base_url}} in your requests, switching from a staging to a production environment updates every URL in the collection simultaneously.",
+    explainVi: "Environment giữ các cặp key-value thay đổi giữa các ngữ cảnh. Với {{base_url}} trong request, chuyển từ environment staging sang production cập nhật mọi URL trong collection cùng lúc."
   },
   {
     q: "In a Postman test script, what does `pm.environment.set('user_id', value)` do?",
+    qVi: "Trong Postman test script, `pm.environment.set('user_id', value)` làm gì?",
     choices: [
       "Creates a new Postman environment",
       "Sets a variable in the current environment that can be referenced in subsequent requests",
       "Stores the value in a database",
       "Sends the value to the server as a query parameter"
     ],
+    choicesVi: [
+      "Tạo Postman environment mới",
+      "Đặt biến trong environment hiện tại có thể được tham chiếu trong các request tiếp theo",
+      "Lưu giá trị vào cơ sở dữ liệu",
+      "Gửi giá trị đến server dưới dạng query parameter"
+    ],
     answer: 1,
-    explain: "pm.environment.set saves a value to the current environment. Other requests in the collection can then reference it as {{user_id}}. This enables chaining requests — create a user, save its ID, then use it in the next request."
+    explain: "pm.environment.set saves a value to the current environment. Other requests in the collection can then reference it as {{user_id}}. This enables chaining requests — create a user, save its ID, then use it in the next request.",
+    explainVi: "pm.environment.set lưu giá trị vào environment hiện tại. Các request khác trong collection có thể tham chiếu nó dưới dạng {{user_id}}. Điều này cho phép chaining request — tạo user, lưu ID, rồi dùng trong request tiếp theo."
+  },
+  {
+    q: "In Postman, where do test scripts (assertions) run?",
+    qVi: "Trong Postman, test script (assertion) chạy ở đâu?",
+    choices: [
+      "Before the request is sent, in the Pre-request Script tab",
+      "After the response is received, in the Tests tab",
+      "Inside the request body",
+      "In a separate terminal window"
+    ],
+    choicesVi: [
+      "Trước khi request được gửi, trong tab Pre-request Script",
+      "Sau khi response được nhận, trong tab Tests",
+      "Bên trong body request",
+      "Trong cửa sổ terminal riêng biệt"
+    ],
+    answer: 1,
+    explain: "Test scripts in Postman live in the Tests tab and execute after the response has been received. This is where you write pm.test() assertions. Pre-request scripts run before the request is sent and are used for setup logic like generating dynamic values.",
+    explainVi: "Test script trong Postman nằm trong tab Tests và chạy sau khi response được nhận. Đây là nơi bạn viết assertion pm.test(). Pre-request script chạy trước khi request được gửi và dùng cho logic setup như tạo giá trị động."
+  },
+  {
+    q: "What is `pm.response.json()` equivalent to in Python when working with a response body?",
+    qVi: "`pm.response.json()` tương đương với gì trong Python khi làm việc với response body?",
+    choices: [
+      "response.text",
+      "json.dumps(response)",
+      "json.loads(response.text)",
+      "response.content.decode()"
+    ],
+    choicesVi: [
+      "response.text",
+      "json.dumps(response)",
+      "json.loads(response.text)",
+      "response.content.decode()"
+    ],
+    answer: 2,
+    explain: "pm.response.json() parses the response body string as JSON and returns a JavaScript object (dict equivalent). In Python, the equivalent is json.loads(response.text) or response.json() when using the requests library.",
+    explainVi: "pm.response.json() parse chuỗi body response dưới dạng JSON và trả về JavaScript object (tương đương dict). Trong Python, tương đương là json.loads(response.text) hoặc response.json() khi dùng thư viện requests."
+  },
+  {
+    q: "How do you save a value from a response so it can be used in the NEXT Postman request in the collection?",
+    qVi: "Làm thế nào để lưu giá trị từ response để có thể dùng trong request Postman TIẾP THEO trong collection?",
+    choices: [
+      "Copy the value manually and paste it into the next request's URL",
+      "Use pm.environment.set('key', value) in the Tests tab — then reference {{key}} in the next request",
+      "Use pm.globals.lock('key', value)",
+      "Add the value to the request headers of the next request"
+    ],
+    choicesVi: [
+      "Copy giá trị thủ công và dán vào URL của request tiếp theo",
+      "Dùng pm.environment.set('key', value) trong tab Tests — rồi tham chiếu {{key}} trong request tiếp theo",
+      "Dùng pm.globals.lock('key', value)",
+      "Thêm giá trị vào headers của request tiếp theo"
+    ],
+    answer: 1,
+    explain: "pm.environment.set('key', value) stores the value in the current environment. Any subsequent request in the collection can reference it using {{key}} in the URL, body, or headers. This is the standard Postman pattern for request chaining.",
+    explainVi: "pm.environment.set('key', value) lưu giá trị vào environment hiện tại. Bất kỳ request nào tiếp theo trong collection có thể tham chiếu nó bằng {{key}} trong URL, body, hoặc headers. Đây là mẫu Postman tiêu chuẩn cho chaining request."
+  },
+  {
+    q: "What does pm.test() do when one of its assertions fails?",
+    qVi: "pm.test() làm gì khi một trong các assertion của nó thất bại?",
+    choices: [
+      "It immediately stops the entire collection run",
+      "It marks that specific test as failed in the Test Results panel but continues running the remaining tests in the script",
+      "It sends an email notification",
+      "It reverts the request and sends it again"
+    ],
+    choicesVi: [
+      "Nó ngay lập tức dừng toàn bộ collection run",
+      "Nó đánh dấu test cụ thể đó là failed trong panel Test Results nhưng tiếp tục chạy các test còn lại trong script",
+      "Nó gửi thông báo email",
+      "Nó hoàn tác request và gửi lại"
+    ],
+    answer: 1,
+    explain: "pm.test() marks a single test case as passed or failed. A failure does not abort the remaining tests in the same script — Postman collects all results and shows a summary. To stop a collection run on failure, you must configure that in the Collection Runner settings.",
+    explainVi: "pm.test() đánh dấu một test case là passed hoặc failed. Thất bại không hủy bỏ các test còn lại trong cùng script — Postman thu thập tất cả kết quả và hiển thị tóm tắt. Để dừng collection run khi có thất bại, bạn phải cấu hình điều đó trong cài đặt Collection Runner."
+  },
+  {
+    q: "What is a Postman Collection?",
+    qVi: "Postman Collection là gì?",
+    choices: [
+      "A single HTTP request saved with its configuration",
+      "A group of related requests that can be organized into folders, run together, and shared with the team",
+      "The list of all Postman environments",
+      "A JavaScript file that runs outside of Postman"
+    ],
+    choicesVi: [
+      "Một HTTP request đơn được lưu với cấu hình của nó",
+      "Nhóm các request liên quan có thể tổ chức thành folders, chạy cùng nhau và chia sẻ với nhóm",
+      "Danh sách tất cả Postman environment",
+      "File JavaScript chạy bên ngoài Postman"
+    ],
+    answer: 1,
+    explain: "A Collection is a named group of requests. You can organize them in folders (e.g., 'Auth', 'Users', 'Products'), run the entire collection with the Collection Runner, export it as a JSON file to share, or run it in CI using Newman.",
+    explainVi: "Collection là nhóm request có tên. Bạn có thể tổ chức chúng trong các folder (ví dụ: 'Auth', 'Users', 'Products'), chạy toàn bộ collection với Collection Runner, xuất thành file JSON để chia sẻ, hoặc chạy trong CI bằng Newman."
+  },
+  {
+    q: "What does `pm.expect(body).to.have.property('id')` assert?",
+    qVi: "`pm.expect(body).to.have.property('id')` assert điều gì?",
+    choices: [
+      "That body.id equals a specific numeric value",
+      "That the key 'id' exists in the body object (regardless of its value)",
+      "That body.id is greater than zero",
+      "That body is not empty"
+    ],
+    choicesVi: [
+      "body.id bằng một giá trị số cụ thể",
+      "Key 'id' tồn tại trong body object (bất kể giá trị của nó)",
+      "body.id lớn hơn không",
+      "body không rỗng"
+    ],
+    answer: 1,
+    explain: "to.have.property('id') checks that the object has a key named 'id'. It does not check the value. To also assert the value, chain it: pm.expect(body).to.have.property('id').that.equals(42). To check the type, use pm.expect(body.id).to.be.a('number') separately.",
+    explainVi: "to.have.property('id') kiểm tra object có key tên 'id'. Nó không kiểm tra giá trị. Để cũng assert giá trị, chain thêm: pm.expect(body).to.have.property('id').that.equals(42). Để kiểm tra kiểu, dùng pm.expect(body.id).to.be.a('number') riêng biệt."
   }
 ]} />
 

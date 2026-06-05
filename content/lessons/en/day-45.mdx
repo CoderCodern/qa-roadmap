@@ -32,33 +32,28 @@ Các API thực chậm, bị giới hạn tốc độ, không đáng tin cậy v
 pip install responses
 ```
 
-```python
-import responses
-import requests
-
-@responses.activate
-def test_something():
-    responses.add(
-        responses.GET,
-        "https://api.example.com/users/1",
-        json={"id": 1, "email": "alice@example.com"},
-        status=200,
-    )
-    response = requests.get("https://api.example.com/users/1")
-    assert response.status_code == 200
-    assert response.json()["email"] == "alice@example.com"
-```
-
 **What `@responses.activate` does:**
 - Intercepts all `requests` calls within the decorated function
-- Any unregistered URL raises `ConnectionError` (prevents accidental real calls)
-- After the test, all registered mocks are cleared
+- Any unregistered URL raises `ConnectionError` — preventing accidental real network calls
+- After the test exits (pass or fail), all registered mocks are cleared automatically
+- You can also use it as a context manager: `with responses.RequestsMock() as rsps:`
 
 **Mocking error scenarios:**
-```python
-responses.add(responses.GET, url, status=500, json={"error": "Server Error"})
-responses.add(responses.GET, url, body=requests.exceptions.Timeout())
-```
+
+The `responses` library supports three kinds of error simulation:
+
+1. **HTTP error responses** — return a non-2xx status code with a body
+2. **Network exceptions** — pass a real exception class via `body=` to simulate connection problems
+3. **Sequential responses** — register multiple `responses.add()` calls for the same URL to return different results on each call
+
+**Mocking at HTTP level vs mocking a function:**
+
+| Approach | Library | What it replaces | Best for |
+|----------|---------|-----------------|----------|
+| HTTP-level mock | `responses` | The actual TCP/HTTP layer | Testing code that calls `requests.get/post/...` |
+| Function mock | `unittest.mock.patch` | A Python function or method | Testing code that calls a helper or service class |
+
+When your code calls `requests.get()` directly, use `responses`. When your code calls a method on a wrapper class you control, `unittest.mock.patch` is simpler. Both approaches produce isolated tests — they just operate at different abstraction levels.
 </En>
 <Vi>
 **Khi nào mock vs khi nào test với API thực:**
@@ -75,27 +70,42 @@ responses.add(responses.GET, url, body=requests.exceptions.Timeout())
 pip install responses
 ```
 
-```python
-@responses.activate
-def test_something():
-    responses.add(
-        responses.GET,
-        "https://api.example.com/users/1",
-        json={"id": 1, "email": "alice@example.com"},
-        status=200,
-    )
-    response = requests.get("https://api.example.com/users/1")
-    assert response.json()["email"] == "alice@example.com"
-```
+**`@responses.activate` làm gì:**
+- Chặn tất cả các `requests` call trong function được decorate
+- Mọi URL chưa được đăng ký sẽ ném `ConnectionError` — ngăn các lần gọi mạng thực tình cờ
+- Sau khi test kết thúc (pass hay fail), tất cả các mock đã đăng ký được xoá tự động
+- Cũng có thể dùng như context manager: `with responses.RequestsMock() as rsps:`
 
 **Mock các kịch bản lỗi:**
-```python
-responses.add(responses.GET, url, status=500, json={"error": "Server Error"})
-responses.add(responses.GET, url, body=requests.exceptions.Timeout())
-```
+
+Thư viện `responses` hỗ trợ ba loại mô phỏng lỗi:
+
+1. **HTTP error response** — trả về status code không phải 2xx kèm body
+2. **Network exception** — truyền class exception thực qua `body=` để mô phỏng sự cố kết nối
+3. **Response tuần tự** — đăng ký nhiều lần `responses.add()` cho cùng URL để trả về kết quả khác nhau mỗi lần gọi
+
+**Mock ở tầng HTTP vs mock một function:**
+
+| Cách tiếp cận | Thư viện | Thay thế gì | Dùng tốt nhất khi |
+|----------|---------|-----------------|----------|
+| Mock tầng HTTP | `responses` | Tầng TCP/HTTP thực | Code gọi `requests.get/post/...` trực tiếp |
+| Mock function | `unittest.mock.patch` | Một function hoặc method Python | Code gọi một helper hay service class |
+
+Khi code gọi `requests.get()` trực tiếp, dùng `responses`. Khi code gọi method trên lớp wrapper bạn kiểm soát, `unittest.mock.patch` đơn giản hơn. Cả hai đều tạo ra test cô lập — chỉ khác ở tầng trừu tượng.
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — Happy path and error status mocks**
+
+</En>
+<Vi>
+
+**Phần 1 — Mock happy path và trạng thái lỗi**
+
+</Vi>
 
 ```python
 import requests
@@ -144,7 +154,20 @@ def test_handles_server_error():
     response = requests.get(f"{BASE_URL}/users/1")
     assert response.status_code == 500
     assert not response.ok
+```
 
+<En>
+
+**Part 2 — Network exception and sequential mocks**
+
+</En>
+<Vi>
+
+**Phần 2 — Exception mạng và mock tuần tự**
+
+</Vi>
+
+```python
 # --- Timeout mock ---
 @responses.activate
 def test_handles_timeout():
@@ -181,41 +204,256 @@ def test_create_then_get_user():
     assert get_resp.status_code == 200
     assert get_resp.json()["id"] == user_id
 
+# --- What happens when an unmocked URL is called ---
+@responses.activate
+def test_unmocked_url_raises_connection_error():
+    # Only /users/1 is mocked — calling /users/2 should raise ConnectionError
+    responses.add(responses.GET, f"{BASE_URL}/users/1", json={"id": 1}, status=200)
+    with pytest.raises(Exception):  # ConnectionError is a subclass of Exception
+        requests.get(f"{BASE_URL}/users/2")
+
 print("All mock tests passed!")
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a function `fetch_and_validate_user(user_id: int) -> dict` that calls a real or mocked `/users/{id}` endpoint, validates the JSON schema, and raises a custom exception if validation fails. Write three tests using `@responses.activate`: success, 404, and 500
-- [ ] Mock a timeout scenario and verify your code handles it gracefully with a try/except around the request
-- [ ] Explain in your own words: if your test is mocking the HTTP response, what is the test actually verifying?
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Fetch, validate, and handle errors with mocks",
+    code: `import requests
+import responses
+import pytest
+
+BASE_URL = "https://api.example.com"
+
+USER_SCHEMA = {
+    "type": "object",
+    "required": ["id", "email", "role"],
+    "properties": {
+        "id":    {"type": "integer"},
+        "email": {"type": "string"},
+        "role":  {"type": "string"},
+    },
+}
+
+class UserValidationError(Exception):
+    pass
+
+def fetch_and_validate_user(user_id: int) -> dict:
+    # TODO (EN): Call GET /users/{user_id} and validate against USER_SCHEMA.
+    # TODO (VI): Gọi GET /users/{user_id} và xác thực với USER_SCHEMA.
+    # Raise UserValidationError if schema validation fails.
+    # Raise requests.exceptions.HTTPError if status is not 200.
+    pass
+
+@responses.activate
+def test_fetch_user_success():
+    responses.add(
+        responses.GET, f"{BASE_URL}/users/1",
+        json={"id": 1, "email": "alice@example.com", "role": "admin"},
+        status=200,
+    )
+    # TODO (EN): Call fetch_and_validate_user(1) and assert the returned dict.
+    # TODO (VI): Gọi fetch_and_validate_user(1) và kiểm tra dict trả về.
+    pass
+
+@responses.activate
+def test_fetch_user_404():
+    responses.add(
+        responses.GET, f"{BASE_URL}/users/9999",
+        json={"error": "not found"}, status=404,
+    )
+    # TODO (EN): Assert that fetch_and_validate_user(9999) raises an HTTPError.
+    # TODO (VI): Kiểm tra rằng fetch_and_validate_user(9999) ném HTTPError.
+    pass
+
+@responses.activate
+def test_fetch_user_timeout():
+    responses.add(
+        responses.GET, f"{BASE_URL}/users/1",
+        body=requests.exceptions.Timeout(),
+    )
+    # TODO (EN): Assert that the Timeout exception is raised.
+    # TODO (VI): Kiểm tra rằng ngoại lệ Timeout được ném.
+    pass`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Implement `fetch_and_validate_user` — it should call the endpoint, check the status, validate the JSON against `USER_SCHEMA` using `jsonschema.validate`, and raise `UserValidationError` on schema failure
+- [ ] Fill in each test body to assert the correct outcome for success, 404, and timeout
+- [ ] In your own words: if a test mocks the HTTP response, what is it actually verifying? Write your answer as a comment in the code
+
+> Note: This code requires a local Python environment with `requests`, `responses`, and `jsonschema` installed (`pip install requests responses jsonschema pytest`).
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Triển khai `fetch_and_validate_user` — gọi endpoint, kiểm tra status, xác thực JSON với `USER_SCHEMA` bằng `jsonschema.validate`, và ném `UserValidationError` khi schema không hợp lệ
+- [ ] Điền vào từng phần thân test để kiểm tra kết quả đúng cho success, 404 và timeout
+- [ ] Theo cách diễn đạt của bạn: nếu một test mock HTTP response, nó thực sự đang xác minh điều gì? Viết câu trả lời của bạn dưới dạng comment trong code
+
+> Lưu ý: Code này cần môi trường Python cục bộ với `requests`, `responses` và `jsonschema` đã cài đặt (`pip install requests responses jsonschema pytest`).
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What does `@responses.activate` do to real HTTP calls within the test?",
+    qVi: "`@responses.activate` làm gì với các HTTP call thực trong test?",
     choices: [
       "It speeds up real HTTP calls",
       "It intercepts all requests calls — real network calls raise ConnectionError unless explicitly mocked",
       "It logs all HTTP calls to a file",
       "It runs the test in a sandboxed environment"
     ],
+    choicesVi: [
+      "Nó tăng tốc các HTTP call thực",
+      "Nó chặn tất cả requests call — các lần gọi mạng thực ném ConnectionError trừ khi được mock rõ ràng",
+      "Nó ghi tất cả HTTP call vào file",
+      "Nó chạy test trong môi trường sandbox"
+    ],
     answer: 1,
-    explain: "When @responses.activate is active, the responses library intercepts all requests calls. Calls to URLs that have not been registered with responses.add() raise a ConnectionError, preventing accidental real network calls in tests."
+    explain: "When @responses.activate is active, the responses library intercepts all requests calls. Calls to URLs that have not been registered with responses.add() raise a ConnectionError, preventing accidental real network calls in tests.",
+    explainVi: "Khi @responses.activate đang hoạt động, thư viện responses chặn tất cả các requests call. Các lần gọi đến URL chưa được đăng ký với responses.add() sẽ ném ConnectionError, ngăn các lần gọi mạng thực tình cờ trong test."
   },
   {
     q: "What is the key limitation of mocked tests compared to real integration tests?",
+    qVi: "Hạn chế chính của test mock so với test tích hợp thực là gì?",
     choices: [
       "Mocked tests always run slower",
       "Mocked tests only verify your code's behavior against your assumed response — not against the actual API",
       "responses library does not work with pytest",
       "Mocked tests cannot test error scenarios"
     ],
+    choicesVi: [
+      "Test mock luôn chạy chậm hơn",
+      "Test mock chỉ xác minh hành vi code của bạn dựa trên response giả định — không phải với API thực",
+      "Thư viện responses không hoạt động với pytest",
+      "Test mock không thể kiểm thử các kịch bản lỗi"
+    ],
     answer: 1,
-    explain: "Mocks test your code's logic in isolation — they verify how your code handles a 404 response, for example. But if the real API returns a different JSON structure than you mocked, your tests will pass while production breaks. Both mocked unit tests and real integration tests are needed."
+    explain: "Mocks test your code's logic in isolation — they verify how your code handles a 404 response, for example. But if the real API returns a different JSON structure than you mocked, your tests will pass while production breaks. Both mocked unit tests and real integration tests are needed.",
+    explainVi: "Mock kiểm thử logic code của bạn trong sự cô lập — chúng xác minh cách code xử lý response 404 chẳng hạn. Nhưng nếu API thực trả về cấu trúc JSON khác với những gì bạn mock, test sẽ pass trong khi môi trường production bị lỗi. Cần cả test mock và test tích hợp thực."
+  },
+  {
+    q: "When should you use mocks instead of testing against the real API?",
+    qVi: "Khi nào nên dùng mock thay vì test với API thực?",
+    choices: [
+      "Always — mocks are always better",
+      "When the API is rate-limited, costly, slow, or the error scenario is hard to reproduce reliably",
+      "Only when the API is offline",
+      "Only for negative tests"
+    ],
+    choicesVi: [
+      "Luôn luôn — mock luôn tốt hơn",
+      "Khi API bị giới hạn tốc độ, tốn tiền, chậm hoặc kịch bản lỗi khó tái hiện một cách đáng tin cậy",
+      "Chỉ khi API offline",
+      "Chỉ cho test tiêu cực"
+    ],
+    answer: 1,
+    explain: "Mocks shine when you need to reproduce hard edge cases (500 errors, timeouts, malformed responses) without depending on the real service. For testing that the API contract is actually correct, you still need real integration tests.",
+    explainVi: "Mock tỏa sáng khi bạn cần tái hiện các trường hợp biên khó (lỗi 500, timeout, response sai định dạng) mà không phụ thuộc vào dịch vụ thực. Để kiểm tra rằng contract API thực sự đúng, bạn vẫn cần test tích hợp thực."
+  },
+  {
+    q: "How does `responses.add(responses.GET, url, status=404, json={\"error\": \"not found\"})` work?",
+    qVi: "`responses.add(responses.GET, url, status=404, json={\"error\": \"not found\"})` hoạt động như thế nào?",
+    choices: [
+      "It sends a real GET request and checks the response is 404",
+      "It registers a fake response so that any requests.get(url) call returns status 404 with that JSON body",
+      "It deletes the resource at that URL",
+      "It raises an exception when the URL is called"
+    ],
+    choicesVi: [
+      "Nó gửi GET request thực và kiểm tra response là 404",
+      "Nó đăng ký response giả để bất kỳ lần gọi requests.get(url) nào đều trả về status 404 với JSON body đó",
+      "Nó xoá tài nguyên tại URL đó",
+      "Nó ném ngoại lệ khi URL được gọi"
+    ],
+    answer: 1,
+    explain: "responses.add() registers a rule: whenever requests.get(url) is called inside @responses.activate, return this fake response instead of making a real network call. The status and json arguments control what the fake response contains.",
+    explainVi: "responses.add() đăng ký một quy tắc: bất cứ khi nào requests.get(url) được gọi bên trong @responses.activate, trả về response giả này thay vì thực hiện network call thực. Các đối số status và json kiểm soát nội dung của response giả."
+  },
+  {
+    q: "What does `body=requests.exceptions.Timeout()` simulate in a mock?",
+    qVi: "`body=requests.exceptions.Timeout()` mô phỏng điều gì trong một mock?",
+    choices: [
+      "A response with status code 408 (Request Timeout)",
+      "The requests library raising a Timeout exception as if the real server did not respond in time",
+      "A delayed response that takes 30 seconds",
+      "A response with a Retry-After header"
+    ],
+    choicesVi: [
+      "Response với status code 408 (Request Timeout)",
+      "Thư viện requests ném ngoại lệ Timeout như thể server thực không phản hồi đúng thời hạn",
+      "Response bị trì hoãn mất 30 giây",
+      "Response với header Retry-After"
+    ],
+    answer: 1,
+    explain: "When body= receives an exception instance, the responses library raises that exception instead of returning a response object. This simulates a network-level timeout — the kind caught with pytest.raises(requests.exceptions.Timeout).",
+    explainVi: "Khi body= nhận một instance ngoại lệ, thư viện responses ném ngoại lệ đó thay vì trả về response object. Điều này mô phỏng timeout ở tầng mạng — loại được bắt bằng pytest.raises(requests.exceptions.Timeout)."
+  },
+  {
+    q: "What happens when a requests call is made to an unmocked URL inside @responses.activate?",
+    qVi: "Điều gì xảy ra khi một requests call được thực hiện đến URL chưa được mock bên trong @responses.activate?",
+    choices: [
+      "The real HTTP request is made normally",
+      "A ConnectionError is raised immediately",
+      "The call returns an empty 200 response",
+      "The test is skipped"
+    ],
+    choicesVi: [
+      "HTTP request thực được thực hiện bình thường",
+      "ConnectionError được ném ngay lập tức",
+      "Lần gọi trả về response 200 rỗng",
+      "Test bị bỏ qua"
+    ],
+    answer: 1,
+    explain: "This is a safety feature of @responses.activate. Any URL not registered with responses.add() raises ConnectionError, ensuring tests cannot accidentally hit real external services. This keeps tests deterministic and offline-safe.",
+    explainVi: "Đây là tính năng bảo mật của @responses.activate. Bất kỳ URL nào không được đăng ký với responses.add() sẽ ném ConnectionError, đảm bảo test không thể vô tình truy cập các dịch vụ bên ngoài thực. Điều này giữ test xác định và an toàn khi offline."
+  },
+  {
+    q: "Can you register multiple responses for the same URL in sequence using the responses library?",
+    qVi: "Bạn có thể đăng ký nhiều response cho cùng một URL theo thứ tự bằng thư viện responses không?",
+    choices: [
+      "No — each URL can only have one mock response",
+      "Yes — each responses.add() call for the same URL is consumed in order, one per request",
+      "Yes — but only for POST, not GET",
+      "Only if you use a different decorator"
+    ],
+    choicesVi: [
+      "Không — mỗi URL chỉ có thể có một mock response",
+      "Có — mỗi lần gọi responses.add() cho cùng URL được dùng theo thứ tự, một lần mỗi request",
+      "Có — nhưng chỉ cho POST, không phải GET",
+      "Chỉ khi bạn dùng decorator khác"
+    ],
+    answer: 1,
+    explain: "You can call responses.add() multiple times for the same URL. The first registered response is returned on the first request, the second on the second request, and so on. This is useful for testing retry logic or state changes between calls.",
+    explainVi: "Bạn có thể gọi responses.add() nhiều lần cho cùng một URL. Response đầu tiên được đăng ký sẽ được trả về cho request đầu tiên, cái thứ hai cho request thứ hai, v.v. Điều này hữu ích để kiểm thử logic retry hoặc thay đổi trạng thái giữa các lần gọi."
+  },
+  {
+    q: "What is the main difference between mocking at the HTTP level (responses library) vs mocking a function (unittest.mock.patch)?",
+    qVi: "Sự khác biệt chính giữa mock ở tầng HTTP (thư viện responses) vs mock một function (unittest.mock.patch) là gì?",
+    choices: [
+      "There is no difference — they do the same thing",
+      "responses replaces the network layer; unittest.mock.patch replaces a Python callable — the right choice depends on where your code's boundary is",
+      "unittest.mock.patch only works with classes, not functions",
+      "responses is slower and only for testing errors"
+    ],
+    choicesVi: [
+      "Không có sự khác biệt — chúng làm cùng một việc",
+      "responses thay thế tầng mạng; unittest.mock.patch thay thế một Python callable — lựa chọn đúng phụ thuộc vào ranh giới của code bạn",
+      "unittest.mock.patch chỉ hoạt động với class, không phải function",
+      "responses chậm hơn và chỉ dùng để kiểm thử lỗi"
+    ],
+    answer: 1,
+    explain: "Use responses when you want to intercept the actual HTTP call made by requests.get/post — useful when testing code that builds URLs, headers, and parses responses itself. Use unittest.mock.patch when you want to stub out a higher-level function like get_user_profile() to return a fake dict without touching the network at all.",
+    explainVi: "Dùng responses khi bạn muốn chặn HTTP call thực được thực hiện bởi requests.get/post — hữu ích khi kiểm thử code tự xây dựng URL, header và phân tích response. Dùng unittest.mock.patch khi bạn muốn thay thế một function cấp cao hơn như get_user_profile() để trả về dict giả mà không chạm đến mạng."
   }
 ]} />
 

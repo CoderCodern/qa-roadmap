@@ -9,151 +9,551 @@ tags: ["playwright", "pytest"]
 ## Intro
 
 <En>
-Running Playwright scripts manually is a start, but real automation means integrating Playwright with pytest — the test runner that tracks results, handles fixtures, and produces reports. The `pytest-playwright` plugin makes this integration seamless. Today you write your first real Playwright test.
+Running Playwright scripts manually is a start, but professional automation means integrating Playwright with **pytest** — the industry-standard Python test runner. pytest tracks pass/fail results, produces reports, handles test setup and teardown, and integrates with CI pipelines.
+
+The `pytest-playwright` plugin bridges the two: it registers Playwright fixtures (`page`, `browser`, `context`) that pytest injects automatically into your test functions. You never write `sync_playwright()` in a test file — pytest handles it all. Today you write your first real, structured Playwright test.
 </En>
 <Vi>
-Chạy script Playwright thủ công là bước đầu, nhưng tự động hoá thực sự có nghĩa là tích hợp Playwright với pytest — test runner theo dõi kết quả, xử lý fixture và tạo báo cáo. Plugin `pytest-playwright` làm cho sự tích hợp này liền mạch. Hôm nay bạn viết Playwright test thực sự đầu tiên của mình.
+Chạy script Playwright thủ công là bước đầu, nhưng tự động hoá chuyên nghiệp có nghĩa là tích hợp Playwright với **pytest** — test runner Python tiêu chuẩn trong ngành. pytest theo dõi kết quả pass/fail, tạo báo cáo, xử lý setup và teardown, và tích hợp với pipeline CI.
+
+Plugin `pytest-playwright` kết nối cả hai: nó đăng ký các fixture Playwright (`page`, `browser`, `context`) mà pytest tự động inject vào hàm test của bạn. Bạn không bao giờ phải viết `sync_playwright()` trong file test — pytest xử lý tất cả. Hôm nay bạn viết Playwright test thực sự đầu tiên, có cấu trúc.
 </Vi>
 
 ## Concept
 
 <En>
-**pytest-playwright provides built-in fixtures:**
+**How pytest-playwright fixtures work:**
 
-| Fixture | What it gives you |
-|---------|------------------|
-| `playwright` | The Playwright instance |
-| `browser` | A launched browser |
-| `context` | An isolated browser context |
-| `page` | A ready-to-use page (most used) |
+When you add `page` as a parameter to a test function, pytest-playwright:
+1. Launches a browser (Chromium by default)
+2. Creates a fresh BrowserContext (isolated session)
+3. Opens a new Page (tab)
+4. Passes it to your test
+5. Closes context and browser after the test finishes — automatically
 
-When you declare `page` as a parameter in your test function, pytest-playwright creates a fresh browser context and page for each test and tears it down afterwards. No setup/teardown code needed.
+You never call `browser.close()` or `context.close()` in your tests. The fixture handles it via a teardown phase that runs after `yield`.
 
-**Playwright assertions — `expect()`:**
-These are Playwright's async-aware assertions that auto-retry until the condition is true or the timeout expires:
+**Available fixtures and their scopes:**
+
+| Fixture | Scope | What it gives you |
+|---------|-------|------------------|
+| `playwright` | session | The Playwright instance |
+| `browser` | session | A launched browser (shared across all tests) |
+| `context` | function | A fresh isolated BrowserContext per test |
+| `page` | function | A ready Page inside that context |
+
+**Why are `browser` and `context` different scopes?** The browser binary startup is expensive (~1–2 seconds), so it is shared across the whole test session. The context (session data) is cheap to create and must be fresh per test to prevent pollution — a cookie set in `test_login` should never appear in `test_checkout`. The `page` fixture is also function-scoped because it lives inside a context.
+
+**Playwright's `expect()` assertions — smarter than `assert`:**
 
 ```python
 from playwright.sync_api import expect
 
-expect(page.locator("h1")).to_be_visible()
-expect(page.locator("input")).to_be_empty()
-expect(page).to_have_title("My App")
-expect(page).to_have_url("https://app.example.com/dashboard")
-expect(page.locator(".alert")).to_contain_text("Invalid")
+# These poll and retry until true (default timeout: 5 seconds)
+expect(page).to_have_title("My App")           # check page title
+expect(page).to_have_url("https://app.com/")   # check current URL
+expect(locator).to_be_visible()                # element is visible in the DOM
+expect(locator).to_be_hidden()                 # element is not visible
+expect(locator).to_contain_text("Welcome")     # element contains text (partial match)
+expect(locator).to_have_text("Exact text")     # element exact text match
+expect(locator).to_be_enabled()                # button/input is not disabled
+expect(locator).to_be_checked()               # checkbox is checked
+expect(locator).to_have_count(3)              # exactly 3 elements match
+expect(locator).to_have_value("admin@x.com")  # input value
+expect(locator).to_have_attribute("href", "/docs")  # element has attribute with value
+expect(locator).to_be_focused()               # element currently has keyboard focus
+expect(locator).not_to_be_visible()           # negation — element must NOT be visible
 ```
 
-**Install:**
+`expect()` is better than a plain `assert` because it **retries** — if the page is still loading or animating, it waits up to the timeout before failing. A plain `assert locator.is_visible()` fails immediately if the element isn't ready yet, producing flaky tests that fail randomly depending on page load speed.
+
+**Install and run:**
 ```bash
 pip install pytest-playwright
 playwright install chromium
+
+# Run all tests in the tests/ directory with verbose output
+pytest tests/ -v
+
+# Run headed (show browser window — useful for debugging)
+pytest tests/ --headed
+
+# Run in Firefox instead of Chromium
+pytest tests/ --browser firefox
+
+# Run in both Chromium and Firefox in one command
+pytest tests/ --browser chromium --browser firefox
+
+# Run with slow-mo (ms delay between actions — combine with --headed)
+pytest tests/ --headed --slowmo 500
 ```
 
-**Run tests:**
-```bash
-pytest tests/ -v
-pytest tests/ --headed    # show browser window
-pytest tests/ --browser firefox
+**File structure:**
+```
+project/
+├── tests/
+│   ├── conftest.py        ← global fixtures and config (optional)
+│   └── test_example.py    ← test file (must start with test_)
+└── pytest.ini             ← pytest config (optional)
 ```
 </En>
 <Vi>
-**pytest-playwright cung cấp các fixture tích hợp:**
+**Cách fixture pytest-playwright hoạt động:**
 
-| Fixture | Cung cấp gì |
-|---------|------------------|
-| `playwright` | Instance Playwright |
-| `browser` | Trình duyệt đã khởi chạy |
-| `context` | Browser context độc lập |
-| `page` | Trang sẵn sàng sử dụng (dùng nhiều nhất) |
+Khi bạn thêm `page` làm tham số vào hàm test, pytest-playwright:
+1. Khởi chạy trình duyệt (Chromium mặc định)
+2. Tạo BrowserContext mới (phiên độc lập) cho mỗi test
+3. Mở Page mới (tab)
+4. Truyền nó vào test của bạn
+5. Đóng context và trình duyệt sau khi test kết thúc — tự động
 
-Khi bạn khai báo `page` làm tham số trong hàm test, pytest-playwright tạo browser context mới và page mới cho mỗi test và dọn dẹp sau đó. Không cần code setup/teardown.
+**Các fixture có sẵn và phạm vi của chúng:**
 
-**Playwright assertion — `expect()`:**
-Đây là các assertion nhận biết async của Playwright tự động thử lại cho đến khi điều kiện đúng hoặc hết thời gian chờ:
+| Fixture | Phạm vi | Cung cấp gì |
+|---------|-------|------------------|
+| `playwright` | session | Instance Playwright |
+| `browser` | session | Trình duyệt đã khởi chạy (dùng chung cho tất cả test) |
+| `context` | function | BrowserContext mới mỗi test |
+| `page` | function | Page sẵn sàng trong context đó |
 
+**Tại sao `browser` và `context` có phạm vi khác nhau?** Khởi động browser binary tốn kém (~1-2 giây), nên được chia sẻ cho cả phiên test. Context (dữ liệu phiên) rẻ để tạo và phải mới cho mỗi test để ngăn ô nhiễm — cookie được đặt trong `test_login` không bao giờ nên xuất hiện trong `test_checkout`.
+
+**Assertion `expect()` của Playwright:**
 ```python
 from playwright.sync_api import expect
-expect(page.locator("h1")).to_be_visible()
+
 expect(page).to_have_title("My App")
-expect(page).to_have_url("https://app.example.com/dashboard")
+expect(page).to_have_url("https://app.com/")
+expect(locator).to_be_visible()
+expect(locator).to_contain_text("Welcome")
+expect(locator).to_have_count(3)
+expect(locator).to_have_attribute("href", "/docs")
+expect(locator).to_be_focused()
+expect(locator).not_to_be_visible()
 ```
 
-**Cài đặt:**
+`expect()` tốt hơn `assert` thuần vì nó **thử lại** — nếu trang vẫn đang tải hoặc có animation, nó chờ đến khi hết timeout mới báo lỗi. `assert locator.is_visible()` thất bại ngay lập tức nếu phần tử chưa sẵn sàng.
+
+**Cài đặt và chạy:**
 ```bash
 pip install pytest-playwright
 playwright install chromium
+pytest tests/ -v                        # chạy tất cả test với output chi tiết
+pytest tests/ --headed                  # hiện cửa sổ trình duyệt
+pytest tests/ --browser firefox         # dùng Firefox thay vì Chromium
+pytest tests/ --browser chromium --browser firefox  # chạy cả hai trình duyệt
 ```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Your first pytest-playwright test file**
+
+</En>
+<Vi>
+
+**Phần 1 — File test pytest-playwright đầu tiên của bạn**
+
+</Vi>
+
 ```python
-# tests/test_example_site.py
+# tests/test_example_com.py
+# Run with: pytest tests/test_example_com.py -v
 import pytest
 from playwright.sync_api import Page, expect
 
-def test_page_title(page: Page):
+# The `page` parameter is automatically injected by pytest-playwright.
+# No setup/teardown code needed — the fixture handles everything.
+# Each test function gets a brand new, isolated Page in its own BrowserContext.
+
+# What this test does: visits example.com and checks the <title> tag value
+def test_page_has_correct_title(page: Page):
+    """The page title should be 'Example Domain'."""
     page.goto("https://example.com")
+    # to_have_title retries up to 5s — handles slow DNS or redirects gracefully
     expect(page).to_have_title("Example Domain")
 
-def test_heading_is_visible(page: Page):
+# What this test does: finds the <h1> heading and checks it is both visible and correct
+def test_heading_is_visible_and_correct(page: Page):
+    """The h1 heading should be visible and contain the right text."""
     page.goto("https://example.com")
     heading = page.locator("h1")
     expect(heading).to_be_visible()
     expect(heading).to_contain_text("Example Domain")
 
-def test_more_information_link_exists(page: Page):
+# What this test does: finds the info link and validates its href is a valid https URL
+def test_more_info_link_exists_and_has_href(page: Page):
+    """The 'More information' link should exist and point to an https URL."""
     page.goto("https://example.com")
     link = page.locator("a", has_text="More information")
     expect(link).to_be_visible()
     href = link.get_attribute("href")
-    assert href is not None
-    assert href.startswith("https://")
+    assert href is not None, "Link should have an href"
+    assert href.startswith("https://"), f"Expected https link, got: {href}"
 
-def test_page_has_no_form(page: Page):
+# What this test does: confirms example.com has no form elements (it's purely static)
+def test_page_has_no_form_elements(page: Page):
+    """Example.com is a static page — no forms expected."""
     page.goto("https://example.com")
-    # Count form elements — expect zero
-    form_count = page.locator("form").count()
-    assert form_count == 0
+    expect(page.locator("form")).to_have_count(0)
 
-# conftest.py — optional global config
-# You can set base_url, browser, viewport here:
-# @pytest.fixture(scope="session")
-# def browser_context_args(browser_context_args):
-#     return {**browser_context_args, "viewport": {"width": 1280, "height": 720}}
+# What this test does: confirms the URL resolves to the canonical form with trailing slash
+def test_page_url_is_canonical(page: Page):
+    """URL should resolve to https://example.com/ (with trailing slash)."""
+    page.goto("https://example.com")
+    expect(page).to_have_url("https://example.com/")
+
+# Expected output when running: pytest tests/test_example_com.py -v
+# tests/test_example_com.py::test_page_has_correct_title              PASSED
+# tests/test_example_com.py::test_heading_is_visible_and_correct      PASSED
+# tests/test_example_com.py::test_more_info_link_exists_and_has_href  PASSED
+# tests/test_example_com.py::test_page_has_no_form_elements           PASSED
+# tests/test_example_com.py::test_page_url_is_canonical               PASSED
+# 5 passed in X.XXs
+```
+
+<En>
+
+**Part 2 — conftest.py: customising the browser context**
+
+</En>
+<Vi>
+
+**Phần 2 — conftest.py: tùy chỉnh browser context**
+
+</Vi>
+
+```python
+# conftest.py  (place at project root or tests/ directory)
+import pytest
+
+# browser_context_args overrides the BrowserContext options for ALL tests.
+# Use this approach (conftest.py) when you want the config to apply to every
+# test that uses the `context` or `page` fixture — no changes to individual files.
+#
+# Alternative: use pytest.ini with [pytest] base_url = https://example.com
+# for the base_url setting. conftest.py is better for viewport, locale, and
+# more complex options that pytest.ini cannot express as simple key=value pairs.
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    return {
+        **browser_context_args,          # preserve any existing args
+        "viewport": {"width": 1280, "height": 720},
+        # "base_url": "https://example.com",   # uncomment to use page.goto("/")
+        # "locale": "en-US",                   # override browser locale
+        # "timezone_id": "America/New_York",   # override timezone
+    }
+```
+
+<En>
+
+**Part 3 — Using base_url and running with different browsers**
+
+</En>
+<Vi>
+
+**Phần 3 — Dùng base_url và chạy với nhiều trình duyệt khác nhau**
+
+</Vi>
+
+```python
+# pytest.ini  (place at project root)
+# [pytest]
+# base_url = https://example.com
+
+# tests/test_with_base_url.py
+# Run with: pytest tests/test_with_base_url.py -v --base-url https://example.com
+from playwright.sync_api import Page, expect
+
+def test_home_page_title(page: Page):
+    # With base_url set, goto("/") navigates to https://example.com/
+    # This is cleaner than repeating the full URL in every test
+    page.goto("/")
+    expect(page).to_have_title("Example Domain")
+    # Expected: PASSED — title matches exactly
+
+def test_full_url_still_works(page: Page):
+    # Full absolute URLs always work regardless of base_url setting
+    # Use full URLs when navigating to a completely different domain
+    page.goto("https://playwright.dev/")
+    expect(page).to_have_url("https://playwright.dev/")
+    # Expected: PASSED — URL matches after navigation
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Create a `tests/` directory, install `pytest-playwright`, and run the demo tests above with `pytest -v` — all should pass
-- [ ] Add a test that navigates to `https://example.com`, gets the page URL, and asserts it equals `"https://example.com/"`
-- [ ] Run the tests with `--headed` flag and watch the browser open and close for each test
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise — Write 4 pytest tests for playwright.dev",
+    code: `# tests/test_playwright_site.py
+# Run with: pytest tests/ -v
+# Target: https://playwright.dev — the official Playwright docs
+import re
+from playwright.sync_api import Page, expect
+
+def test_playwright_title(page: Page):
+    """Page title should contain 'Playwright'."""
+    page.goto("https://playwright.dev/")
+    # Use re.compile() for a partial title match — the full title is long
+    # TODO (EN): Use re.compile(r"Playwright") for a partial title match
+    # TODO (VI): Dùng re.compile(r"Playwright") để khớp một phần tiêu đề
+    expect(page).to_have_title(???)   # hint: re.compile(r"Playwright")
+
+def test_get_started_link_visible(page: Page):
+    """The 'Get started' link/button should be visible on the homepage."""
+    page.goto("https://playwright.dev/")
+    # Find the anchor tag that contains the text "Get started"
+    # TODO (EN): page.locator("a", has_text="Get started")
+    # TODO (VI): page.locator("a", has_text="Get started")
+    link = page.locator(???)          # hint: page.locator("a", has_text="Get started")
+    # TODO (EN): to_be_visible()
+    # TODO (VI): to_be_visible()
+    expect(link).???                  # hint: to_be_visible()
+
+def test_url_is_correct(page: Page):
+    """URL after navigation should be https://playwright.dev/."""
+    page.goto("https://playwright.dev/")
+    # TODO (EN): The full URL string — "https://playwright.dev/"
+    # TODO (VI): Chuỗi URL đầy đủ — "https://playwright.dev/"
+    expect(page).to_have_url(???)     # hint: the full URL string with trailing slash
+
+def test_page_has_links(page: Page):
+    """Page should have at least 5 links."""
+    page.goto("https://playwright.dev/")
+    count = page.locator("a").count()
+    # count() returns an integer — compare directly with assert
+    # TODO (EN): 5 — the minimum link count we expect
+    # TODO (VI): 5 — số link tối thiểu chúng ta mong đợi
+    assert count >= ???, f"Expected at least 5 links, found {count}"
+    # hint: replace ??? with 5`
+  }
+]}>
+
+<En>
+Create a \`tests/\` folder and save the file above, then run \`pytest tests/ -v\`.
+
+**Hints:**
+- \`to_have_title(re.compile(r"Playwright"))\` — use \`re.compile()\` for a partial title match (import \`re\` at the top)
+- \`page.locator("a", has_text="Get started")\` — finds an anchor tag containing that text
+- \`expect(locator).to_be_visible()\` — asserts the element is visible on screen
+- \`expect(page).to_have_url("https://playwright.dev/")\` — asserts the exact page URL
+
+- [ ] Create a \`tests/\` folder and save the file above
+- [ ] Fill in all \`???\` and run \`pytest tests/ -v\` — all 4 tests should pass
+- [ ] Run again with \`--headed\` to watch the browser open for each test
+- [ ] Add a 5th test of your own: check that a specific heading text is visible on the Playwright homepage
+</En>
+<Vi>
+Tạo thư mục \`tests/\` và lưu file trên, sau đó chạy \`pytest tests/ -v\`.
+
+**Gợi ý:**
+- \`to_have_title(re.compile(r"Playwright"))\` — dùng \`re.compile()\` để khớp tiêu đề một phần (import \`re\` ở đầu file)
+- \`page.locator("a", has_text="Get started")\` — tìm thẻ anchor chứa text đó
+- \`expect(locator).to_be_visible()\` — kiểm tra phần tử hiển thị trên màn hình
+- \`expect(page).to_have_url("https://playwright.dev/")\` — kiểm tra URL trang chính xác
+
+- [ ] Tạo thư mục \`tests/\` và lưu file trên
+- [ ] Điền tất cả \`???\` và chạy \`pytest tests/ -v\` — tất cả 4 test phải pass
+- [ ] Chạy lại với \`--headed\` để xem trình duyệt mở cho từng test
+- [ ] Thêm test thứ 5 của riêng bạn: kiểm tra một heading text cụ thể hiển thị trên Playwright homepage
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "In a pytest-playwright test, where does the `page` fixture come from?",
+    q: "Where does the `page` fixture come from in a pytest-playwright test?",
+    qVi: "Fixture `page` trong test pytest-playwright đến từ đâu?",
     choices: [
-      "You must create it manually in every test",
-      "pytest-playwright provides it automatically — declare it as a parameter and it's injected",
+      "You must create it manually in every test function",
+      "pytest-playwright registers it — declare it as a parameter and pytest injects it automatically",
       "You import it from playwright.sync_api",
       "You must define it in conftest.py yourself"
     ],
+    choicesVi: [
+      "Bạn phải tạo thủ công trong mỗi hàm test",
+      "pytest-playwright đăng ký nó — khai báo làm tham số và pytest tự động inject",
+      "Bạn import nó từ playwright.sync_api",
+      "Bạn phải tự định nghĩa nó trong conftest.py"
+    ],
     answer: 1,
-    explain: "pytest-playwright registers page, context, browser, and playwright as built-in fixtures. Declare any of them as a function parameter and pytest injects them automatically, handling setup and teardown."
+    explain: "pytest-playwright registers page, context, browser, and playwright as built-in fixtures. Just declare any of them as a parameter in your test function and pytest handles setup, injection, and teardown automatically.",
+    explainVi: "pytest-playwright đăng ký page, context, browser và playwright làm fixture tích hợp sẵn. Chỉ cần khai báo bất kỳ fixture nào làm tham số trong hàm test và pytest xử lý setup, inject và teardown tự động."
   },
   {
     q: "How does `expect(locator).to_be_visible()` differ from `assert locator.is_visible()`?",
+    qVi: "`expect(locator).to_be_visible()` khác với `assert locator.is_visible()` như thế nào?",
     choices: [
-      "They are identical",
-      "expect() auto-retries until the condition is true or times out; assert is a one-shot check",
-      "assert is only for numeric values",
-      "expect() is deprecated in new Playwright versions"
+      "They are identical in behaviour",
+      "expect() retries automatically until the condition is true or the timeout expires; assert is_visible() checks once and fails immediately",
+      "assert is only for numeric comparisons",
+      "expect() is deprecated in newer Playwright versions"
+    ],
+    choicesVi: [
+      "Chúng hoàn toàn giống nhau về hành vi",
+      "expect() tự động thử lại cho đến khi điều kiện đúng hoặc hết timeout; assert is_visible() kiểm tra một lần và thất bại ngay",
+      "assert chỉ dùng cho so sánh số",
+      "expect() đã bị loại bỏ trong các phiên bản Playwright mới hơn"
     ],
     answer: 1,
-    explain: "Playwright's expect() assertions are polling — they retry on a short interval until the assertion passes or the default 5-second timeout expires. assert is_visible() checks once and fails immediately if the element is not yet visible."
+    explain: "Playwright's expect() assertions are polling — they retry on a short interval (every ~100ms) until the assertion passes or the default 5-second timeout expires. assert is_visible() is a one-shot check that fails immediately if the element isn't ready yet.",
+    explainVi: "Assertion expect() của Playwright là polling — chúng thử lại sau mỗi khoảng ngắn (~100ms) cho đến khi assertion pass hoặc hết timeout mặc định 5 giây. assert is_visible() là kiểm tra một lần, thất bại ngay nếu phần tử chưa sẵn sàng."
+  },
+  {
+    q: "What does `--headed` do when running pytest with playwright?",
+    qVi: "`--headed` có tác dụng gì khi chạy pytest với playwright?",
+    choices: [
+      "Runs only the tests that have 'headed' in their name",
+      "Shows a visible browser window for each test so you can watch the automation",
+      "Increases test verbosity output",
+      "Runs tests in Firefox instead of Chromium"
+    ],
+    choicesVi: [
+      "Chỉ chạy các test có chữ 'headed' trong tên",
+      "Hiển thị cửa sổ trình duyệt cho mỗi test để bạn xem tự động hoá",
+      "Tăng mức độ chi tiết của output test",
+      "Chạy test bằng Firefox thay vì Chromium"
+    ],
+    answer: 1,
+    explain: "The --headed flag tells pytest-playwright to launch the browser with a visible window. This is the easiest way to debug a failing test — you can watch exactly what the browser is doing.",
+    explainVi: "Flag --headed yêu cầu pytest-playwright khởi chạy trình duyệt với cửa sổ hiển thị. Đây là cách dễ nhất để debug test thất bại — bạn có thể xem chính xác trình duyệt đang làm gì."
+  },
+  {
+    q: "What is the scope of the `context` fixture in pytest-playwright?",
+    qVi: "Phạm vi của fixture `context` trong pytest-playwright là gì?",
+    choices: [
+      "session — shared across all tests in the entire run",
+      "module — shared across all tests in the same file",
+      "function — a fresh, isolated BrowserContext is created for each test",
+      "class — shared across all tests in the same class"
+    ],
+    choicesVi: [
+      "session — dùng chung cho tất cả test trong toàn bộ lần chạy",
+      "module — dùng chung cho tất cả test trong cùng file",
+      "function — một BrowserContext mới, độc lập được tạo cho mỗi test",
+      "class — dùng chung cho tất cả test trong cùng class"
+    ],
+    answer: 2,
+    explain: "The context fixture has function scope — a brand new BrowserContext (with empty cookies, localStorage, etc.) is created before each test and torn down after. This means tests are fully isolated from each other by default.",
+    explainVi: "Fixture context có phạm vi function — một BrowserContext hoàn toàn mới (với cookie trống, localStorage trống, v.v.) được tạo trước mỗi test và dọn dẹp sau. Điều này có nghĩa là các test hoàn toàn độc lập với nhau theo mặc định."
+  },
+  {
+    q: "Which file is used to set global pytest-playwright configuration like base_url and viewport?",
+    qVi: "File nào được dùng để đặt cấu hình pytest-playwright toàn cục như base_url và viewport?",
+    choices: [
+      "playwright.config.py",
+      "setup.cfg",
+      "conftest.py or pytest.ini",
+      "browser.json"
+    ],
+    choicesVi: [
+      "playwright.config.py",
+      "setup.cfg",
+      "conftest.py hoặc pytest.ini",
+      "browser.json"
+    ],
+    answer: 2,
+    explain: "conftest.py is where you override fixtures like browser_context_args to set viewport, locale, or other defaults. pytest.ini (or pyproject.toml) is where you set pytest options like base_url. Both are commonly used together.",
+    explainVi: "conftest.py là nơi bạn ghi đè fixture như browser_context_args để đặt viewport, locale hoặc các mặc định khác. pytest.ini (hoặc pyproject.toml) là nơi đặt tuỳ chọn pytest như base_url. Cả hai thường được dùng cùng nhau."
+  },
+  {
+    q: "How do you run tests using Firefox instead of the default Chromium browser?",
+    qVi: "Làm thế nào để chạy test bằng Firefox thay vì Chromium mặc định?",
+    choices: [
+      "pytest tests/ --chromium=false",
+      "pytest tests/ --browser firefox",
+      "pytest tests/ --engine firefox",
+      "Set PLAYWRIGHT_BROWSER=firefox before running pytest"
+    ],
+    choicesVi: [
+      "pytest tests/ --chromium=false",
+      "pytest tests/ --browser firefox",
+      "pytest tests/ --engine firefox",
+      "Đặt PLAYWRIGHT_BROWSER=firefox trước khi chạy pytest"
+    ],
+    answer: 1,
+    explain: "pytest-playwright accepts a --browser flag with values: chromium (default), firefox, or webkit. You can also specify multiple browsers in one run: --browser chromium --browser firefox. This is how you achieve cross-browser testing without changing any test code.",
+    explainVi: "pytest-playwright nhận flag --browser với các giá trị: chromium (mặc định), firefox hoặc webkit. Bạn cũng có thể chỉ định nhiều trình duyệt trong một lần chạy: --browser chromium --browser firefox. Đây là cách kiểm thử đa trình duyệt mà không thay đổi bất kỳ code test nào."
+  },
+  {
+    q: "What command runs all tests in the `tests/` directory with verbose output?",
+    qVi: "Lệnh nào chạy tất cả test trong thư mục `tests/` với output chi tiết?",
+    choices: [
+      "pytest tests/ --all",
+      "pytest tests/ -v",
+      "pytest tests/ --verbose --show-all",
+      "playwright test tests/ -v"
+    ],
+    choicesVi: [
+      "pytest tests/ --all",
+      "pytest tests/ -v",
+      "pytest tests/ --verbose --show-all",
+      "playwright test tests/ -v"
+    ],
+    answer: 1,
+    explain: "pytest tests/ -v runs every test file and function found in the tests/ directory, showing each test name and PASSED/FAILED status. Without -v, pytest only shows a dot (.) for each passing test.",
+    explainVi: "pytest tests/ -v chạy mọi file test và hàm test trong thư mục tests/, hiển thị tên từng test và trạng thái PASSED/FAILED. Không có -v, pytest chỉ hiển thị dấu chấm (.) cho mỗi test pass."
+  },
+  {
+    q: "What does `expect(locator).to_have_count(3)` verify?",
+    qVi: "`expect(locator).to_have_count(3)` xác minh điều gì?",
+    choices: [
+      "That the locator matched exactly 3 characters",
+      "That exactly 3 elements match the locator — retrying until true or timeout",
+      "That the 3rd element exists",
+      "That the element has a count attribute equal to 3"
+    ],
+    choicesVi: [
+      "Rằng locator khớp đúng 3 ký tự",
+      "Rằng đúng 3 phần tử khớp với locator — thử lại cho đến khi đúng hoặc hết timeout",
+      "Rằng phần tử thứ 3 tồn tại",
+      "Rằng phần tử có thuộc tính count bằng 3"
+    ],
+    answer: 1,
+    explain: "to_have_count(n) is a polling assertion that checks the number of DOM elements matching the locator. It retries every ~100ms until the count equals n or the timeout (5s) expires. This handles cases like search results that load asynchronously.",
+    explainVi: "to_have_count(n) là assertion polling kiểm tra số phần tử DOM khớp với locator. Nó thử lại mỗi ~100ms cho đến khi số lượng bằng n hoặc timeout (5 giây) hết. Điều này xử lý các trường hợp như kết quả tìm kiếm tải bất đồng bộ."
+  },
+  {
+    q: "Why does pytest-playwright use `function` scope (not `session`) for the `context` fixture by default?",
+    qVi: "Tại sao pytest-playwright dùng phạm vi `function` (không phải `session`) cho fixture `context` theo mặc định?",
+    choices: [
+      "Function scope is faster because it skips browser setup",
+      "Each test gets a fresh, isolated BrowserContext — preventing test pollution where one test's cookies or state affect another",
+      "pytest does not support session-scoped browser fixtures",
+      "Session scope is reserved for the playwright fixture only"
+    ],
+    choicesVi: [
+      "Phạm vi function nhanh hơn vì bỏ qua việc khởi động trình duyệt",
+      "Mỗi test nhận BrowserContext mới, độc lập — ngăn ô nhiễm test khi cookie hoặc trạng thái của một test ảnh hưởng đến test khác",
+      "pytest không hỗ trợ fixture trình duyệt phạm vi session",
+      "Phạm vi session được dành riêng cho fixture playwright"
+    ],
+    answer: 1,
+    explain: "Test isolation is the goal. If tests share a context, a cookie set in test_login could still be present in test_checkout — causing mysterious failures. Function scope ensures each test starts with empty state. The trade-off is slightly slower runs (context creation overhead).",
+    explainVi: "Mục tiêu là cách ly test. Nếu các test dùng chung context, cookie được đặt trong test_login có thể vẫn còn trong test_checkout — gây ra các lỗi khó hiểu. Phạm vi function đảm bảo mỗi test bắt đầu với trạng thái trống. Đánh đổi là chạy chậm hơn một chút (chi phí tạo context)."
+  },
+  {
+    q: "What happens to the browser context and page after a test function that uses the `page` fixture completes?",
+    qVi: "Điều gì xảy ra với browser context và page sau khi hàm test dùng fixture `page` hoàn thành?",
+    choices: [
+      "They remain open until the entire test session ends",
+      "The page and context are automatically closed by the fixture teardown — no manual cleanup needed",
+      "They are paused and reused for the next test",
+      "The browser closes but the context remains"
+    ],
+    choicesVi: [
+      "Chúng vẫn mở cho đến khi toàn bộ phiên test kết thúc",
+      "Page và context được tự động đóng bởi teardown của fixture — không cần dọn dẹp thủ công",
+      "Chúng bị tạm dừng và tái sử dụng cho test tiếp theo",
+      "Trình duyệt đóng nhưng context vẫn còn"
+    ],
+    answer: 1,
+    explain: "pytest-playwright's context fixture has a teardown phase (after yield) that calls context.close(). The page fixture is created inside that context. When the context closes, all its pages close too. You never write browser.close() or context.close() in test functions.",
+    explainVi: "Fixture context của pytest-playwright có giai đoạn teardown (sau yield) gọi context.close(). Fixture page được tạo bên trong context đó. Khi context đóng, tất cả các page của nó cũng đóng. Bạn không bao giờ phải viết browser.close() hay context.close() trong hàm test."
   }
 ]} />
 
@@ -161,5 +561,6 @@ def test_page_has_no_form(page: Page):
 
 <ResourceList resources={[
   { title: "Playwright Python — pytest integration", url: "https://playwright.dev/python/docs/test-runners" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "Playwright Python — Assertions", url: "https://playwright.dev/python/docs/test-assertions" },
+  { title: "pytest documentation", url: "https://docs.pytest.org/en/stable/" }
 ]} />

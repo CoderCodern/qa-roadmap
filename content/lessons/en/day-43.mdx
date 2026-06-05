@@ -29,9 +29,11 @@ Hầu hết các API thực đều yêu cầu xác thực. Mẫu phổ biến nh
 
 **JWT (JSON Web Token) structure:**
 A JWT is three base64-encoded parts separated by dots:
-- Header: algorithm used
-- Payload: claims (user id, role, expiry)
-- Signature: server-signed hash
+- **Header:** algorithm and token type (e.g. `{"alg": "HS256", "typ": "JWT"}`)
+- **Payload:** claims — user id, role, issued-at, expiry
+- **Signature:** server-signed hash that proves the token was not tampered with
+
+Example JWT: `eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjF9.abc123`
 
 **Testing auth patterns:**
 
@@ -47,22 +49,46 @@ response = requests.get("/api/protected")  # no auth header
 assert response.status_code == 401
 ```
 
-**3. Test that a wrong role returns 403:**
+**3. Test that a wrong token also returns 401:**
+```python
+response = requests.get("/api/protected", headers={"Authorization": "Bearer invalid.token"})
+assert response.status_code == 401
+```
+
+**4. Test that a valid token with wrong role returns 403:**
 ```python
 viewer_token = login("viewer@example.com", "password")
 response = client.delete("/api/users/1", headers={"Authorization": f"Bearer {viewer_token}"})
 assert response.status_code == 403
 ```
 
+Testing both "no token" AND "wrong token" matters: some APIs accidentally accept any non-empty Authorization header, and you want to catch that.
+
 **Pytest fixture for authenticated sessions:**
 ```python
-@pytest.fixture
-def auth_session(base_url):
+@pytest.fixture(scope="session")
+def admin_session(base_url: str) -> requests.Session:
     session = requests.Session()
-    response = session.post(f"{base_url}/auth/login", json={"email": "...", "password": "..."})
-    token = response.json()["token"]
+    response = session.post(f"{base_url}/auth/login", json={
+        "email": os.environ["ADMIN_EMAIL"],
+        "password": os.environ["ADMIN_PASSWORD"],
+    })
+    assert response.status_code == 200
+    token = response.json()["access_token"]
     session.headers["Authorization"] = f"Bearer {token}"
-    return session
+    yield session
+    session.post(f"{base_url}/auth/logout")
+```
+
+**Credentials must never be hardcoded.** Use environment variables or a `.env` file loaded with `python-dotenv`. This prevents credentials from being committed to version control.
+
+**Basic Auth encoding:**
+```python
+import base64
+
+credentials = "admin:secretpassword"
+encoded = base64.b64encode(credentials.encode()).decode()
+headers = {"Authorization": f"Basic {encoded}"}
 ```
 </En>
 <Vi>
@@ -71,8 +97,15 @@ def auth_session(base_url):
 | Loại | Cách hoạt động | Token đặt ở đâu |
 |------|-------------|---------------------|
 | Bearer / JWT | Đăng nhập trả về token | Header `Authorization: Bearer <token>` |
-| API Key | Khóa tĩnh cho mỗi client | Header `X-API-Key: <key>` |
+| API Key | Khóa tĩnh cho mỗi client | Header `X-API-Key: <key>` hoặc query param |
 | Basic Auth | Username:password được base64 mã hoá | Header `Authorization: Basic <base64>` |
+| Session Cookie | Đăng nhập đặt cookie | Cookie header (trình duyệt/session quản lý) |
+
+**Cấu trúc JWT (JSON Web Token):**
+JWT gồm ba phần được base64 mã hoá, ngăn cách bởi dấu chấm:
+- **Header:** thuật toán và loại token (ví dụ `{"alg": "HS256", "typ": "JWT"}`)
+- **Payload:** claims — user id, role, thời điểm cấp, hết hạn
+- **Signature:** hash được server ký xác nhận token không bị giả mạo
 
 **Mẫu kiểm thử auth:**
 
@@ -88,25 +121,43 @@ response = requests.get("/api/protected")
 assert response.status_code == 401
 ```
 
-**3. Kiểm tra sai role trả về 403:**
+**3. Kiểm tra token sai cũng trả về 401:**
+```python
+response = requests.get("/api/protected", headers={"Authorization": "Bearer invalid.token"})
+assert response.status_code == 401
+```
+
+**4. Kiểm tra token hợp lệ nhưng sai role trả về 403:**
 ```python
 response = viewer_client.delete("/api/users/1")
 assert response.status_code == 403
 ```
+
+Kiểm tra cả "không có token" VÀ "token sai" rất quan trọng: một số API vô tình chấp nhận bất kỳ Authorization header nào khác rỗng, và bạn muốn bắt lỗi đó.
+
+**Credentials không bao giờ được hardcode.** Dùng biến môi trường hoặc file `.env` tải bởi `python-dotenv`. Điều này ngăn credentials bị commit vào version control.
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — Build auth helpers and simulate Bearer token flow**
+
+</En>
+<Vi>
+
+**Phần 1 — Xây dựng các hàm trợ giúp auth và mô phỏng luồng Bearer token**
+
+</Vi>
 
 ```python
 import requests
 import base64
 
-# Using JSONPlaceholder as the base API (it doesn't enforce auth,
-# but we demonstrate the patterns with simulated responses)
-
 BASE_URL = "https://jsonplaceholder.typicode.com"
 
-# --- Pattern 1: Bearer Token ---
+# --- Helper: Bearer token ---
 def make_auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
@@ -115,91 +166,400 @@ def make_authenticated_session(token: str) -> requests.Session:
     session.headers.update(make_auth_headers(token))
     return session
 
-# Simulated: in a real test, you'd login first
+# Simulated: in a real test you'd POST to /auth/login to get this token
 fake_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test"
 auth_session = make_authenticated_session(fake_token)
 
 response = auth_session.get(f"{BASE_URL}/posts/1")
 print(f"Auth header sent: {response.request.headers.get('Authorization')}")
+print(f"Status: {response.status_code}")
 
-# --- Pattern 2: Basic Auth ---
+# --- Helper: Basic Auth ---
 def make_basic_auth_header(username: str, password: str) -> dict:
     credentials = f"{username}:{password}"
     encoded = base64.b64encode(credentials.encode()).decode()
     return {"Authorization": f"Basic {encoded}"}
 
 basic_headers = make_basic_auth_header("admin", "secret")
-print(f"Basic auth: {basic_headers['Authorization'][:30]}...")
+print(f"Basic auth header: {basic_headers['Authorization'][:30]}...")
 
-# --- Pattern 3: API Key ---
+# --- Helper: API Key ---
 def make_api_key_session(api_key: str) -> requests.Session:
     session = requests.Session()
     session.headers["X-API-Key"] = api_key
     return session
+```
 
-# --- Simulated auth error test scenarios ---
+<En>
+
+**Part 2 — Simulate auth error scenarios and verify response logic**
+
+</En>
+<Vi>
+
+**Phần 2 — Mô phỏng các kịch bản lỗi auth và xác minh logic response**
+
+</Vi>
+
+```python
 def simulate_auth_responses():
+    """
+    In a real test suite, each of these scenarios would be a separate
+    test function asserting the exact status code and error message.
+    """
     scenarios = [
-        {"name": "No auth header",     "status": 401, "body": {"error": "Unauthorized"}},
-        {"name": "Invalid token",      "status": 401, "body": {"error": "Token invalid or expired"}},
-        {"name": "Valid viewer token - admin endpoint", "status": 403, "body": {"error": "Forbidden"}},
-        {"name": "Valid admin token",  "status": 200, "body": {"data": "protected content"}},
+        {"name": "No auth header",                       "status": 401, "body": {"error": "Unauthorized"}},
+        {"name": "Invalid token",                         "status": 401, "body": {"error": "Token invalid or expired"}},
+        {"name": "Valid viewer token — admin endpoint",   "status": 403, "body": {"error": "Forbidden"}},
+        {"name": "Valid admin token",                     "status": 200, "body": {"data": "protected content"}},
     ]
 
-    for scenario in scenarios:
-        code = scenario["status"]
+    for s in scenarios:
+        code = s["status"]
         category = "success" if 200 <= code < 300 else "auth error" if code in (401, 403) else "error"
-        print(f"  {scenario['name']}: {code} ({category})")
+        print(f"  {s['name']}: {code} ({category})")
+        # Real assertions would look like:
+        # assert response.status_code == s["status"]
+        # assert "error" in response.json()   (for 401/403)
 
 simulate_auth_responses()
+```
 
-# --- Pytest fixture template ---
+<En>
+
+**Part 3 — Pytest fixture template for a real auth workflow**
+
+</En>
+<Vi>
+
+**Phần 3 — Mẫu pytest fixture cho luồng auth thực tế**
+
+</Vi>
+
+```python
+import os
+# import pytest  # uncomment when running as a pytest file
+
+# --- Fixture: scope="session" (login once for the entire test run) ---
 # @pytest.fixture(scope="session")
 # def admin_session(base_url: str) -> requests.Session:
+#     session = requests.Session()
+#     response = session.post(f"{base_url}/auth/login", json={
+#         "email": os.environ["ADMIN_EMAIL"],      # never hardcode!
+#         "password": os.environ["ADMIN_PASSWORD"],
+#     })
+#     assert response.status_code == 200, f"Login failed: {response.text}"
+#     token = response.json()["access_token"]
+#     session.headers["Authorization"] = f"Bearer {token}"
+#     yield session
+#     session.post(f"{base_url}/auth/logout")  # cleanup
+
+# --- Fixture: scope="function" (fresh login before each test — for isolation) ---
+# @pytest.fixture(scope="function")
+# def fresh_admin_session(base_url: str) -> requests.Session:
 #     session = requests.Session()
 #     response = session.post(f"{base_url}/auth/login", json={
 #         "email": os.environ["ADMIN_EMAIL"],
 #         "password": os.environ["ADMIN_PASSWORD"],
 #     })
-#     assert response.status_code == 200
 #     token = response.json()["access_token"]
 #     session.headers["Authorization"] = f"Bearer {token}"
-#     yield session
-#     session.post(f"{base_url}/auth/logout")
+#     return session
+
+# Demo: what the difference looks like in practice
+print("scope='session'  → login() called ONCE for the entire test run")
+print("scope='function' → login() called before EVERY test function")
+print("Use session scope unless tests mutate auth state (e.g. change password tests)")
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a pytest fixture `auth_session` that: accepts a `base_url` parameter, makes a POST to `/auth/login` with test credentials, extracts the token from the response, and returns a `requests.Session` with the Authorization header set
-- [ ] Write three test functions using that fixture: one that accesses a protected endpoint (expect 200), one without the header (expect 401), and one where the token is intentionally wrong (expect 401)
-- [ ] Explain why you should never hardcode API credentials in test files — describe two safe alternatives (environment variables, pytest fixtures with secrets management)
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Write an auth fixture and use it",
+    code: `import os
+import requests
+# import pytest
+
+# TODO (EN): Write a pytest fixture named "auth_session" that:
+# 1. Reads ADMIN_EMAIL and ADMIN_PASSWORD from environment variables
+# 2. Makes a POST to {base_url}/auth/login with those credentials
+# 3. Extracts the token from the response JSON
+# 4. Returns a requests.Session with Authorization header set to "Bearer {token}"
+# Use scope="session" so login happens only once per test run.
+#
+# TODO (VI): Viết pytest fixture tên "auth_session":
+# 1. Đọc ADMIN_EMAIL và ADMIN_PASSWORD từ biến môi trường
+# 2. POST đến {base_url}/auth/login với các thông tin đăng nhập đó
+# 3. Trích xuất token từ JSON của response
+# 4. Trả về requests.Session với Authorization header "Bearer {token}"
+# Dùng scope="session" để login chỉ xảy ra một lần trong toàn bộ lần chạy test.
+
+# @pytest.fixture(scope="session")
+def auth_session(base_url: str) -> requests.Session:
+    ???
+
+# Then write three test functions using this fixture:
+# test_access_protected_endpoint(auth_session) → expect 200
+# test_no_token_returns_401()                  → expect 401
+# test_wrong_token_returns_401()               → expect 401`
+  },
+  {
+    title: "Exercise 2 — Test 401 vs 403 distinction",
+    code: `import requests
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# TODO (EN): For a hypothetical API, write test functions that:
+# 1. Send a request with NO Authorization header → assert 401
+# 2. Send a request with an INVALID token → assert 401
+# 3. Send a request with a VALID viewer token to an admin-only endpoint → assert 403
+# Explain in a comment: what is the conceptual difference between 401 and 403?
+#
+# TODO (VI): Cho một API giả định, viết các hàm test:
+# 1. Gửi request KHÔNG CÓ Authorization header → assert 401
+# 2. Gửi request với token KHÔNG HỢP LỆ → assert 401
+# 3. Gửi request với viewer token HỢP LỆ đến endpoint chỉ dành cho admin → assert 403
+# Giải thích trong comment: sự khác biệt khái niệm giữa 401 và 403 là gì?
+
+def test_no_token():
+    # Replace with a real protected endpoint in your environment
+    response = requests.get(f"{BASE_URL}/posts/1")
+    # In a real API: assert response.status_code == 401
+    print(f"No token: {response.status_code}")
+
+def test_invalid_token():
+    headers = {"Authorization": "Bearer totally.invalid.token"}
+    response = requests.get(f"{BASE_URL}/posts/1", headers=headers)
+    # In a real API: assert response.status_code == 401
+    print(f"Invalid token: {response.status_code}")
+
+# 401 means: ???
+# 403 means: ???
+
+test_no_token()
+test_invalid_token()`
+  },
+  {
+    title: "Exercise 3 — Build a Basic Auth helper and document credential storage",
+    code: `import base64
+import requests
+
+# TODO (EN): 
+# 1. Write a function make_basic_auth_header(username, password) that:
+#    - Encodes "username:password" as base64
+#    - Returns {"Authorization": "Basic <encoded>"}
+# 2. Write a function make_api_key_session(api_key) that:
+#    - Creates a requests.Session
+#    - Sets the X-API-Key header
+#    - Returns the session
+# 3. In a comment block, describe TWO safe ways to store API test credentials
+#    (not hardcoded in the file)
+#
+# TODO (VI):
+# 1. Viết hàm make_basic_auth_header(username, password):
+#    - Mã hoá "username:password" thành base64
+#    - Trả về {"Authorization": "Basic <encoded>"}
+# 2. Viết hàm make_api_key_session(api_key):
+#    - Tạo requests.Session
+#    - Đặt header X-API-Key
+#    - Trả về session
+# 3. Trong một block comment, mô tả HAI cách an toàn để lưu trữ credentials cho API test
+
+def make_basic_auth_header(username: str, password: str) -> dict:
+    ???
+
+def make_api_key_session(api_key: str) -> requests.Session:
+    ???
+
+# Safe credential storage options:
+# Option 1: ???
+# Option 2: ???
+
+# Test your functions:
+headers = make_basic_auth_header("admin", "secret")
+print(f"Basic header: {headers['Authorization'][:20]}...")
+
+session = make_api_key_session("my-test-api-key-123")
+print(f"API Key header: {session.headers.get('X-API-Key')}")`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Write an `auth_session` pytest fixture that reads credentials from environment variables, logs in, and returns an authenticated `requests.Session`. Then write three test functions using it.
+- [ ] Exercise 2: Write test functions demonstrating the difference between 401 (not authenticated) and 403 (authenticated but not authorized). Add a comment explaining the conceptual distinction.
+- [ ] Exercise 3: Implement `make_basic_auth_header()` and `make_api_key_session()`. Document two safe alternatives to hardcoding credentials in test files.
+
+> Note: These exercises require a local Python environment. Install dependencies first: `pip install requests python-dotenv pytest`
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài 1: Viết pytest fixture `auth_session` đọc credentials từ biến môi trường, đăng nhập, và trả về `requests.Session` đã xác thực. Sau đó viết ba hàm test dùng nó.
+- [ ] Bài 2: Viết các hàm test minh hoạ sự khác biệt giữa 401 (chưa xác thực) và 403 (đã xác thực nhưng không được phép). Thêm comment giải thích sự khác biệt khái niệm.
+- [ ] Bài 3: Triển khai `make_basic_auth_header()` và `make_api_key_session()`. Ghi lại hai cách thay thế an toàn để không hardcode credentials trong file test.
+
+> Lưu ý: Các bài tập này cần môi trường Python cục bộ. Cài đặt thư viện trước: `pip install requests python-dotenv pytest`
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What HTTP status code should an API return when a valid token is present but the user doesn't have permission?",
+    qVi: "API nên trả về status code HTTP nào khi có token hợp lệ nhưng người dùng không có quyền?",
     choices: [
       "401 Unauthorized",
       "403 Forbidden",
       "404 Not Found",
       "400 Bad Request"
     ],
+    choicesVi: [
+      "401 Unauthorized",
+      "403 Forbidden",
+      "404 Not Found",
+      "400 Bad Request"
+    ],
     answer: 1,
-    explain: "401 means authentication failed — the server doesn't know who you are. 403 means the server knows who you are (authenticated) but you lack permission for this specific action. A valid token but wrong role → 403."
+    explain: "401 means authentication failed — the server doesn't know who you are. 403 means the server knows who you are (authenticated) but you lack permission for this specific action. A valid token but wrong role → 403.",
+    explainVi: "401 nghĩa là xác thực thất bại — server không biết bạn là ai. 403 nghĩa là server biết bạn là ai (đã xác thực) nhưng bạn thiếu quyền cho hành động cụ thể này. Token hợp lệ nhưng sai role → 403."
   },
   {
     q: "Why is `scope='session'` appropriate for an auth fixture that logs in once?",
+    qVi: "Tại sao `scope='session'` phù hợp cho một auth fixture đăng nhập một lần?",
     choices: [
       "It's required for HTTP requests in pytest",
       "Logging in once and reusing the session is faster and more realistic than logging in before every test",
       "scope='function' would cause login to fail",
       "Session scope prevents the token from expiring"
     ],
+    choicesVi: [
+      "Nó bắt buộc cho HTTP requests trong pytest",
+      "Đăng nhập một lần và tái sử dụng session nhanh hơn và thực tế hơn so với đăng nhập trước mỗi test",
+      "scope='function' sẽ khiến đăng nhập thất bại",
+      "Session scope ngăn token hết hạn"
+    ],
     answer: 1,
-    explain: "With scope='session', one login happens for the entire test run. This is more efficient (one network call instead of N) and reflects how real users work — they don't log in and out for every action."
+    explain: "With scope='session', one login happens for the entire test run. This is more efficient (one network call instead of N) and reflects how real users work — they don't log in and out for every action.",
+    explainVi: "Với scope='session', một lần đăng nhập xảy ra cho toàn bộ lần chạy test. Điều này hiệu quả hơn (một lần gọi mạng thay vì N lần) và phản ánh cách người dùng thực sự hoạt động — họ không đăng nhập và đăng xuất cho mỗi hành động."
+  },
+  {
+    q: "A JWT token consists of three parts separated by dots. What are they?",
+    qVi: "JWT token gồm ba phần ngăn cách bởi dấu chấm. Chúng là gì?",
+    choices: [
+      "Username, Password, Signature",
+      "Header, Payload, Signature",
+      "Algorithm, Claims, Expiry",
+      "Type, Data, Checksum"
+    ],
+    choicesVi: [
+      "Username, Password, Chữ ký",
+      "Header, Payload, Chữ ký",
+      "Thuật toán, Claims, Hạn dùng",
+      "Type, Data, Checksum"
+    ],
+    answer: 1,
+    explain: "A JWT has three base64url-encoded parts: (1) Header — specifies the signing algorithm (e.g. HS256), (2) Payload — contains claims like userId, role, exp (expiry timestamp), (3) Signature — the server-signed hash that proves the token was not tampered with.",
+    explainVi: "JWT có ba phần được base64url mã hoá: (1) Header — chỉ định thuật toán ký (ví dụ HS256), (2) Payload — chứa claims như userId, role, exp (timestamp hết hạn), (3) Signature — hash được server ký chứng minh token không bị giả mạo."
+  },
+  {
+    q: "How should API test credentials (email, password) be stored safely?",
+    qVi: "Credentials cho API test (email, mật khẩu) nên được lưu trữ an toàn như thế nào?",
+    choices: [
+      "Hardcoded directly in the test file for convenience",
+      "In environment variables or a .env file excluded from version control",
+      "In a shared Google Doc accessible to the team",
+      "In a constants.py file committed to the repository"
+    ],
+    choicesVi: [
+      "Hardcode trực tiếp trong file test cho tiện",
+      "Trong biến môi trường hoặc file .env được loại trừ khỏi version control",
+      "Trong Google Doc chia sẻ cho cả nhóm",
+      "Trong file constants.py được commit vào repository"
+    ],
+    answer: 1,
+    explain: "Credentials hardcoded in test files will end up in version control history, exposing them to anyone with repo access. The safe pattern is: read from os.environ['ADMIN_EMAIL'], store in a .env file (add to .gitignore), or use a secrets manager in CI/CD pipelines.",
+    explainVi: "Credentials hardcode trong file test sẽ kết thúc trong lịch sử version control, lộ ra cho bất kỳ ai có quyền truy cập repo. Mẫu an toàn là: đọc từ os.environ['ADMIN_EMAIL'], lưu trong file .env (thêm vào .gitignore), hoặc dùng secrets manager trong CI/CD pipelines."
+  },
+  {
+    q: "What is the correct Authorization header format for Bearer token authentication?",
+    qVi: "Định dạng Authorization header đúng cho xác thực Bearer token là gì?",
+    choices: [
+      "Token: <token>",
+      "Authorization: Bearer <token>",
+      "Auth: Bearer <token>",
+      "Bearer: <token>"
+    ],
+    choicesVi: [
+      "Token: <token>",
+      "Authorization: Bearer <token>",
+      "Auth: Bearer <token>",
+      "Bearer: <token>"
+    ],
+    answer: 1,
+    explain: "The standard HTTP header for bearer token authentication is 'Authorization: Bearer <token>'. The word 'Bearer' is a literal prefix (case-sensitive), followed by a space and the token. Sending any other format will likely result in a 401 response from properly implemented APIs.",
+    explainVi: "HTTP header chuẩn cho xác thực bearer token là 'Authorization: Bearer <token>'. Từ 'Bearer' là tiền tố nguyên văn (phân biệt chữ hoa/thường), theo sau là khoảng trắng và token. Gửi bất kỳ định dạng nào khác có khả năng dẫn đến response 401 từ các API được triển khai đúng."
+  },
+  {
+    q: "Why should you test BOTH 'no token' AND 'wrong token' scenarios separately?",
+    qVi: "Tại sao bạn nên kiểm thử CẢ HAI kịch bản 'không có token' VÀ 'token sai' riêng biệt?",
+    choices: [
+      "They are identical scenarios — testing one covers the other",
+      "Some APIs accidentally accept any non-empty Authorization header, and separate tests catch that bug",
+      "Testing 'wrong token' is only needed for JWT, not API keys",
+      "It's only necessary to test 'no token' since that is the most common case"
+    ],
+    choicesVi: [
+      "Chúng là kịch bản giống hệt nhau — kiểm thử một là đủ cho cái kia",
+      "Một số API vô tình chấp nhận bất kỳ Authorization header nào khác rỗng, và các test riêng biệt bắt lỗi đó",
+      "Kiểm thử 'token sai' chỉ cần thiết cho JWT, không phải API key",
+      "Chỉ cần kiểm thử 'không có token' vì đó là trường hợp phổ biến nhất"
+    ],
+    answer: 1,
+    explain: "A buggy API might check only 'is the Authorization header present?' instead of validating the token's signature and expiry. By sending a malformed or expired token and asserting 401, you verify the API actually validates the token content — not just its presence.",
+    explainVi: "Một API có lỗi có thể chỉ kiểm tra 'Authorization header có tồn tại không?' thay vì xác thực chữ ký và hạn dùng của token. Bằng cách gửi token sai định dạng hoặc đã hết hạn và assert 401, bạn xác minh API thực sự xác thực nội dung token — không chỉ sự tồn tại của nó."
+  },
+  {
+    q: "What is Basic Auth and how is the credential string encoded?",
+    qVi: "Basic Auth là gì và chuỗi credentials được mã hoá như thế nào?",
+    choices: [
+      "A token-based auth method — credentials are hashed with SHA-256",
+      "Username and password joined with ':' and encoded as base64, sent in the Authorization header",
+      "A session-based auth method where credentials are stored server-side",
+      "Username and password sent as JSON in the request body"
+    ],
+    choicesVi: [
+      "Phương thức auth dựa trên token — credentials được hash bằng SHA-256",
+      "Username và password nối bằng ':' và mã hoá base64, gửi trong Authorization header",
+      "Phương thức auth dựa trên session nơi credentials được lưu server-side",
+      "Username và password gửi dưới dạng JSON trong request body"
+    ],
+    answer: 1,
+    explain: "Basic Auth: take the string 'username:password', encode it with base64 (NOT encryption — it's reversible), then send it as 'Authorization: Basic <encoded>'. Because it's not encrypted, Basic Auth must always be used over HTTPS to prevent credential interception.",
+    explainVi: "Basic Auth: lấy chuỗi 'username:password', mã hoá bằng base64 (KHÔNG phải mã hoá — có thể đảo ngược), sau đó gửi dưới dạng 'Authorization: Basic <encoded>'. Vì không được mã hoá, Basic Auth luôn phải dùng qua HTTPS để ngăn chặn việc đánh cắp credentials."
+  },
+  {
+    q: "What does `scope='function'` for an auth fixture do differently than `scope='session'`?",
+    qVi: "`scope='function'` cho auth fixture làm gì khác so với `scope='session'`?",
+    choices: [
+      "It makes the fixture run asynchronously",
+      "It creates a fresh login before each test function, so each test gets its own isolated session",
+      "It prevents the fixture from being shared between test files",
+      "It logs out automatically after every assertion"
+    ],
+    choicesVi: [
+      "Nó khiến fixture chạy bất đồng bộ",
+      "Nó tạo một lần đăng nhập mới trước mỗi hàm test, nên mỗi test có session riêng biệt",
+      "Nó ngăn fixture được chia sẻ giữa các file test",
+      "Nó tự động đăng xuất sau mỗi assertion"
+    ],
+    answer: 1,
+    explain: "scope='function' tears down and recreates the fixture for every test function. For an auth fixture this means a separate login call per test — slower but provides complete isolation. Use it when tests might mutate auth state (e.g. changing passwords, revoking tokens, testing token expiry).",
+    explainVi: "scope='function' huỷ và tái tạo fixture cho mỗi hàm test. Với auth fixture điều này có nghĩa là một lần gọi đăng nhập riêng cho mỗi test — chậm hơn nhưng cung cấp sự cô lập hoàn toàn. Dùng nó khi các test có thể thay đổi trạng thái auth (ví dụ thay đổi mật khẩu, thu hồi token, kiểm thử token hết hạn)."
   }
 ]} />
 

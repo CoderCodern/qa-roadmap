@@ -31,8 +31,25 @@ Bạn đã học hai tuần kiểm thử API — từ các nguyên tắc HTTP c�
 | JSON Schema | validate() catches type/presence/range errors in one call |
 | Negative testing | Missing fields, wrong types, BVA, security payloads |
 | Mocking | responses library intercepts requests — test offline |
-| API + UI | API setup is 50-100x faster than UI setup |
+| API + UI hybrid | API setup is 50–100x faster than UI setup |
 | CI | No browser install needed; --junit-xml for CI parsing |
+
+**Idempotency — an important REST concept:**
+An operation is idempotent if calling it multiple times has the same effect as calling it once. In REST:
+- **Idempotent**: GET, PUT, DELETE, HEAD — calling them N times leaves the server in the same state as calling them once
+- **Not idempotent**: POST — each call creates a new resource
+
+This matters in tests: if your DELETE test fails halfway and you re-run it, the resource may already be gone. An idempotent DELETE handles "resource not found" gracefully.
+
+**RESTful URL patterns:**
+| RESTful | Not RESTful |
+|---------|------------|
+| `GET /users/42` | `GET /getUser?id=42` |
+| `POST /users` | `POST /createUser` |
+| `DELETE /users/42` | `POST /users/42/delete` |
+| `PATCH /users/42` | `PUT /users/updatePartial` |
+
+REST uses nouns for resources and HTTP methods to express the action — not verbs in the URL.
 
 **The API testing checklist for any endpoint:**
 - [ ] Status code is correct for the HTTP method and scenario
@@ -43,6 +60,9 @@ Bạn đã học hai tuần kiểm thử API — từ các nguyên tắc HTTP c�
 - [ ] Error cases return 4xx with a meaningful message (not 500)
 - [ ] Response time is within acceptable limits
 - [ ] Sensitive data is not leaked in error responses
+
+**The most commonly forgotten item by beginners:**
+The last two — response time assertions and leak checks. Beginners focus on status codes and field presence, but a slow API and leaking stack traces are real production defects. Add at least one performance assertion and verify that 404 responses don't expose internal paths or framework names.
 </En>
 <Vi>
 **Tóm tắt Phase 4 — các kỹ năng thiết yếu:**
@@ -54,28 +74,63 @@ Bạn đã học hai tuần kiểm thử API — từ các nguyên tắc HTTP c�
 | Status code | 2xx = thành công, 4xx = lỗi client, 5xx = lỗi server |
 | Postman | Khám phá trước, sau đó tự động — environment cho phép tái sử dụng |
 | requests | Session cho header dùng chung; json= tuần tự hoá tự động |
+| pytest + requests | ApiClient bọc Session; fixture chia sẻ setup |
 | JSON Schema | validate() bắt lỗi type/hiện diện/phạm vi trong một lần gọi |
 | Negative testing | Thiếu trường, sai type, BVA, payload bảo mật |
 | Mocking | Thư viện responses chặn requests — test offline |
-| API + UI | API setup nhanh hơn 50-100 lần so với UI setup |
+| API + UI hybrid | API setup nhanh hơn 50–100 lần so với UI setup |
+| CI | Không cần cài trình duyệt; --junit-xml cho CI parsing |
+
+**Idempotency — một khái niệm REST quan trọng:**
+Một thao tác là idempotent nếu gọi nó nhiều lần có cùng kết quả với gọi một lần. Trong REST:
+- **Idempotent**: GET, PUT, DELETE, HEAD — gọi chúng N lần để server ở cùng trạng thái như gọi một lần
+- **Không idempotent**: POST — mỗi lần gọi tạo một tài nguyên mới
+
+Điều này quan trọng trong test: nếu test DELETE của bạn thất bại giữa chừng và bạn chạy lại, tài nguyên có thể đã bị xoá. DELETE idempotent xử lý "resource not found" một cách duyên dáng.
+
+**Mẫu URL RESTful:**
+| RESTful | Không RESTful |
+|---------|------------|
+| `GET /users/42` | `GET /getUser?id=42` |
+| `POST /users` | `POST /createUser` |
+| `DELETE /users/42` | `POST /users/42/delete` |
+| `PATCH /users/42` | `PUT /users/updatePartial` |
+
+REST dùng danh từ cho tài nguyên và HTTP method để diễn đạt hành động — không dùng động từ trong URL.
 
 **Checklist kiểm thử API cho bất kỳ endpoint nào:**
-- [ ] Status code đúng cho method HTTP và kịch bản
+- [ ] Status code đúng cho HTTP method và kịch bản
 - [ ] Body response xác thực với schema
 - [ ] Tất cả trường bắt buộc có mặt và không null
-- [ ] Kiểu trường đúng
-- [ ] Quy tắc nghiệp vụ được đáp ứng
-- [ ] Trường hợp lỗi trả về 4xx với thông báo có ý nghĩa
+- [ ] Kiểu trường đúng (int, str, bool, list, object)
+- [ ] Quy tắc nghiệp vụ được đáp ứng (định dạng email, role hợp lệ, ID dương)
+- [ ] Trường hợp lỗi trả về 4xx với thông báo có ý nghĩa (không phải 500)
 - [ ] Thời gian response trong giới hạn chấp nhận được
+- [ ] Dữ liệu nhạy cảm không bị rò rỉ trong error response
+
+**Mục thường bị bỏ sót nhất bởi người mới:**
+Hai mục cuối — assertion thời gian response và kiểm tra rò rỉ. Người mới tập trung vào status code và sự hiện diện của trường, nhưng API chậm và rò rỉ stack trace là các lỗi production thực sự. Thêm ít nhất một assertion hiệu suất và xác minh rằng response 404 không lộ đường dẫn nội bộ hoặc tên framework.
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — Complete test demonstrating all Phase 4 patterns**
+
+</En>
+<Vi>
+
+**Phần 1 — Test hoàn chỉnh thể hiện tất cả các mẫu Phase 4**
+
+</Vi>
 
 ```python
 # A complete, well-structured API test demonstrating all Phase 4 patterns
 
 import pytest
 import requests
+import time
 from jsonschema import validate, ValidationError
 
 BASE_URL = "https://jsonplaceholder.typicode.com"
@@ -99,7 +154,7 @@ def session() -> requests.Session:
     s.headers["Content-Type"] = "application/json"
     return s
 
-# Happy path
+# Happy path + schema validation
 def test_get_comment_by_id(session: requests.Session):
     response = session.get(f"{BASE_URL}/comments/1")
     assert response.status_code == 200
@@ -126,7 +181,6 @@ def test_comment_not_found(session: requests.Session):
 
 # Performance assertion
 def test_response_time(session: requests.Session):
-    import time
     start = time.time()
     session.get(f"{BASE_URL}/comments/1")
     assert time.time() - start < 3.0, "Response too slow"
@@ -139,38 +193,368 @@ def test_all_comments_have_email(session: requests.Session):
         assert "@" in comment["email"], f"Invalid email: {comment['email']}"
 ```
 
+<En>
+
+**Part 2 — Key patterns side-by-side for revision**
+
+</En>
+<Vi>
+
+**Phần 2 — Các mẫu quan trọng đặt cạnh nhau để ôn tập**
+
+</Vi>
+
+```python
+# Pattern gallery — all Phase 4 techniques in one place for quick reference
+
+import requests
+import responses
+import pytest
+from jsonschema import validate
+
+# 1. ApiClient with Session (Day 47)
+class ApiClient:
+    BASE_URL = "https://jsonplaceholder.typicode.com"
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers["Content-Type"] = "application/json"
+    def get(self, path, **kw): return self.session.get(f"{self.BASE_URL}{path}", **kw)
+    def post(self, path, **kw): return self.session.post(f"{self.BASE_URL}{path}", **kw)
+
+# 2. Schema validation (Day 44)
+ALBUM_SCHEMA = {
+    "type": "object",
+    "required": ["id", "userId", "title"],
+    "properties": {
+        "id":     {"type": "integer", "minimum": 1},
+        "userId": {"type": "integer", "minimum": 1},
+        "title":  {"type": "string",  "minLength": 1},
+    },
+}
+
+# 3. Session fixture (Day 47)
+@pytest.fixture(scope="session")
+def api(): return ApiClient()
+
+# 4. Happy path + schema
+def test_get_album(api):
+    r = api.get("/albums/1")
+    assert r.status_code == 200
+    validate(instance=r.json(), schema=ALBUM_SCHEMA)
+
+# 5. Negative test
+def test_album_not_found(api):
+    r = api.get("/albums/99999")
+    assert r.status_code == 404
+
+# 6. Parametrize
+@pytest.mark.parametrize("album_id", [1, 50, 100])
+def test_albums_parametrized(api, album_id):
+    r = api.get(f"/albums/{album_id}")
+    assert r.status_code == 200
+    assert r.json()["id"] == album_id
+
+# 7. Mock (Day 45)
+@responses.activate
+def test_album_mocked():
+    responses.add(responses.GET, "https://jsonplaceholder.typicode.com/albums/1",
+                  json={"id": 1, "userId": 1, "title": "Mock Album"}, status=200)
+    r = requests.get("https://jsonplaceholder.typicode.com/albums/1")
+    assert r.status_code == 200
+    assert r.json()["title"] == "Mock Album"
+
+# 8. POST + 201
+def test_create_album(api):
+    r = api.post("/albums", json={"title": "Review Album", "userId": 1})
+    assert r.status_code == 201
+    assert "id" in r.json()
+```
+
 ## Exercise
 
-<ExerciseBox>
-- [ ] Without looking at previous lessons, implement a complete API test for the `/albums` endpoint of JSONPlaceholder: schema, positive tests for get-one and get-all, parametrized tests for 5 IDs, and a negative test for a non-existent ID
-- [ ] Review your JSONPlaceholder project from Days 47-48 and add the API testing checklist items you haven't covered yet (response time, header checks, edge cases)
-- [ ] Explain to someone else (or write a short summary) the difference between mocking with `responses` and testing against a real API — when would you use each and why?
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Implement a complete endpoint test from scratch",
+    code: `# Synthesis exercise — implement a complete test for /albums without looking at previous lessons.
+# Use every Phase 4 skill: schema, positive, parametrize, negative, performance.
+
+import pytest
+import time
+import requests
+from jsonschema import validate
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# STEP 1: Define the JSON schema for an album object.
+# Fields: id (integer, minimum 1), userId (integer, minimum 1), title (string, minLength 1)
+ALBUM_SCHEMA = {
+    # TODO (EN): Fill in the schema definition.
+    # TODO (VI): Điền vào định nghĩa schema.
+}
+
+@pytest.fixture(scope="session")
+def session():
+    s = requests.Session()
+    s.headers["Content-Type"] = "application/json"
+    return s
+
+# STEP 2: Happy path — GET /albums/1 returns 200 and validates against ALBUM_SCHEMA
+def test_get_album_happy_path(session):
+    # TODO (EN): Implement this test.
+    # TODO (VI): Triển khai test này.
+    pass
+
+# STEP 3: GET all albums — assert status 200, result is a list of 100 items
+def test_get_all_albums(session):
+    # TODO (EN): Implement this test.
+    # TODO (VI): Triển khai test này.
+    pass
+
+# STEP 4: Parametrize over IDs [1, 50, 100] — each should return its own id and validate schema
+@pytest.mark.parametrize("album_id", [1, 50, 100])
+def test_get_album_parametrized(session, album_id):
+    # TODO (EN): Implement this test — assert r.json()["id"] == album_id.
+    # TODO (VI): Triển khai test này — kiểm tra r.json()["id"] == album_id.
+    pass
+
+# STEP 5: Negative test — GET /albums/99999 returns 404
+def test_album_not_found(session):
+    # TODO (EN): Implement this test.
+    # TODO (VI): Triển khai test này.
+    pass
+
+# STEP 6: Performance — GET /albums/1 must respond in under 3 seconds
+def test_album_response_time(session):
+    # TODO (EN): Implement this test using time.time().
+    # TODO (VI): Triển khai test này dùng time.time().
+    pass
+
+# STEP 7: POST /albums — create an album and assert status 201 and "id" in response
+def test_create_album(session):
+    payload = {
+        # TODO (EN): Fill in the payload.
+        # TODO (VI): Điền vào payload.
+    }
+    r = session.post(f"{BASE_URL}/albums", json=payload)
+    # TODO (EN): Assert status and response.
+    # TODO (VI): Kiểm tra status và response.
+    pass`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Implement all 7 steps in order — do NOT look at previous lessons. This is a synthesis exercise to verify you've internalized all Phase 4 skills.
+- [ ] Run `pytest <this_file>.py -v` and confirm all 7 tests pass (parametrize produces 3 tests, so total is 9 test runs)
+- [ ] After passing, review the API testing checklist from the Concept section and identify which checklist items your implementation covers and which it is still missing
+
+> Note: This code requires a local Python environment with `requests`, `pytest`, and `jsonschema` installed.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Triển khai tất cả 7 bước theo thứ tự — KHÔNG nhìn vào các bài học trước. Đây là bài tập tổng hợp để xác minh bạn đã tiếp thu tất cả kỹ năng Phase 4.
+- [ ] Chạy `pytest <file_này>.py -v` và xác nhận cả 7 test pass (parametrize tạo ra 3 test, nên tổng là 9 lần chạy test)
+- [ ] Sau khi pass, xem lại checklist kiểm thử API từ phần Concept và xác định mục nào trong checklist implementation của bạn đã bao phủ và mục nào còn thiếu
+
+> Lưu ý: Code này cần môi trường Python cục bộ với `requests`, `pytest` và `jsonschema` đã cài đặt.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "What is the most important thing to verify in a negative API test?",
+    qVi: "Điều quan trọng nhất cần xác minh trong một API test tiêu cực là gì?",
     choices: [
       "That the server returns 200 with an error flag",
       "That the status code is 4xx (not 5xx) and the error message is helpful without leaking internals",
       "That the request body was rejected",
       "That the response time is under 1 second"
     ],
+    choicesVi: [
+      "Server trả về 200 với cờ lỗi",
+      "Status code là 4xx (không phải 5xx) và thông báo lỗi hữu ích mà không rò rỉ nội bộ",
+      "Request body bị từ chối",
+      "Thời gian response dưới 1 giây"
+    ],
     answer: 1,
-    explain: "A 500 means the server crashed — a bug. A 4xx means the server handled the invalid input gracefully. The error message should help the client fix the request without revealing stack traces, SQL, or internal structure that attackers could exploit."
+    explain: "A 500 means the server crashed — a bug. A 4xx means the server handled the invalid input gracefully. The error message should help the client fix the request without revealing stack traces, SQL, or internal structure that attackers could exploit.",
+    explainVi: "500 có nghĩa là server bị crash — đó là bug. 4xx có nghĩa là server xử lý input không hợp lệ một cách duyên dáng. Thông báo lỗi nên giúp client sửa request mà không tiết lộ stack trace, SQL hoặc cấu trúc nội bộ mà kẻ tấn công có thể khai thác."
   },
   {
     q: "What is the advantage of `scope='session'` for an API client fixture?",
+    qVi: "Lợi thế của `scope='session'` cho fixture API client là gì?",
     choices: [
       "Tests cannot run without session scope",
       "One requests.Session is created for the entire test run — reusing HTTP connections and auth headers without repeated setup",
       "It makes tests run in alphabetical order",
       "Session scope prevents rate limiting"
     ],
+    choicesVi: [
+      "Test không thể chạy mà không có session scope",
+      "Một requests.Session được tạo cho toàn bộ test run — tái sử dụng kết nối HTTP và auth header mà không cần setup lặp đi lặp lại",
+      "Nó làm test chạy theo thứ tự bảng chữ cái",
+      "Session scope ngăn giới hạn tốc độ"
+    ],
     answer: 1,
-    explain: "With scope='session', the ApiClient is instantiated once. The underlying requests.Session pools HTTP connections — subsequent requests to the same host reuse the existing TCP connection, making the test suite faster."
+    explain: "With scope='session', the ApiClient is instantiated once. The underlying requests.Session pools HTTP connections — subsequent requests to the same host reuse the existing TCP connection, making the test suite faster.",
+    explainVi: "Với scope='session', ApiClient được khởi tạo một lần. requests.Session bên dưới pool các kết nối HTTP — các request tiếp theo đến cùng host tái sử dụng kết nối TCP hiện có, làm test suite nhanh hơn."
+  },
+  {
+    q: "What does 'idempotent' mean and which HTTP methods are idempotent?",
+    qVi: "'Idempotent' có nghĩa là gì và HTTP method nào là idempotent?",
+    choices: [
+      "Safe to cache; only GET is idempotent",
+      "Calling it N times has the same server-side effect as calling it once; GET, PUT, DELETE, and HEAD are idempotent",
+      "Returns the same response every time; only GET and HEAD are idempotent",
+      "Does not change server state; only GET is idempotent"
+    ],
+    choicesVi: [
+      "An toàn để cache; chỉ GET là idempotent",
+      "Gọi nó N lần có cùng tác dụng phía server như gọi một lần; GET, PUT, DELETE và HEAD là idempotent",
+      "Trả về cùng response mọi lúc; chỉ GET và HEAD là idempotent",
+      "Không thay đổi trạng thái server; chỉ GET là idempotent"
+    ],
+    answer: 1,
+    explain: "Idempotency means repeated calls leave the server in the same state. DELETE /users/42 twice: the user is gone after both. PUT /users/42 twice with the same body: the user has the same data after both. POST /users twice: two users are created — POST is not idempotent.",
+    explainVi: "Idempotency có nghĩa là các lần gọi lặp lại để server ở cùng trạng thái. DELETE /users/42 hai lần: user bị xoá sau cả hai lần. PUT /users/42 hai lần với cùng body: user có cùng dữ liệu sau cả hai lần. POST /users hai lần: hai user được tạo — POST không phải idempotent."
+  },
+  {
+    q: "Which URL pattern is RESTful?",
+    qVi: "Mẫu URL nào là RESTful?",
+    choices: [
+      "POST /deleteUser?id=42",
+      "DELETE /users/42",
+      "GET /users/getById/42",
+      "POST /users/42/doDelete"
+    ],
+    choicesVi: [
+      "POST /deleteUser?id=42",
+      "DELETE /users/42",
+      "GET /users/getById/42",
+      "POST /users/42/doDelete"
+    ],
+    answer: 1,
+    explain: "REST uses nouns for resource paths and HTTP verbs to express the action. DELETE /users/42 is correct — the verb (DELETE) expresses intent, the noun (/users/42) identifies the resource. The other options embed verbs in the URL (deleteUser, getById, doDelete) which is an anti-pattern.",
+    explainVi: "REST dùng danh từ cho đường dẫn tài nguyên và HTTP verb để diễn đạt hành động. DELETE /users/42 là đúng — verb (DELETE) diễn đạt ý định, danh từ (/users/42) xác định tài nguyên. Các tùy chọn khác nhúng động từ vào URL (deleteUser, getById, doDelete) là anti-pattern."
+  },
+  {
+    q: "When does `@responses.activate` prevent real HTTP calls?",
+    qVi: "`@responses.activate` ngăn HTTP call thực khi nào?",
+    choices: [
+      "Only when responses.add() has been called at least once",
+      "Always — for the entire duration of the decorated function or context manager block",
+      "Only for GET requests",
+      "Only when the URL matches a registered mock"
+    ],
+    choicesVi: [
+      "Chỉ khi responses.add() đã được gọi ít nhất một lần",
+      "Luôn luôn — trong toàn bộ thời gian của function được decorate hoặc khối context manager",
+      "Chỉ cho GET request",
+      "Chỉ khi URL khớp với một mock đã đăng ký"
+    ],
+    answer: 1,
+    explain: "@responses.activate intercepts ALL requests calls for the entire duration — registered URLs return their fake response, unregistered URLs raise ConnectionError. It does not selectively intercept only registered URLs; it intercepts everything and raises an error for anything unregistered.",
+    explainVi: "@responses.activate chặn TẤT CẢ requests call trong toàn bộ thời gian — URL đã đăng ký trả về response giả, URL chưa đăng ký ném ConnectionError. Nó không chọn lọc chỉ chặn URL đã đăng ký; nó chặn mọi thứ và ném lỗi cho bất kỳ thứ gì chưa đăng ký."
+  },
+  {
+    q: "What is the purpose of JSON Schema validation in API tests?",
+    qVi: "Mục đích của xác thực JSON Schema trong API test là gì?",
+    choices: [
+      "To ensure the HTTP status code is correct",
+      "To assert that the response body has the correct structure, required fields, and field types — catching contract violations in one call",
+      "To compress the JSON response",
+      "To authenticate with the API"
+    ],
+    choicesVi: [
+      "Để đảm bảo HTTP status code đúng",
+      "Để kiểm tra body response có cấu trúc đúng, trường bắt buộc và kiểu trường — bắt các vi phạm contract trong một lần gọi",
+      "Để nén JSON response",
+      "Để xác thực với API"
+    ],
+    answer: 1,
+    explain: "JSON Schema validation replaces many individual assertions: instead of assert 'id' in data, assert isinstance(data['id'], int), assert data['id'] > 0 — one validate() call verifies all of that. It also produces human-readable error messages that pinpoint exactly which field failed.",
+    explainVi: "Xác thực JSON Schema thay thế nhiều assertion riêng lẻ: thay vì assert 'id' in data, assert isinstance(data['id'], int), assert data['id'] > 0 — một lần gọi validate() xác minh tất cả điều đó. Nó cũng tạo ra thông báo lỗi dễ đọc chỉ ra chính xác trường nào thất bại."
+  },
+  {
+    q: "What status code should a successful POST /resources return?",
+    qVi: "POST /resources thành công nên trả về status code nào?",
+    choices: [
+      "200 OK",
+      "201 Created",
+      "204 No Content",
+      "202 Accepted"
+    ],
+    choicesVi: [
+      "200 OK",
+      "201 Created",
+      "204 No Content",
+      "202 Accepted"
+    ],
+    answer: 1,
+    explain: "RFC 9110 specifies that a POST that creates a new resource should return 201 Created, with a Location header pointing to the new resource. 200 OK is for successful GET/PUT/PATCH. 204 is for DELETE or PUT with no response body. 202 is for async operations that haven't completed yet.",
+    explainVi: "RFC 9110 quy định rằng POST tạo tài nguyên mới nên trả về 201 Created, kèm header Location trỏ đến tài nguyên mới. 200 OK dành cho GET/PUT/PATCH thành công. 204 dành cho DELETE hoặc PUT không có response body. 202 dành cho các thao tác bất đồng bộ chưa hoàn thành."
+  },
+  {
+    q: "What is the most important field to check in a negative test response body?",
+    qVi: "Trường quan trọng nhất cần kiểm tra trong body response của test tiêu cực là gì?",
+    choices: [
+      "The response size in bytes",
+      "The error message — it should be helpful to the client but not reveal internal implementation details",
+      "The response time",
+      "The Content-Length header"
+    ],
+    choicesVi: [
+      "Kích thước response tính bằng byte",
+      "Thông báo lỗi — nên hữu ích cho client nhưng không tiết lộ chi tiết implementation nội bộ",
+      "Thời gian response",
+      "Header Content-Length"
+    ],
+    answer: 1,
+    explain: "The error message is the main deliverable of a 4xx response. It should say what went wrong (e.g., 'userId is required') in a way the client can act on — without revealing database schema names, stack traces, internal paths, or framework version strings that attackers could use.",
+    explainVi: "Thông báo lỗi là nội dung chính của response 4xx. Nó nên nói điều gì đó sai (ví dụ: 'userId is required') theo cách client có thể hành động — mà không tiết lộ tên schema cơ sở dữ liệu, stack trace, đường dẫn nội bộ hoặc chuỗi phiên bản framework mà kẻ tấn công có thể sử dụng."
+  },
+  {
+    q: "What is the key benefit of extracting an auth token via API vs clicking through the login UI?",
+    qVi: "Lợi ích chính của việc lấy auth token qua API vs nhấp qua UI đăng nhập là gì?",
+    choices: [
+      "API login is more secure",
+      "API login is 50–100x faster and unaffected by UI changes — one POST replaces a multi-step browser flow",
+      "The browser cannot store auth tokens",
+      "API login works without a username and password"
+    ],
+    choicesVi: [
+      "Đăng nhập API an toàn hơn",
+      "Đăng nhập API nhanh hơn 50–100 lần và không bị ảnh hưởng bởi thay đổi UI — một POST thay thế luồng trình duyệt nhiều bước",
+      "Trình duyệt không thể lưu trữ auth token",
+      "Đăng nhập API hoạt động mà không cần username và password"
+    ],
+    answer: 1,
+    explain: "A POST to /auth/login takes ~100ms and returns a token. The UI equivalent — navigate to login page, fill in credentials, click submit, wait for redirect — takes 3–10 seconds and breaks whenever the login page changes. Once you have the token, you inject it into the browser context via set_extra_http_headers or add_cookies.",
+    explainVi: "Một POST đến /auth/login mất ~100ms và trả về token. Tương đương UI — điều hướng đến trang đăng nhập, điền thông tin đăng nhập, click submit, chờ redirect — mất 3–10 giây và bị hỏng bất cứ khi nào trang đăng nhập thay đổi. Khi bạn có token, bạn inject nó vào browser context qua set_extra_http_headers hoặc add_cookies."
+  },
+  {
+    q: "In the API testing checklist, which item is most often forgotten by beginners?",
+    qVi: "Trong checklist kiểm thử API, mục nào thường bị người mới quên nhất?",
+    choices: [
+      "Checking the HTTP status code",
+      "Response time assertions and verifying that error responses don't leak sensitive internal information",
+      "Checking that the endpoint exists",
+      "Verifying the request was sent"
+    ],
+    choicesVi: [
+      "Kiểm tra HTTP status code",
+      "Assertion thời gian response và xác minh rằng error response không rò rỉ thông tin nội bộ nhạy cảm",
+      "Kiểm tra endpoint tồn tại",
+      "Xác minh request đã được gửi"
+    ],
+    answer: 1,
+    explain: "Beginners reliably check status codes and field presence. They consistently forget to assert response time (a real production defect if slow) and to verify that 404/400 error bodies don't expose stack traces, SQL errors, or internal paths. These are security and reliability defects — not just style issues.",
+    explainVi: "Người mới thường xuyên kiểm tra status code và sự hiện diện của trường. Họ liên tục quên kiểm tra thời gian response (lỗi production thực sự nếu chậm) và xác minh rằng body lỗi 404/400 không lộ stack trace, lỗi SQL hoặc đường dẫn nội bộ. Đây là các lỗi bảo mật và độ tin cậy — không chỉ là vấn đề phong cách."
   }
 ]} />
 

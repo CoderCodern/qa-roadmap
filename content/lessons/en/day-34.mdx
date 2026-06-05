@@ -1,206 +1,660 @@
 ---
 id: 34
-title: "Phase 3 mini-project"
+title: "CI with GitHub Actions"
 phase: 3
-estMinutes: 120
-tags: ["playwright", "project", "review"]
+estMinutes: 75
+tags: ["playwright", "ci", "github-actions"]
 ---
 
 ## Intro
 
 <En>
-Today you build a complete, production-quality Playwright test suite for the TodoMVC application — the same demo app you've been practicing with all week. This mini-project integrates everything from Phase 3: POM, fixtures, parametrize, screenshots, CI config, and proper project structure. At the end you have a portfolio-worthy test project.
+Writing tests on your laptop is the first step. But tests only provide real value when they run **automatically** — on every push, every pull request, every merge. That's what **Continuous Integration (CI)** means: a pipeline that runs your tests without you having to remember to trigger them.
+
+**GitHub Actions** is the most widely-used CI platform for open-source and small-to-medium teams. It's free for public repos, deeply integrated with GitHub, and requires zero setup beyond adding one YAML file to your project. Today you write that file and watch your Playwright tests run in the cloud.
 </En>
 <Vi>
-Hôm nay bạn xây dựng một bộ test Playwright hoàn chỉnh, chất lượng production cho ứng dụng TodoMVC — cùng ứng dụng demo bạn đã luyện tập suốt tuần. Mini-project này tích hợp mọi thứ từ Phase 3: POM, fixture, parametrize, ảnh chụp màn hình, cấu hình CI và cấu trúc dự án phù hợp. Cuối ngày bạn có một dự án test xứng đáng để đưa vào portfolio.
+Viết test trên laptop của bạn là bước đầu tiên. Nhưng test chỉ thực sự có giá trị khi chúng chạy **tự động** — mỗi lần push, mỗi lần pull request, mỗi lần merge. Đó là ý nghĩa của **Continuous Integration (CI)**: một pipeline chạy test của bạn mà không cần bạn nhớ kích hoạt chúng.
+
+**GitHub Actions** là nền tảng CI được sử dụng rộng rãi nhất cho các nhóm nhỏ và vừa. Miễn phí cho repo công khai, tích hợp sâu với GitHub và không cần thiết lập gì ngoài việc thêm một file YAML vào dự án. Hôm nay bạn viết file đó và xem Playwright test của mình chạy trên cloud.
 </Vi>
 
 ## Concept
 
 <En>
-**Final project structure:**
-```
-playwright-todo-suite/
-├── .github/
-│   └── workflows/
-│       └── playwright.yml
-├── pages/
-│   ├── __init__.py
-│   ├── base_page.py
-│   └── todo_page.py
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py
-│   ├── test_add_items.py
-│   ├── test_complete_items.py
-│   ├── test_filters.py
-│   └── test_edge_cases.py
-├── screenshots/         # gitignored
-├── pytest.ini
-├── requirements.txt
-└── README.md
+**How GitHub Actions works:**
+
+1. You push code to GitHub
+2. GitHub detects the push and reads `.github/workflows/*.yml`
+3. GitHub spins up a virtual machine (Ubuntu by default)
+4. Your workflow installs dependencies, runs tests, and reports results
+5. GitHub marks the commit ✅ (all pass) or ❌ (any fail)
+
+**Key YAML concepts:**
+
+```yaml
+# A workflow file has:
+name: My Workflow     # display name in the Actions tab
+
+on:                   # when to trigger
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:                 # one or more jobs
+  test:               # job name (arbitrary)
+    runs-on: ubuntu-latest   # VM type
+
+    steps:            # sequential steps in the job
+      - name: Step name
+        uses: actions/checkout@v4   # run a pre-built action
+      - name: Another step
+        run: echo "Hello"           # run a shell command
 ```
 
-**What "production quality" means here:**
-- No raw locators in test files — everything goes through the page object
-- Every test has a clear, descriptive name
-- Shared setup lives in fixtures, not duplicated in tests
-- Edge cases are covered (empty state, special characters, very long text)
-- CI is configured to run on every push
-- Screenshots are captured on failure
-- The suite runs in under 60 seconds
+**The minimal Playwright CI workflow:**
+
+```yaml
+# .github/workflows/playwright.yml
+name: Playwright Tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install pytest playwright pytest-playwright
+
+      - name: Install Playwright browsers
+        run: playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: pytest tests/ -v --tb=short
+```
+
+**Uploading test artifacts (screenshots, traces, reports):**
+```yaml
+      - name: Run Playwright tests
+        run: pytest tests/ -v --screenshot=only-on-failure --output=test-results
+        continue-on-error: true    # don't stop; upload artifacts even on failure
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()               # upload even when tests fail
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+```
+
+**Using environment variables and secrets:**
+```yaml
+      - name: Run tests
+        env:
+          BASE_URL: https://staging.example.com
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}  # set in repo Settings → Secrets
+        run: pytest tests/ -v
+```
+
+**Matrix strategy — test across multiple browsers:**
+```yaml
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - name: Run tests on ${{ matrix.browser }}
+        run: pytest tests/ --browser ${{ matrix.browser }} -v
+```
+
+**Caching dependencies for speed:**
+```yaml
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('requirements.txt') }}
+```
 </En>
 <Vi>
-**Cấu trúc dự án cuối cùng:**
-```
-playwright-todo-suite/
-├── .github/workflows/playwright.yml
-├── pages/
-│   ├── base_page.py
-│   └── todo_page.py
-├── tests/
-│   ├── conftest.py
-│   ├── test_add_items.py
-│   ├── test_complete_items.py
-│   ├── test_filters.py
-│   └── test_edge_cases.py
-├── pytest.ini
-└── requirements.txt
-```
+**Cách GitHub Actions hoạt động:**
+1. Bạn push code lên GitHub
+2. GitHub phát hiện push và đọc `.github/workflows/*.yml`
+3. GitHub khởi chạy máy ảo (Ubuntu mặc định)
+4. Workflow cài dependencies, chạy test và báo cáo kết quả
+5. GitHub đánh dấu commit ✅ (tất cả pass) hoặc ❌ (có cái fail)
 
-**"Chất lượng production" có nghĩa là:**
-- Không có locator thô trong file test — mọi thứ đi qua page object
-- Mỗi test có tên rõ ràng, mô tả
-- Setup dùng chung nằm trong fixture, không trùng lặp trong test
-- Các edge case được bao phủ
-- CI được cấu hình để chạy trên mỗi lần push
+**File YAML Playwright CI tối thiểu:**
+
+```yaml
+# .github/workflows/playwright.yml
+name: Playwright Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest playwright pytest-playwright
+      - run: playwright install --with-deps chromium
+      - run: pytest tests/ -v --tb=short
+```
 </Vi>
 
 ## Code / Demo
 
-```python
-# tests/conftest.py — shared fixtures
-import pytest
-from pathlib import Path
-from playwright.sync_api import Page, BrowserContext
-from pages.todo_page import TodoPage
+<En>
 
-SCREENSHOTS_DIR = Path("screenshots")
+**Part 1 — The complete production-ready workflow**
 
-@pytest.fixture(autouse=True)
-def screenshot_on_failure(page: Page, request):
-    """Auto-capture screenshot on any test failure."""
-    yield
-    if request.node.rep_call.failed:
-        SCREENSHOTS_DIR.mkdir(exist_ok=True)
-        page.screenshot(path=str(SCREENSHOTS_DIR / f"{request.node.name}.png"))
+</En>
+<Vi>
 
-@pytest.fixture
-def todo(page: Page) -> TodoPage:
-    tp = TodoPage(page)
-    tp.navigate()
-    return tp
+**Phần 1 — Workflow hoàn chỉnh sẵn sàng cho production**
 
-@pytest.fixture
-def todo_with_three_items(todo: TodoPage) -> TodoPage:
-    for text in ["First item", "Second item", "Third item"]:
-        todo.add(text)
-    return todo
+</Vi>
+
+```yaml
+# .github/workflows/playwright.yml
+# Save this file at: .github/workflows/playwright.yml
+name: Playwright UI Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  # Allow manual triggering from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  playwright-tests:
+    name: Run Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30    # kill the job if it hangs
+
+    steps:
+      # Step 1: Get the code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip             # cache pip packages between runs
+
+      # Step 3: Install Python dependencies
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest playwright pytest-playwright pytest-html
+
+      # Step 4: Install browser binaries (only Chromium for CI)
+      - name: Install Playwright browsers
+        run: playwright install --with-deps chromium
+        # --with-deps also installs OS-level dependencies (fonts, libs)
+        # required on bare Ubuntu runners
+
+      # Step 5: Run the tests
+      - name: Run Playwright tests
+        run: |
+          pytest tests/ \
+            --browser chromium \
+            --headless \
+            -v \
+            --tb=short \
+            --screenshot=only-on-failure \
+            --tracing=retain-on-failure \
+            --output=test-results \
+            --html=test-results/report.html \
+            --self-contained-html
+        # continue even if tests fail — so we can upload artifacts
+        continue-on-error: true
+
+      # Step 6: Upload test artifacts (screenshots, traces, HTML report)
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()    # run this step even if previous steps failed
+        with:
+          name: playwright-test-results-${{ github.run_id }}
+          path: test-results/
+          retention-days: 14   # keep artifacts for 14 days
+
+      # Step 7: Fail the job if tests failed (after uploading artifacts)
+      - name: Check test results
+        if: always()
+        run: |
+          if [ -f "test-results/.last-run.json" ]; then
+            python -c "
+          import json
+          with open('test-results/.last-run.json') as f:
+              data = json.load(f)
+          failed = data.get('failed', 0)
+          if failed > 0:
+              print(f'{failed} test(s) failed')
+              exit(1)
+            "
+          fi
 ```
 
-```python
-# tests/test_add_items.py
-import pytest
-from playwright.sync_api import expect
-from pages.todo_page import TodoPage
+<En>
 
-def test_empty_state_on_load(todo: TodoPage):
-    assert todo.get_count() == 0
+**Part 2 — requirements.txt for reproducible installs**
 
-@pytest.mark.parametrize("text", [
-    "Normal todo item",
-    "Item with numbers 12345",
-    "Item with special chars !@#$%",
-    "A very long todo item that exceeds normal length expectations by quite a bit",
-])
-def test_add_various_items(todo: TodoPage, text: str):
-    todo.add(text)
-    todo.expect_item(text)
-    assert todo.get_count() == 1
+</En>
+<Vi>
 
-def test_add_multiple_items_in_sequence(todo: TodoPage):
-    items = ["Item A", "Item B", "Item C"]
-    for item in items:
-        todo.add(item)
-    assert todo.get_count() == len(items)
-    for item in items:
-        todo.expect_item(item)
+**Phần 2 — requirements.txt cho cài đặt tái hiện được**
 
-def test_empty_input_does_not_add_item(todo: TodoPage):
-    todo.new_todo_input.press("Enter")
-    assert todo.get_count() == 0
+</Vi>
+
+```text
+# requirements.txt
+# Pin versions for reproducible CI builds
+pytest==8.3.4
+playwright==1.50.0
+pytest-playwright==0.6.2
+pytest-html==4.1.1
 ```
 
+```bash
+# Install from requirements.txt:
+pip install -r requirements.txt
+playwright install --with-deps chromium
+```
+
+<En>
+
+**Part 3 — conftest.py with CI-aware settings**
+
+</En>
+<Vi>
+
+**Phần 3 — conftest.py với cài đặt nhận biết CI**
+
+</Vi>
+
 ```python
-# tests/test_complete_items.py
-from pages.todo_page import TodoPage
+# conftest.py — CI-aware configuration
+import pytest
+import os
 
-def test_mark_single_item_complete(todo_with_three_items: TodoPage):
-    todo_with_three_items.complete("First item")
-    completed = todo_with_three_items.page.locator(".todo-list li.completed")
-    assert completed.count() == 1
+# Read CI environment variable (GitHub Actions sets CI=true automatically)
+IS_CI = os.environ.get("CI", "false").lower() == "true"
 
-def test_mark_all_complete(todo_with_three_items: TodoPage):
-    for text in ["First item", "Second item", "Third item"]:
-        todo_with_three_items.complete(text)
-    completed = todo_with_three_items.page.locator(".todo-list li.completed")
-    assert completed.count() == 3
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    """Override browser context defaults — stricter in CI."""
+    return {
+        **browser_context_args,
+        "viewport": {"width": 1280, "height": 720},
+        # In CI, use a fixed locale to avoid date/time formatting differences
+        "locale": "en-US",
+        "timezone_id": "America/New_York",
+    }
 
-def test_delete_item(todo_with_three_items: TodoPage):
-    initial_count = todo_with_three_items.get_count()
-    todo_with_three_items.delete("Second item")
-    todo_with_three_items.expect_item_absent("Second item")
-    assert todo_with_three_items.get_count() == initial_count - 1
+def pytest_configure(config):
+    """Print environment info at test start."""
+    print(f"\nRunning in CI: {IS_CI}")
+    print(f"Base URL: {os.environ.get('BASE_URL', 'not set')}")
+```
+
+<En>
+
+**Part 4 — Checking your workflow after pushing**
+
+</En>
+<Vi>
+
+**Phần 4 — Kiểm tra workflow sau khi push**
+
+</Vi>
+
+```bash
+# After adding .github/workflows/playwright.yml:
+
+# 1. Commit and push
+git add .github/workflows/playwright.yml
+git commit -m "ci: add Playwright GitHub Actions workflow"
+git push origin main
+
+# 2. Go to GitHub → your repo → Actions tab
+# You should see the workflow running
+
+# 3. Click on the run to see step-by-step logs
+
+# 4. If tests fail, download the artifact:
+#    Actions → your run → Artifacts section → playwright-test-results
+#    Contains: screenshots, trace files, HTML report
+
+# 5. Open the HTML report or a trace:
+playwright show-trace trace.zip
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Set up the complete `playwright-todo-suite/` project, implement all the test files above, and run the full suite — it should pass with at least 12 tests
-- [ ] Add a `test_filters.py` file with tests for the "Active", "Completed", and "All" filter buttons — verify each shows the correct subset of items
-- [ ] Push to GitHub, add the CI workflow from Day 33, and verify the Actions tab shows all tests passing
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Part 1 — Write the GitHub Actions workflow YAML",
+    code: `# .github/workflows/playwright.yml
+# Fill in each ??? with the correct value
+# TODO (EN): Workflow display name, e.g. "Playwright Tests"
+# TODO (VI): Tên hiển thị của workflow, ví dụ "Playwright Tests"
+name: ???
+
+on:
+  push:
+    # TODO (EN): Add your main branches, e.g. [main, develop]
+    # TODO (VI): Thêm các nhánh chính của bạn, ví dụ [main, develop]
+    branches: [???]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    # TODO (EN): ubuntu-latest — the standard CI runner
+    # TODO (VI): ubuntu-latest — runner CI tiêu chuẩn
+    runs-on: ???      # which OS?
+    # TODO (EN): 30 — kill the job if it hangs
+    # TODO (VI): 30 — hủy job nếu bị treo
+    timeout-minutes: ???
+
+    steps:
+      - name: Checkout code
+        # TODO (EN): v4 — the latest stable version
+        # TODO (VI): v4 — phiên bản ổn định mới nhất
+        uses: actions/checkout@???   # which version?
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # TODO (EN): "3.12" — use the same version as your local environment
+          # TODO (VI): "3.12" — dùng phiên bản giống môi trường local của bạn
+          python-version: "???"      # which version?
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        # TODO (EN): chromium — fastest browser, sufficient for CI
+        # TODO (VI): chromium — trình duyệt nhanh nhất, đủ cho CI
+        run: playwright install --with-deps ???  # which browser for CI?
+
+      - name: Run tests
+        # TODO (EN): tests/ — the path to your test directory
+        # TODO (VI): tests/ — đường dẫn đến thư mục test của bạn
+        run: pytest ??? -v --tb=short --screenshot=only-on-failure
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          # TODO (EN): test-results/ — where pytest saves screenshots with --output flag
+          # TODO (VI): test-results/ — nơi pytest lưu screenshot với flag --output
+          path: ???      # where does pytest save screenshots?
+          retention-days: 7`
+  },
+  {
+    title: "Part 2 — Create requirements.txt with pinned versions",
+    code: `# requirements.txt
+# Pin versions for reproducible CI builds
+# Run: pip freeze | grep -E "pytest|playwright"
+# to get your exact installed versions
+# TODO (EN): Run: pip freeze | grep -E "pytest|playwright" to get your exact versions
+# TODO (VI): Chạy: pip freeze | grep -E "pytest|playwright" để lấy phiên bản chính xác của bạn
+pytest==???
+playwright==???
+pytest-playwright==???`
+  }
+]}>
+
+<En>
+- [ ] Fill in all `???` in the workflow YAML — check the GitHub Actions docs if unsure of version numbers
+- [ ] Create `requirements.txt` with pinned versions (run `pip freeze | grep -E "pytest|playwright"` locally)
+- [ ] Commit both files and push to your GitHub repo
+- [ ] Go to the Actions tab and verify the workflow triggered and passes
+- [ ] If any tests fail, download the artifact and open the screenshots to see what went wrong
+</En>
+<Vi>
+- [ ] Điền tất cả `???` trong YAML workflow — kiểm tra tài liệu GitHub Actions nếu không chắc về số phiên bản
+- [ ] Tạo `requirements.txt` với phiên bản cố định (chạy `pip freeze | grep -E "pytest|playwright"` ở local)
+- [ ] Commit cả hai file và push lên GitHub repo của bạn
+- [ ] Vào tab Actions và xác nhận workflow đã chạy và pass
+- [ ] Nếu có test fail, tải artifact xuống và mở screenshot để xem nguyên nhân
+</Vi>
+
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "Which of these is a sign of a production-quality test suite?",
+    q: "Where must you save the GitHub Actions workflow file?",
+    qVi: "Bạn phải lưu file workflow GitHub Actions ở đâu?",
     choices: [
-      "All locators are hardcoded CSS selectors in every test file",
-      "Tests only cover the happy path",
-      "Shared setup lives in fixtures, tests read like English, edge cases are covered",
-      "Tests use time.sleep() to ensure elements are loaded"
+      "workflow.yml in the project root",
+      ".github/workflows/filename.yml",
+      "ci/github-actions.yml",
+      "actions/workflow.yml"
     ],
-    answer: 2,
-    explain: "Production quality means: maintainable (POM + fixtures), readable (descriptive test names, no raw locators in tests), robust (edge cases covered), and reliable (no sleep() calls, deterministic waits)."
-  },
-  {
-    q: "Why should `screenshots/` be gitignored?",
-    choices: [
-      "Screenshots cause merge conflicts",
-      "They are generated artifacts — binary, large, and rebuilt on every run",
-      "GitHub does not support PNG files",
-      "Screenshots slow down git push"
+    choicesVi: [
+      "workflow.yml trong thư mục gốc dự án",
+      ".github/workflows/filename.yml",
+      "ci/github-actions.yml",
+      "actions/workflow.yml"
     ],
     answer: 1,
-    explain: "Generated artifacts (screenshots, compiled files, test reports) don't belong in version control — they're rebuilt each run, can be large, and cause unnecessary merge conflicts. Upload them as CI artifacts instead."
+    explain: "GitHub Actions workflows must be in the .github/workflows/ directory at the repo root. The filename can be anything ending in .yml or .yaml. GitHub scans this directory automatically on every push.",
+    explainVi: "Workflow GitHub Actions phải nằm trong thư mục .github/workflows/ ở gốc repo. Tên file có thể là bất kỳ thứ gì kết thúc bằng .yml hoặc .yaml. GitHub tự động quét thư mục này mỗi lần push."
+  },
+  {
+    q: "What does `playwright install --with-deps chromium` do that `playwright install chromium` doesn't?",
+    qVi: "`playwright install --with-deps chromium` làm gì mà `playwright install chromium` không làm?",
+    choices: [
+      "Installs all three browsers instead of just Chromium",
+      "Also installs operating system-level dependencies (fonts, shared libraries) required by Chromium on bare Linux runners",
+      "Downloads a newer version of Chromium",
+      "Installs Chromium in headless mode only"
+    ],
+    choicesVi: [
+      "Cài cả ba browser thay vì chỉ Chromium",
+      "Cũng cài các dependency cấp hệ điều hành (font, thư viện chia sẻ) cần thiết bởi Chromium trên Linux runner trần",
+      "Tải xuống phiên bản Chromium mới hơn",
+      "Chỉ cài Chromium ở chế độ headless"
+    ],
+    answer: 1,
+    explain: "Bare Ubuntu CI runners don't have all the system libraries that Chromium needs (fonts, X11 shims, etc.). --with-deps tells Playwright to install these OS dependencies automatically. Without it, the browser launch will fail with a library error.",
+    explainVi: "CI runner Ubuntu trần không có tất cả thư viện hệ thống mà Chromium cần (font, X11 shim, v.v.). --with-deps yêu cầu Playwright tự động cài các dependency hệ điều hành này. Nếu không có nó, việc khởi động browser sẽ thất bại với lỗi thư viện."
+  },
+  {
+    q: "Why do we set `if: always()` on the artifact upload step?",
+    qVi: "Tại sao chúng ta đặt `if: always()` cho bước tải lên artifact?",
+    choices: [
+      "To override the branch filter",
+      "To ensure artifacts are uploaded even when the test step fails — so we can see screenshots and traces from failing runs",
+      "To run the step on all operating systems",
+      "To make the artifact available to all branches"
+    ],
+    choicesVi: [
+      "Để ghi đè bộ lọc nhánh",
+      "Để đảm bảo artifact được tải lên ngay cả khi bước test thất bại — để chúng ta có thể xem screenshot và trace từ các lần chạy thất bại",
+      "Để chạy bước đó trên tất cả hệ điều hành",
+      "Để artifact có sẵn cho tất cả nhánh"
+    ],
+    answer: 1,
+    explain: "By default, GitHub Actions skips subsequent steps when a previous step fails. `if: always()` overrides this so the upload step runs regardless — ensuring you can retrieve failure screenshots and traces even when the test run failed.",
+    explainVi: "Theo mặc định, GitHub Actions bỏ qua các bước tiếp theo khi bước trước thất bại. `if: always()` ghi đè điều này để bước tải lên chạy bất kể — đảm bảo bạn có thể truy xuất screenshot và trace thất bại ngay cả khi test run thất bại."
+  },
+  {
+    q: "What does `workflow_dispatch` in the `on:` block allow?",
+    qVi: "`workflow_dispatch` trong block `on:` cho phép gì?",
+    choices: [
+      "The workflow to dispatch events to other workflows",
+      "Manual triggering of the workflow from the GitHub Actions tab",
+      "Triggering the workflow on a schedule",
+      "Triggering the workflow when a PR is merged"
+    ],
+    choicesVi: [
+      "Workflow gửi sự kiện đến các workflow khác",
+      "Kích hoạt workflow thủ công từ tab GitHub Actions",
+      "Kích hoạt workflow theo lịch trình",
+      "Kích hoạt workflow khi PR được merge"
+    ],
+    answer: 1,
+    explain: "workflow_dispatch adds a 'Run workflow' button to the Actions tab in GitHub, allowing you to trigger the workflow manually without a push or PR. Useful for on-demand test runs or debugging.",
+    explainVi: "workflow_dispatch thêm nút 'Run workflow' vào tab Actions trong GitHub, cho phép bạn kích hoạt workflow thủ công mà không cần push hay PR. Hữu ích cho các lần chạy test theo yêu cầu hoặc debug."
+  },
+  {
+    q: "What is the `matrix` strategy in GitHub Actions used for?",
+    qVi: "Chiến lược `matrix` trong GitHub Actions được dùng để làm gì?",
+    choices: [
+      "Running jobs in a specific order",
+      "Running the same job with multiple configurations (e.g., different browsers or Python versions) in parallel",
+      "Distributing tests across multiple repos",
+      "Setting environment variables for different branches"
+    ],
+    choicesVi: [
+      "Chạy các job theo thứ tự cụ thể",
+      "Chạy cùng một job với nhiều cấu hình (ví dụ: browser hoặc phiên bản Python khác nhau) song song",
+      "Phân phối test trên nhiều repo",
+      "Đặt biến môi trường cho các nhánh khác nhau"
+    ],
+    answer: 1,
+    explain: "The matrix strategy creates multiple parallel jobs from a configuration matrix. With browser: [chromium, firefox, webkit], GitHub creates three parallel jobs — each testing with a different browser. This gives cross-browser coverage without adding to total wall-clock time.",
+    explainVi: "Chiến lược matrix tạo ra nhiều job song song từ ma trận cấu hình. Với browser: [chromium, firefox, webkit], GitHub tạo ba job song song — mỗi job test với browser khác nhau. Điều này cung cấp độ phủ cross-browser mà không tăng thêm thời gian chạy tổng."
+  },
+  {
+    q: "How do you pass a secret (e.g., an API key) to a GitHub Actions workflow without hardcoding it?",
+    qVi: "Làm thế nào để truyền secret (ví dụ: API key) vào GitHub Actions workflow mà không hardcode?",
+    choices: [
+      "Add it directly in the YAML workflow file",
+      "Store it in GitHub repository Settings > Secrets and reference it as ${{ secrets.MY_SECRET }} in the YAML",
+      "Add it to the requirements.txt file",
+      "Put it in the README and encrypt it"
+    ],
+    choicesVi: [
+      "Thêm trực tiếp vào file YAML workflow",
+      "Lưu trong GitHub repository Settings > Secrets và tham chiếu là ${{ secrets.MY_SECRET }} trong YAML",
+      "Thêm vào file requirements.txt",
+      "Đặt trong README và mã hoá nó"
+    ],
+    answer: 1,
+    explain: "GitHub Secrets are encrypted and stored at the repo (or org) level. In the workflow YAML, reference them as `${{ secrets.SECRET_NAME }}`. They appear as environment variables inside the runner but are never printed in logs. Never store API keys or passwords directly in the YAML file — they would be visible in the repo.",
+    explainVi: "GitHub Secrets được mã hoá và lưu ở cấp repo (hoặc org). Trong YAML workflow, tham chiếu chúng là `${{ secrets.SECRET_NAME }}`. Chúng xuất hiện như biến môi trường bên trong runner nhưng không bao giờ được in ra log. Đừng bao giờ lưu API key hoặc password trực tiếp trong file YAML — chúng sẽ hiển thị trong repo."
+  },
+  {
+    q: "What does `cache: 'pip'` in `actions/setup-python` do for CI speed?",
+    qVi: "`cache: 'pip'` trong `actions/setup-python` làm gì để cải thiện tốc độ CI?",
+    choices: [
+      "It pre-installs the most popular Python packages automatically",
+      "It caches downloaded pip packages so subsequent CI runs skip re-downloading unchanged dependencies",
+      "It stores the Python binary to avoid reinstalling Python each run",
+      "It compresses the test output to save storage"
+    ],
+    choicesVi: [
+      "Cài đặt trước các gói Python phổ biến nhất tự động",
+      "Cache các gói pip đã tải về để các lần chạy CI tiếp theo bỏ qua việc tải lại dependency không thay đổi",
+      "Lưu binary Python để tránh cài lại Python mỗi lần chạy",
+      "Nén output test để tiết kiệm bộ nhớ"
+    ],
+    answer: 1,
+    explain: "pip cache: 'pip' uses GitHub Actions cache to store the wheels downloaded for requirements.txt. On the next CI run, if requirements.txt hasn't changed, pip installs from the cache instead of re-downloading from PyPI. This can cut dependency installation from 60+ seconds to under 5 seconds.",
+    explainVi: "pip cache: 'pip' dùng cache GitHub Actions để lưu các wheel được tải về cho requirements.txt. Ở lần chạy CI tiếp theo, nếu requirements.txt không thay đổi, pip cài đặt từ cache thay vì tải lại từ PyPI. Điều này có thể cắt giảm thời gian cài đặt dependency từ 60+ giây xuống dưới 5 giây."
+  },
+  {
+    q: "What does `actions/upload-artifact@v4` do in a CI workflow step?",
+    qVi: "`actions/upload-artifact@v4` làm gì trong bước CI workflow?",
+    choices: [
+      "Deploys the test results to a live website",
+      "Uploads specified files (e.g., screenshots, traces, reports) to GitHub's artifact storage so they can be downloaded after the run",
+      "Sends test results via email to the team",
+      "Archives the source code of the repository"
+    ],
+    choicesVi: [
+      "Triển khai kết quả test lên website trực tiếp",
+      "Tải lên các file cụ thể (ví dụ: screenshot, trace, báo cáo) vào artifact storage của GitHub để có thể tải về sau khi chạy",
+      "Gửi kết quả test qua email đến nhóm",
+      "Lưu trữ source code của repository"
+    ],
+    answer: 1,
+    explain: "upload-artifact uploads files from the CI runner to GitHub's artifact storage, accessible from the workflow run page. This is how you retrieve Playwright screenshots, trace files, and HTML reports after a CI failure. Without it, test artifacts are lost when the runner terminates.",
+    explainVi: "upload-artifact tải file từ CI runner lên artifact storage của GitHub, có thể truy cập từ trang workflow run. Đây là cách bạn lấy screenshot Playwright, trace file và HTML report sau lỗi CI. Nếu không có nó, artifact test bị mất khi runner dừng."
+  },
+  {
+    q: "How do you run only the Chromium browser in a CI matrix that includes [chromium, firefox, webkit]?",
+    qVi: "Làm thế nào để chỉ chạy browser Chromium trong ma trận CI bao gồm [chromium, firefox, webkit]?",
+    choices: [
+      "Delete firefox and webkit from the matrix list temporarily",
+      "Use `pytest --browser=chromium` without a matrix strategy",
+      "Both are valid approaches — use the matrix for full coverage, use --browser flag for targeted runs",
+      "You cannot run a subset of matrix jobs"
+    ],
+    choicesVi: [
+      "Xóa firefox và webkit khỏi danh sách matrix tạm thời",
+      "Dùng `pytest --browser=chromium` mà không cần chiến lược matrix",
+      "Cả hai đều hợp lệ — dùng matrix cho độ phủ đầy đủ, dùng flag --browser cho lần chạy có mục tiêu",
+      "Không thể chạy một tập con của matrix job"
+    ],
+    answer: 2,
+    explain: "Both approaches work. For daily CI runs, the full matrix gives cross-browser coverage. When debugging a specific failure, `pytest --browser=chromium` targets just one browser without modifying the YAML. You can also use GitHub's 'Re-run jobs' feature to re-run only specific matrix jobs that failed.",
+    explainVi: "Cả hai cách đều hoạt động. Đối với lần chạy CI hàng ngày, matrix đầy đủ cho độ phủ cross-browser. Khi debug lỗi cụ thể, `pytest --browser=chromium` chỉ nhắm vào một browser mà không sửa YAML. Bạn cũng có thể dùng tính năng 'Re-run jobs' của GitHub để chỉ chạy lại các matrix job cụ thể đã thất bại."
+  },
+  {
+    q: "Where should the GitHub Actions workflow badge be placed to make it visible on the project page?",
+    qVi: "Badge GitHub Actions workflow nên đặt ở đâu để hiển thị trên trang dự án?",
+    choices: [
+      "In the .github/workflows/ YAML file",
+      "At the top of the README.md file",
+      "In the pytest.ini configuration file",
+      "In the Python source files as a comment"
+    ],
+    choicesVi: [
+      "Trong file YAML .github/workflows/",
+      "Ở đầu file README.md",
+      "Trong file cấu hình pytest.ini",
+      "Trong các file Python nguồn dưới dạng comment"
+    ],
+    answer: 1,
+    explain: "The badge markdown goes at the top of README.md. The format is: `![CI](https://github.com/username/repo/actions/workflows/playwright.yml/badge.svg)`. GitHub renders this as a live green/red badge that shows the current CI status. Recruiters and collaborators see it immediately when visiting the repo.",
+    explainVi: "Markdown badge đặt ở đầu README.md. Định dạng là: `![CI](https://github.com/username/repo/actions/workflows/playwright.yml/badge.svg)`. GitHub hiển thị đây là badge xanh/đỏ trực tiếp cho thấy trạng thái CI hiện tại. Nhà tuyển dụng và cộng tác viên nhìn thấy nó ngay khi truy cập repo."
   }
 ]} />
 
 ## Resources
 
 <ResourceList resources={[
-  { title: "Playwright Best Practices", url: "https://playwright.dev/python/docs/best-practices" },
-  { title: "Playwright Python Docs", url: "https://playwright.dev/python/" }
+  { title: "GitHub Actions Documentation", url: "https://docs.github.com/en/actions" },
+  { title: "Playwright — CI Configuration", url: "https://playwright.dev/python/docs/ci" },
+  { title: "GitHub Actions — upload-artifact", url: "https://github.com/actions/upload-artifact" }
 ]} />

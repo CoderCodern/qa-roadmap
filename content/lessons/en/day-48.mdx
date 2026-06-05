@@ -25,49 +25,90 @@ Phần 2 hoàn thành dự án JSONPlaceholder bằng cách thêm test tiêu c�
 4. Both positive and negative test coverage
 5. CI that runs on every push
 6. No hardcoded credentials (environment variables for sensitive config)
-7. Tests are independent — each can run in isolation
+7. Tests are independent — each can run in isolation without depending on other tests
 
-**GitHub Actions for API tests (no browser needed):**
-```yaml
-- name: Run API tests
-  run: pytest tests/ -v --tb=short
-```
-Much simpler than Playwright CI — no browser installation, no screenshots.
+**Why API CI is simpler than Playwright CI:**
+Playwright CI requires installing a full browser binary (Chromium, Firefox, or WebKit) which adds 100–500 MB and 30–120 seconds to every CI run. API tests need only Python and pip — no browser, no display server, no screenshot artifacts. This is why API test suites can run in under 30 seconds on a fresh CI runner.
 
-**Test result summary in CI:**
-Use `pytest-html` or `pytest-json-report` to generate machine-readable test results that CI can archive.
+**What `pytest --tb=short` does:**
+Shows a short traceback instead of the full traceback on failure. On CI with many tests, full tracebacks become noisy. `--tb=short` shows just the assertion line and the 3–5 lines around it — enough to understand the failure without scrolling through 50 lines.
 
-**The README must include:**
-- Project description and what API is under test
-- Prerequisites (Python version, pip install)
-- How to run: `pytest tests/ -v`
+**What `if: always()` does in a GitHub Actions step:**
+By default, a step is skipped if a previous step failed. `if: always()` forces the step to run regardless — this is how you ensure the "Upload test results" step runs even when tests fail. Without it, CI would not produce the XML report on failure — exactly when you need it most.
+
+**Test coverage in the context of API testing:**
+In code coverage, "coverage" means the percentage of source lines executed by tests. In API testing, "coverage" means the percentage of endpoint/method/scenario combinations tested:
+- Which endpoints are tested? (`/posts`, `/users`, `/comments`)
+- Which HTTP methods per endpoint? (GET, POST, PUT, PATCH, DELETE)
+- Which scenarios? (happy path, 404, 400, 500, invalid input, boundary values)
+
+A well-covered API test suite hits every endpoint, every supported method, and at least one negative scenario per method.
+
+**What goes in a good API test project README:**
+- One-sentence description of what API is under test
+- Prerequisites (Python version, `pip install`)
+- Installation: `pip install -r requirements.txt`
+- How to run all tests: `pytest tests/ -v`
 - How to run a single test: `pytest tests/test_posts.py::test_get_post`
+- How to run with CI-style output: `pytest tests/ --tb=short --junit-xml=results.xml`
 - CI badge (optional but professional)
+- What is covered (endpoints, methods, schemas)
 </En>
 <Vi>
 **Điều làm cho dự án API test xứng đáng portfolio:**
 1. README rõ ràng giải thích dự án kiểm thử gì và cách chạy
-2. Cấu trúc file có tổ chức tốt
+2. Cấu trúc file có tổ chức tốt (theo tài nguyên, không theo loại test)
 3. Xác thực schema trên mọi GET response
 4. Bao phủ cả test tích cực và tiêu cực
 5. CI chạy trên mỗi lần push
-6. Không có credential được hardcode
-7. Test độc lập — mỗi cái có thể chạy riêng lẻ
+6. Không có credential được hardcode (biến môi trường cho cấu hình nhạy cảm)
+7. Test độc lập — mỗi cái có thể chạy riêng lẻ mà không phụ thuộc vào test khác
 
-**GitHub Actions cho API test (không cần trình duyệt):**
-```yaml
-- name: Run API tests
-  run: pytest tests/ -v --tb=short
-```
-Đơn giản hơn nhiều so với CI Playwright — không cần cài trình duyệt.
+**Tại sao CI cho API đơn giản hơn CI cho Playwright:**
+CI Playwright yêu cầu cài đặt binary trình duyệt đầy đủ (Chromium, Firefox hoặc WebKit) thêm 100–500 MB và 30–120 giây vào mỗi lần chạy CI. Test API chỉ cần Python và pip — không có trình duyệt, không có display server, không có screenshot artifact. Đó là lý do tại sao test suite API có thể chạy trong dưới 30 giây trên CI runner mới.
+
+**`pytest --tb=short` làm gì:**
+Hiển thị traceback ngắn thay vì traceback đầy đủ khi thất bại. Trên CI với nhiều test, traceback đầy đủ trở nên nhiều nhiễu. `--tb=short` chỉ hiển thị dòng assertion và 3–5 dòng xung quanh — đủ để hiểu lỗi mà không cần cuộn qua 50 dòng.
+
+**`if: always()` làm gì trong GitHub Actions:**
+Theo mặc định, một step bị bỏ qua nếu step trước thất bại. `if: always()` buộc step chạy bất kể điều đó — đây là cách bạn đảm bảo step "Upload test results" chạy ngay cả khi test thất bại. Không có nó, CI sẽ không tạo ra báo cáo XML khi thất bại — chính xác là khi bạn cần nhất.
+
+**Test coverage trong bối cảnh API testing:**
+Trong code coverage, "coverage" có nghĩa là tỷ lệ phần trăm dòng code được thực thi bởi test. Trong API testing, "coverage" có nghĩa là tỷ lệ phần trăm kết hợp endpoint/method/kịch bản được kiểm thử:
+- Endpoint nào được kiểm thử? (`/posts`, `/users`, `/comments`)
+- HTTP method nào cho mỗi endpoint? (GET, POST, PUT, PATCH, DELETE)
+- Kịch bản nào? (happy path, 404, 400, 500, input không hợp lệ, boundary value)
+
+Một test suite API được bao phủ tốt kiểm thử mọi endpoint, mọi method được hỗ trợ và ít nhất một kịch bản tiêu cực cho mỗi method.
+
+**Nội dung README tốt cho dự án API test:**
+- Mô tả một câu về API nào đang được kiểm thử
+- Prerequisites (phiên bản Python, `pip install`)
+- Cài đặt: `pip install -r requirements.txt`
+- Cách chạy tất cả test: `pytest tests/ -v`
+- Cách chạy một test: `pytest tests/test_posts.py::test_get_post`
+- Cách chạy với đầu ra kiểu CI: `pytest tests/ --tb=short --junit-xml=results.xml`
+- CI badge (tùy chọn nhưng chuyên nghiệp)
+- Những gì được bao phủ (endpoint, method, schema)
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Negative tests (test_negative.py)**
+
+</En>
+<Vi>
+
+**Phần 1 — Test tiêu cực (test_negative.py)**
+
+</Vi>
+
 ```python
 # tests/test_negative.py
 import pytest
-import requests as req
+import time
 from api.client import ApiClient
 
 def test_get_nonexistent_post(api: ApiClient):
@@ -81,33 +122,50 @@ def test_get_nonexistent_user(api: ApiClient):
     assert response.status_code == 404
 
 def test_get_comments_for_nonexistent_post(api: ApiClient):
+    """JSONPlaceholder returns empty list for non-existent post — not a 404."""
     response = api.get("/posts/99999/comments")
-    # JSONPlaceholder returns empty list for non-existent post
     assert response.status_code == 200
     assert response.json() == []
 
 @pytest.mark.parametrize("invalid_id", ["abc", "0", "-1", "!@#"])
 def test_invalid_post_id_format(api: ApiClient, invalid_id: str):
-    """400 or 404 for non-integer post IDs."""
+    """400 or 404 for non-integer post IDs — server must not crash."""
     response = api.get(f"/posts/{invalid_id}")
     assert response.status_code in (400, 404), \
         f"Expected 4xx for id={invalid_id!r}, got {response.status_code}"
 
 def test_empty_post_body(api: ApiClient):
-    """POST with empty body."""
+    """POST with empty body — server must not return 500."""
     response = api.post("/posts", json={})
-    # JSONPlaceholder is lenient; real APIs should return 400 or 422
+    # JSONPlaceholder is lenient; a real production API should return 400 or 422
     assert response.status_code != 500, "Server must not crash on empty body"
 
 def test_response_time_is_acceptable(api: ApiClient):
     """Performance: GET /posts should respond in under 3 seconds."""
-    import time
     start = time.time()
     response = api.get("/posts/1")
     elapsed = time.time() - start
     assert response.status_code == 200
     assert elapsed < 3.0, f"Response took {elapsed:.2f}s — too slow"
+
+def test_content_type_header(api: ApiClient):
+    """Every JSON API response must declare application/json content type."""
+    response = api.get("/posts/1")
+    content_type = response.headers.get("Content-Type", "")
+    assert "application/json" in content_type, \
+        f"Expected application/json, got: {content_type}"
 ```
+
+<En>
+
+**Part 2 — GitHub Actions CI workflow and requirements**
+
+</En>
+<Vi>
+
+**Phần 2 — GitHub Actions CI workflow và requirements**
+
+</Vi>
 
 ```yaml
 # .github/workflows/api-tests.yml
@@ -131,7 +189,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
+          cache: "pip"   # caches ~/.cache/pip between runs — speeds up repeated CI runs
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -141,7 +199,7 @@ jobs:
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always()   # run this step even if the test step above failed
         with:
           name: api-test-results
           path: results.xml
@@ -156,38 +214,273 @@ responses==0.25.3
 pytest-html==4.1.1
 ```
 
+<En>
+
+**Part 3 — pytest.ini configuration**
+
+</En>
+<Vi>
+
+**Phần 3 — Cấu hình pytest.ini**
+
+</Vi>
+
+```ini
+# pytest.ini
+[pytest]
+testpaths = tests
+addopts = -v --tb=short
+markers =
+    slow: marks tests as slow (deselect with -m "not slow")
+    negative: marks tests as negative/error-path tests
+```
+
 ## Exercise
 
-<ExerciseBox>
-- [ ] Complete the full project from Part 1 + Part 2, push to GitHub, add the CI workflow, and verify all tests pass in the Actions tab
-- [ ] Add a `test_response_headers.py` test file that verifies: `Content-Type` header contains `application/json`, and the `X-Powered-By` header is present (or absent) as expected for this API
-- [ ] Write a project `README.md` with: project description, prerequisites, installation steps, how to run tests, and a list of what is tested — share it with a teammate or mentor for feedback
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Complete the full project and push to GitHub",
+    code: `# Checklist — complete each step and mark it done as a comment
+#
+# PROJECT SETUP
+# [ ] Create the directory structure from Day 47
+# [ ] Implement api/client.py, schemas/post.json, schemas/user.json
+# [ ] Implement tests/conftest.py, tests/test_posts.py, tests/test_users.py
+# [ ] Implement tests/test_negative.py (from today's Code/Demo)
+# [ ] Create pytest.ini with the config above
+# [ ] Create requirements.txt with all dependencies
+#
+# LOCAL VERIFICATION
+# [ ] Run: pytest tests/ -v
+# [ ] Confirm output shows all tests PASSED
+# [ ] Run: pytest tests/ --tb=short --junit-xml=results.xml
+# [ ] Confirm results.xml was created
+#
+# GITHUB CI
+# [ ] Create .github/workflows/api-tests.yml from today's Code/Demo
+# [ ] git init && git add . && git commit -m "feat: add JSONPlaceholder API test project"
+# [ ] git remote add origin <your-repo-url>
+# [ ] git push origin main
+# [ ] Open GitHub → Actions tab → confirm the workflow ran and all tests passed
+#
+# TODO (EN): Paste the GitHub Actions run URL or a screenshot path as a comment below.
+# TODO (VI): Dán URL GitHub Actions run hoặc đường dẫn ảnh chụp màn hình dưới dạng comment bên dưới.
+`
+  },
+  {
+    title: "Exercise 2 — Add response header tests and write the README",
+    code: `# tests/test_response_headers.py
+from api.client import ApiClient
+
+def test_content_type_is_json(api: ApiClient):
+    # TODO (EN): GET /posts/1, assert Content-Type header contains "application/json"
+    # TODO (VI): GET /posts/1, kiểm tra header Content-Type chứa "application/json"
+    response = api.get("/posts/1")
+    content_type = response.headers.get("Content-Type", "")
+    assert ??? in content_type
+
+def test_response_has_no_server_version_leak(api: ApiClient):
+    # TODO (EN): GET /posts/1, assert "X-Powered-By" header is NOT present
+    # (leaking framework version is a security concern)
+    # TODO (VI): GET /posts/1, kiểm tra header "X-Powered-By" KHÔNG có mặt
+    response = api.get("/posts/1")
+    assert ??? not in response.headers
+
+# README.md content — write this as a comment block:
+# ---
+# # JSONPlaceholder API Test Suite
+# TODO (EN): Write a one-sentence description.
+# TODO (VI): Viết một câu mô tả.
+#
+# ## Prerequisites
+# - Python 3.11+
+# - pip install -r requirements.txt
+#
+# ## Run all tests
+# pytest tests/ -v
+#
+# ## What is tested
+# TODO (EN): List the endpoints, methods, and key scenarios covered.
+# TODO (VI): Liệt kê các endpoint, method và kịch bản quan trọng được bao phủ.
+`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: complete every checklist item — the goal is a live CI run with a green check on GitHub. Share the Actions run URL.
+- [ ] Exercise 2: fill in the two `???` assertions in the header test file, then write the README content as a comment block (or as a real `README.md` file)
+- [ ] Bonus: add a `@pytest.mark.slow` marker to `test_response_time_is_acceptable` and verify you can run `pytest -m "not slow"` to skip it
+
+> Note: This code requires a local Python environment with all dependencies from `requirements.txt`. For the CI part, you need a GitHub account and a repository.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài tập 1: hoàn thành mọi mục checklist — mục tiêu là một CI run live với check xanh trên GitHub. Chia sẻ URL Actions run.
+- [ ] Bài tập 2: điền vào hai assertion `???` trong file test header, sau đó viết nội dung README dưới dạng comment block (hoặc file `README.md` thực)
+- [ ] Bonus: thêm marker `@pytest.mark.slow` vào `test_response_time_is_acceptable` và xác minh bạn có thể chạy `pytest -m "not slow"` để bỏ qua nó
+
+> Lưu ý: Code này cần môi trường Python cục bộ với tất cả các thư viện từ `requirements.txt`. Cho phần CI, bạn cần tài khoản GitHub và repository.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Why should each API test be independent (able to run in isolation)?",
+    qVi: "Tại sao mỗi API test nên độc lập (có thể chạy riêng lẻ)?",
     choices: [
       "pytest requires independent tests",
       "If tests share state, a failure in one test can cause unrelated tests to fail, making root-cause analysis harder",
       "Independent tests run faster in parallel",
       "The API resets between every test automatically"
     ],
+    choicesVi: [
+      "pytest yêu cầu test độc lập",
+      "Nếu test chia sẻ trạng thái, thất bại trong một test có thể làm test không liên quan thất bại, khiến phân tích nguyên nhân gốc rễ khó hơn",
+      "Test độc lập chạy nhanh hơn song song",
+      "API tự động reset giữa mỗi test"
+    ],
     answer: 1,
-    explain: "Test isolation means tests don't share mutable state. If test A creates data that test B expects, test B fails when run alone or when test A fails. Isolated tests produce predictable results regardless of which tests ran before or after."
+    explain: "Test isolation means tests don't share mutable state. If test A creates data that test B expects, test B fails when run alone or when test A fails. Isolated tests produce predictable results regardless of which tests ran before or after.",
+    explainVi: "Cô lập test có nghĩa là test không chia sẻ trạng thái có thể thay đổi. Nếu test A tạo dữ liệu mà test B mong đợi, test B thất bại khi chạy một mình hoặc khi test A thất bại. Test cô lập tạo ra kết quả có thể dự đoán bất kể test nào chạy trước hoặc sau."
   },
   {
     q: "What does `--junit-xml=results.xml` do in pytest?",
+    qVi: "`--junit-xml=results.xml` làm gì trong pytest?",
     choices: [
       "Saves the test source code to an XML file",
       "Generates a JUnit-format XML report of test results that CI systems can parse and display",
       "Runs tests in XML validation mode",
       "Imports test cases from an XML file"
     ],
+    choicesVi: [
+      "Lưu mã nguồn test vào file XML",
+      "Tạo báo cáo XML định dạng JUnit về kết quả test mà CI system có thể phân tích và hiển thị",
+      "Chạy test ở chế độ xác thực XML",
+      "Import test case từ file XML"
+    ],
     answer: 1,
-    explain: "JUnit XML is a standard test result format recognized by CI platforms like GitHub Actions, Jenkins, and GitLab CI. They can display pass/fail counts, test names, and failure details directly in the CI interface without you opening log files."
+    explain: "JUnit XML is a standard test result format recognized by CI platforms like GitHub Actions, Jenkins, and GitLab CI. They can display pass/fail counts, test names, and failure details directly in the CI interface without you opening log files.",
+    explainVi: "JUnit XML là định dạng kết quả test chuẩn được nhận ra bởi CI platform như GitHub Actions, Jenkins và GitLab CI. Chúng có thể hiển thị số lượng pass/fail, tên test và chi tiết lỗi trực tiếp trong giao diện CI mà không cần mở file log."
+  },
+  {
+    q: "Why is API CI simpler than Playwright CI?",
+    qVi: "Tại sao CI cho API đơn giản hơn CI cho Playwright?",
+    choices: [
+      "API tests always run faster",
+      "API CI needs only Python and pip — no browser binary installation, display server, or screenshot storage",
+      "Playwright cannot run in CI",
+      "GitHub Actions does not support browsers"
+    ],
+    choicesVi: [
+      "API test luôn chạy nhanh hơn",
+      "CI API chỉ cần Python và pip — không cần cài đặt browser binary, display server hay lưu trữ screenshot",
+      "Playwright không thể chạy trong CI",
+      "GitHub Actions không hỗ trợ trình duyệt"
+    ],
+    answer: 1,
+    explain: "Playwright CI requires downloading a browser binary (100–500 MB), potentially setting up a virtual display (Xvfb on Linux), and managing screenshot artifacts. API CI just installs pip packages and runs pytest — typically under 30 seconds on a fresh runner.",
+    explainVi: "CI Playwright yêu cầu tải xuống browser binary (100–500 MB), có thể thiết lập virtual display (Xvfb trên Linux) và quản lý screenshot artifact. CI API chỉ cài đặt pip package và chạy pytest — thường dưới 30 giây trên runner mới."
+  },
+  {
+    q: "What does `if: always()` do in a GitHub Actions step?",
+    qVi: "`if: always()` làm gì trong một GitHub Actions step?",
+    choices: [
+      "Makes the step run on every branch, not just main",
+      "Forces the step to run even if a previous step failed — ensuring the upload happens whether tests pass or fail",
+      "Retries the step if it fails",
+      "Runs the step before all other steps"
+    ],
+    choicesVi: [
+      "Làm step chạy trên mọi nhánh, không chỉ main",
+      "Buộc step chạy ngay cả khi step trước thất bại — đảm bảo upload xảy ra dù test pass hay fail",
+      "Retry step nếu nó thất bại",
+      "Chạy step trước tất cả step khác"
+    ],
+    answer: 1,
+    explain: "By default, if pytest exits with a non-zero code (tests failed), subsequent steps are skipped. if: always() overrides this — critical for artifact upload steps. You want the test report uploaded to GitHub Actions even when (especially when) tests fail.",
+    explainVi: "Theo mặc định, nếu pytest thoát với code khác 0 (test thất bại), các step tiếp theo bị bỏ qua. if: always() ghi đè điều này — quan trọng cho các step upload artifact. Bạn muốn báo cáo test được upload lên GitHub Actions ngay cả khi (đặc biệt là khi) test thất bại."
+  },
+  {
+    q: "What goes in a good API test project README?",
+    qVi: "README dự án API test tốt cần có gì?",
+    choices: [
+      "Only the project name and author",
+      "Project description, prerequisites, installation, how to run tests, what is covered, and optionally a CI badge",
+      "The full source code of all tests",
+      "A list of all API endpoints in the world"
+    ],
+    choicesVi: [
+      "Chỉ tên dự án và tác giả",
+      "Mô tả dự án, prerequisites, cài đặt, cách chạy test, những gì được bao phủ và tùy chọn CI badge",
+      "Toàn bộ mã nguồn của tất cả test",
+      "Danh sách tất cả API endpoint trên thế giới"
+    ],
+    answer: 1,
+    explain: "A good README lets anyone clone the repo and run the tests in under 5 minutes without asking you anything. It needs: what the project does, how to set it up, how to run it, and what it covers. A CI badge shows the current build status at a glance.",
+    explainVi: "README tốt cho phép bất kỳ ai clone repo và chạy test trong dưới 5 phút mà không cần hỏi bạn bất cứ điều gì. Nó cần: dự án làm gì, cách thiết lập, cách chạy và những gì nó bao phủ. CI badge hiển thị trạng thái build hiện tại trong nháy mắt."
+  },
+  {
+    q: "What is `pytest --tb=short` useful for?",
+    qVi: "`pytest --tb=short` hữu ích cho việc gì?",
+    choices: [
+      "Running only a subset of tests",
+      "Showing a concise traceback on failure — the relevant assertion line and surrounding context without verbose noise",
+      "Speeding up test execution",
+      "Skipping slow tests"
+    ],
+    choicesVi: [
+      "Chạy chỉ một tập con test",
+      "Hiển thị traceback ngắn gọn khi thất bại — dòng assertion liên quan và ngữ cảnh xung quanh mà không có nhiễu verbose",
+      "Tăng tốc thực thi test",
+      "Bỏ qua test chậm"
+    ],
+    answer: 1,
+    explain: "--tb=short shows 3–10 lines of context around the failing assertion instead of the full call stack. In CI logs with many test failures, short tracebacks fit the failure on screen and are much easier to scan. Use --tb=long locally when you need the full context to debug.",
+    explainVi: "--tb=short hiển thị 3–10 dòng ngữ cảnh xung quanh assertion thất bại thay vì toàn bộ call stack. Trong CI log với nhiều test thất bại, traceback ngắn vừa vặn trên màn hình và dễ quét hơn nhiều. Dùng --tb=long cục bộ khi bạn cần ngữ cảnh đầy đủ để debug."
+  },
+  {
+    q: "How does `cache: 'pip'` in GitHub Actions improve CI speed?",
+    qVi: "`cache: 'pip'` trong GitHub Actions cải thiện tốc độ CI như thế nào?",
+    choices: [
+      "It caches the test results so tests don't need to run again",
+      "It caches the pip package download cache between CI runs — packages are downloaded once and reused on subsequent runs",
+      "It caches the Python interpreter",
+      "It caches the GitHub Actions runner itself"
+    ],
+    choicesVi: [
+      "Nó cache kết quả test để test không cần chạy lại",
+      "Nó cache pip package download cache giữa các CI run — package được tải xuống một lần và tái sử dụng trong các lần chạy tiếp theo",
+      "Nó cache Python interpreter",
+      "Nó cache chính GitHub Actions runner"
+    ],
+    answer: 1,
+    explain: "cache: 'pip' in actions/setup-python stores ~/.cache/pip (where pip saves downloaded wheels) between runs. On the second CI run, pip finds packages already in cache and skips downloading them — saving 5–30 seconds depending on how many packages your requirements.txt has.",
+    explainVi: "cache: 'pip' trong actions/setup-python lưu trữ ~/.cache/pip (nơi pip lưu các wheel đã tải) giữa các lần chạy. Ở lần CI run thứ hai, pip tìm thấy package đã có trong cache và bỏ qua tải xuống — tiết kiệm 5–30 giây tùy thuộc vào số lượng package trong requirements.txt."
+  },
+  {
+    q: "What does 'test coverage' mean in the context of API testing (not code coverage)?",
+    qVi: "'Test coverage' có nghĩa gì trong bối cảnh API testing (không phải code coverage)?",
+    choices: [
+      "The percentage of source code lines executed by tests",
+      "The percentage of endpoint/method/scenario combinations that have at least one test",
+      "The number of assertions per test",
+      "The time it takes to run all tests"
+    ],
+    choicesVi: [
+      "Tỷ lệ phần trăm dòng mã nguồn được thực thi bởi test",
+      "Tỷ lệ phần trăm kết hợp endpoint/method/kịch bản có ít nhất một test",
+      "Số lượng assertion trên mỗi test",
+      "Thời gian cần để chạy tất cả test"
+    ],
+    answer: 1,
+    explain: "API test coverage asks: have we tested every endpoint that exists? Every HTTP method each endpoint supports? At least one happy path and one error path per method? A coverage matrix (endpoint × method × scenario) is a useful tool for identifying gaps before shipping.",
+    explainVi: "API test coverage hỏi: chúng ta đã kiểm thử mọi endpoint tồn tại chưa? Mọi HTTP method mỗi endpoint hỗ trợ? Ít nhất một happy path và một error path cho mỗi method? Ma trận coverage (endpoint × method × kịch bản) là công cụ hữu ích để xác định khoảng trống trước khi ship."
   }
 ]} />
 

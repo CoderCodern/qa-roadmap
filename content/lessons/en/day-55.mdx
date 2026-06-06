@@ -9,67 +9,142 @@ tags: ["capstone", "api-testing", "integration"]
 ## Intro
 
 <En>
-Today you complete the API and integration test layers of your capstone framework. Integration tests combine your API client with your UI tests — using the API for fast setup, then verifying through the UI, then cleaning up via API. By the end of today your capstone has full coverage across API, UI, and integration layers, a CI workflow, and Allure reports.
+Today you complete the API and integration test layers of your capstone framework. Full CRUD coverage for the user resource, integration tests that use the API for setup and the UI for verification, a finalised CI workflow with parallel jobs, and properly registered pytest marks. By the end of today your capstone is a production-shaped, fully automated test suite that covers API, UI, and the seam between them.
 </En>
 <Vi>
-Hôm nay bạn hoàn thành các lớp API và test tích hợp của framework capstone. Test tích hợp kết hợp API client với UI test — dùng API để thiết lập nhanh, sau đó xác minh qua UI, rồi dọn dẹp qua API. Đến cuối hôm nay capstone của bạn có bao phủ đầy đủ trên các lớp API, UI và tích hợp, workflow CI và báo cáo Allure.
+Hôm nay bạn hoàn thành các lớp API và test tích hợp của framework capstone. Bao phủ CRUD đầy đủ cho tài nguyên user, test tích hợp dùng API để thiết lập và UI để xác minh, workflow CI hoàn chỉnh với các job song song, và pytest mark được đăng ký đúng cách. Đến cuối hôm nay capstone của bạn là một bộ test tự động hoàn chỉnh theo hình dạng production bao phủ API, UI và ranh giới giữa chúng.
 </Vi>
 
 ## Concept
 
 <En>
-**API test checklist for the capstone:**
+**Why the CRUD checklist matters — the missing DELETE problem:**
 
-For each resource you test, cover:
-- [ ] List (GET all)
-- [ ] Get by ID (GET one, valid ID)
-- [ ] Create (POST, verify 201 + schema)
-- [ ] Update (PUT/PATCH, verify changed fields)
-- [ ] Delete (DELETE, verify 204 or 200)
-- [ ] Not found (GET invalid ID → 404)
-- [ ] Validation failure (POST missing fields → 400/422)
+A common trap is testing Create and Read heavily but skipping Update and Delete. The reasoning is usually "delete is obvious, it either works or it doesn't." But untested behavior is unverified behavior. If your application introduces a soft-delete feature (marking records as deleted instead of removing them), a regression in DELETE that starts returning 200 instead of 204, or a bug where deleting a user does not cascade to their related records — none of that is caught by your suite until a user reports it in production.
 
-**Integration test pattern — API setup + UI verify:**
+The full checklist for each resource:
+
+| Test | Why it matters |
+|------|---------------|
+| List (GET all) | Confirms pagination contract and field presence across a collection |
+| Get by ID (GET one) | Confirms a known-good ID returns data with correct schema |
+| Create (POST → 201) | Confirms the server persists the resource and returns the new ID |
+| Update (PUT/PATCH → 200) | Confirms the right fields change and irrelevant fields are untouched |
+| Delete (DELETE → 204) | Confirms the resource is gone; follow up with GET to verify 404 |
+| Not found (GET invalid → 404) | Confirms the error contract — clients depend on this status code |
+| Validation failure (POST bad data → 400/422) | Confirms the API rejects bad input rather than silently accepting it |
+
+**Why integration tests beat pure UI for data setup:**
+
+Creating a user through the UI means: navigate, find the form, fill 5 fields, click submit, wait for redirect, confirm the page loaded. That sequence takes 3–5 seconds on a fast machine and more on CI. The same operation via API takes 50–150 ms.
+
+But integration tests are not about speed alone. When the UI registration form is broken, a pure UI test for "login after registration" would fail at the registration step — leaving you uncertain whether the login feature itself works. An integration test that uses the API for setup bypasses the broken form entirely. If login fails, you know login is the bug, not registration.
+
+The pattern:
+```
+1. [API]  POST /users → create test user, save ID
+2. [UI]   Navigate to login, use the test user's credentials
+3. [UI]   Assert the dashboard or profile is correct
+4. [API]  DELETE /users/{id} → clean up (optional — depends on test isolation strategy)
+```
+
+**Why separate CI jobs for API and UI:**
+
+If all tests run in one sequential job, total CI time equals API time + UI time + browser install time. With parallel jobs:
+- `api-tests` job: no browser needed, runs in ~2 minutes
+- `ui-tests` job: installs Chromium, runs in ~8 minutes
+- Total wall-clock time: ~8 minutes (not 10+)
+
+More importantly, a flaky UI test (browser timeout, network hiccup) does not block visibility of API results. Your team can see the green API job and know the API layer is healthy while the UI flake is being investigated. Failure isolation is the real benefit of separate jobs.
+
+**Why pytest marks need to be registered in pytest.ini:**
+
+If you use `@pytest.mark.api` without registering it, every test run prints:
 
 ```
-1. [API]  Create a test user via POST
-2. [UI]   Log in as that user in the browser
-3. [UI]   Verify the user's dashboard/profile
-4. [API]  Clean up — delete the user after the test
+PytestUnknownMarkWarning: Unknown pytest.mark.api - is this a typo?
 ```
 
-This pattern is 5-10x faster than creating the user via UI forms and works even when the UI registration flow is broken.
+This is a warning, not an error, but it clutters CI output and, more importantly, indicates that `pytest -m api` may not reliably select only your API tests — unregistered marks silently fall through. Registering marks in `pytest.ini` makes the selection deterministic and silences the warning:
 
-**Final CI workflow additions:**
+```ini
+[pytest]
+markers =
+    api: marks tests as API-layer tests (deselect with -m "not api")
+    ui:  marks tests as UI/browser tests (deselect with -m "not ui")
+    integration: marks tests that combine API setup with UI verification
+```
 
-- Run all tests: `pytest tests/ -v`
-- Generate Allure results: `--alluredir=allure-results`
-- Upload results artifact in CI
-- Separate jobs or marks for API vs UI (use `@pytest.mark.api` and `@pytest.mark.ui`)
+**The complete API test strategy for ReqRes.in:**
+
+ReqRes.in (`https://reqres.in/api`) is a public mock API that simulates a real backend. It is stable, always available, and returns realistic response schemas. Key behaviors:
+- GET /users?page=1 returns paginated results with `data`, `total`, `per_page`
+- POST /users returns a 201 with `id` and `createdAt` fields (ReqRes generates these)
+- `DELETE /users/{id}` returns 204 No Content (no body)
+- GET /users/9999 returns 404 (not found)
+- POST /login without `password` returns 400 with `"error"` key
+
+These cover every row in the CRUD checklist above.
 </En>
 <Vi>
-**Checklist API test cho capstone:**
+**Tại sao CRUD checklist quan trọng — vấn đề DELETE bị bỏ qua:**
 
-Với mỗi tài nguyên bạn test, bao phủ:
-- [ ] Liệt kê (GET tất cả)
-- [ ] Lấy theo ID (GET một, ID hợp lệ)
-- [ ] Tạo (POST, xác minh 201 + schema)
-- [ ] Cập nhật (PUT/PATCH, xác minh trường đã thay đổi)
-- [ ] Xoá (DELETE, xác minh 204 hoặc 200)
-- [ ] Không tìm thấy (GET ID không hợp lệ → 404)
-- [ ] Lỗi xác thực (POST thiếu trường → 400/422)
+Bẫy phổ biến là test Create và Read nhiều nhưng bỏ qua Update và Delete. Lý do thường là "delete rõ ràng rồi, nó hoặc hoạt động hoặc không." Nhưng hành vi chưa được test là hành vi chưa được xác minh. Nếu ứng dụng của bạn giới thiệu tính năng soft-delete (đánh dấu record là đã xóa thay vì xóa thật), regression trong DELETE bắt đầu trả về 200 thay vì 204, hoặc bug nơi xóa user không cascade sang các record liên quan — không có gì trong số đó được bắt bởi suite cho đến khi user báo cáo trong production.
 
-**Pattern test tích hợp — thiết lập API + xác minh UI:**
+Checklist đầy đủ cho mỗi tài nguyên:
 
+| Test | Tại sao quan trọng |
+|------|-------------------|
+| List (GET tất cả) | Xác nhận contract phân trang và sự hiện diện field trên collection |
+| Get by ID (GET một) | Xác nhận ID đã biết trả về dữ liệu với schema đúng |
+| Create (POST → 201) | Xác nhận server lưu tài nguyên và trả về ID mới |
+| Update (PUT/PATCH → 200) | Xác nhận các field đúng thay đổi và field không liên quan không bị ảnh hưởng |
+| Delete (DELETE → 204) | Xác nhận tài nguyên đã biến mất; theo dõi bằng GET để xác minh 404 |
+| Not found (GET không hợp lệ → 404) | Xác nhận contract lỗi — client phụ thuộc vào status code này |
+| Lỗi validation (POST dữ liệu xấu → 400/422) | Xác nhận API từ chối input xấu thay vì chấp nhận im lặng |
+
+**Tại sao test tích hợp tốt hơn UI thuần cho thiết lập dữ liệu:**
+
+Tạo user qua UI nghĩa là: điều hướng, tìm form, điền 5 trường, click submit, chờ redirect, xác nhận trang đã load. Chuỗi đó mất 3–5 giây trên máy nhanh và nhiều hơn trên CI. Cùng thao tác qua API mất 50–150 ms.
+
+Pattern:
 ```
-1. [API]  Tạo user test qua POST
-2. [UI]   Đăng nhập với tư cách user đó trong trình duyệt
-3. [UI]   Xác minh dashboard/hồ sơ của user
-4. [API]  Dọn dẹp — xoá user sau khi test
+1. [API]  POST /users → tạo user test, lưu ID
+2. [UI]   Điều hướng đến login, dùng thông tin xác thực của user test
+3. [UI]   Assert dashboard hoặc hồ sơ đúng
+4. [API]  DELETE /users/{id} → dọn dẹp (tuỳ chọn)
 ```
+
+**Tại sao các job CI riêng biệt cho API và UI:**
+
+Với job song song:
+- Job `api-tests`: không cần browser, chạy trong ~2 phút
+- Job `ui-tests`: cài Chromium, chạy trong ~8 phút
+- Tổng thời gian wall-clock: ~8 phút (không phải 10+)
+
+Quan trọng hơn, UI test flaky (browser timeout, sự cố mạng) không chặn khả năng xem kết quả API. Team của bạn có thể thấy job API xanh và biết lớp API khỏe mạnh trong khi UI flake đang được điều tra. Cô lập thất bại là lợi ích thực sự của các job riêng biệt.
+
+**Tại sao pytest mark cần được đăng ký trong pytest.ini:**
+
+Nếu bạn dùng `@pytest.mark.api` mà không đăng ký nó, mỗi lần chạy test in ra `PytestUnknownMarkWarning`. Đăng ký mark trong `pytest.ini` làm cho việc chọn lọc có tính quyết định và tắt cảnh báo.
 </Vi>
 
 ## Code / Demo
+
+<En>
+
+**Part 1 — test_auth.py: authentication endpoint coverage**
+
+Authentication is the gateway to everything else in the API. A broken login means no token, which means all authenticated endpoint tests would fail with 401 — making it impossible to distinguish auth failures from feature failures. Always test auth first in your CRUD checklist.
+
+</En>
+<Vi>
+
+**Phần 1 — test_auth.py: bao phủ endpoint xác thực**
+
+Xác thực là cổng vào mọi thứ khác trong API. Login bị hỏng nghĩa là không có token, nghĩa là tất cả test endpoint có xác thực sẽ thất bại với 401 — không thể phân biệt auth failure với feature failure. Luôn test auth trước trong CRUD checklist.
+
+</Vi>
 
 ```python
 # tests/api/test_auth.py
@@ -77,115 +152,377 @@ import allure
 import pytest
 from api.client import ApiClient
 
+# ReqRes.in registered test accounts — these are baked into the mock API.
+VALID_EMAIL = "eve.holt@reqres.in"
+VALID_PASSWORD_LOGIN = "cityslicka"
+VALID_PASSWORD_REGISTER = "pistol"
+
+
 @allure.epic("ReqRes API")
 @allure.feature("Auth")
 class TestAuth:
+    """Authentication endpoint tests.
+
+    Covers the happy path (returns token), missing required field (400),
+    and registration success. These are CRITICAL — if auth breaks, all
+    tests that depend on authenticated calls will fail with misleading errors.
+    """
 
     @allure.story("Login")
     @allure.severity(allure.severity_level.CRITICAL)
-    def test_login_returns_token(self, api: ApiClient):
-        payload = {"email": "eve.holt@reqres.in", "password": "cityslicka"}
+    @pytest.mark.api
+    def test_login_returns_token(self, api: ApiClient) -> None:
+        """Valid login credentials must return HTTP 200 and a non-empty token."""
+        payload = {"email": VALID_EMAIL, "password": VALID_PASSWORD_LOGIN}
+
         with allure.step("POST /login with valid credentials"):
             response = api.post("/login", json=payload)
-        with allure.step("Verify 200 and token present"):
-            assert response.status_code == 200
+
+        with allure.step("Assert 200 status and token present in body"):
+            assert response.status_code == 200, (
+                f"Expected 200, got {response.status_code}. Body: {response.text}"
+            )
             body = response.json()
-            assert "token" in body
-            assert len(body["token"]) > 0
+            assert "token" in body, f"Response body missing 'token' key: {body}"
+            assert len(body["token"]) > 0, "Token must not be an empty string"
 
     @allure.story("Login")
     @allure.severity(allure.severity_level.NORMAL)
-    def test_login_missing_password(self, api: ApiClient):
-        response = api.post("/login", json={"email": "eve.holt@reqres.in"})
+    @pytest.mark.api
+    def test_login_missing_password_returns_400(self, api: ApiClient) -> None:
+        """Submitting email without password must return 400 with an error message.
+
+        This validates the server-side validation contract. Clients depend
+        on the error key to display meaningful messages.
+        """
+        response = api.post("/login", json={"email": VALID_EMAIL})
+
+        assert response.status_code == 400, (
+            f"Expected 400 for missing password, got {response.status_code}"
+        )
+        body = response.json()
+        assert "error" in body, f"Expected 'error' key in body: {body}"
+        assert len(body["error"]) > 0, "Error message must not be empty"
+
+    @allure.story("Login")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    def test_login_missing_email_returns_400(self, api: ApiClient) -> None:
+        """Submitting only password (no email) must also return 400."""
+        response = api.post("/login", json={"password": VALID_PASSWORD_LOGIN})
+
         assert response.status_code == 400
         assert "error" in response.json()
 
     @allure.story("Register")
-    def test_register_success(self, api: ApiClient):
-        payload = {"email": "eve.holt@reqres.in", "password": "pistol"}
-        response = api.post("/register", json=payload)
-        assert response.status_code == 200
-        body = response.json()
-        assert "id" in body and "token" in body
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.api
+    def test_register_success(self, api: ApiClient) -> None:
+        """Valid registration must return 200 with both id and token."""
+        payload = {"email": VALID_EMAIL, "password": VALID_PASSWORD_REGISTER}
+
+        with allure.step("POST /register with valid payload"):
+            response = api.post("/register", json=payload)
+
+        with allure.step("Assert 200 and response contains id + token"):
+            assert response.status_code == 200
+            body = response.json()
+            assert "id" in body, f"Missing 'id' in register response: {body}"
+            assert "token" in body, f"Missing 'token' in register response: {body}"
+            assert isinstance(body["id"], int), "id must be an integer"
+
+    @allure.story("Register")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    def test_register_missing_password_returns_400(self, api: ApiClient) -> None:
+        """Registration without password must return 400 with error."""
+        response = api.post("/register", json={"email": VALID_EMAIL})
+
+        assert response.status_code == 400
+        assert "error" in response.json()
 ```
+
+<En>
+
+**Part 2 — test_users_crud.py: full CRUD with schema validation and parametrize**
+
+This is the core of the API test layer. Every row in the CRUD checklist is covered. `@pytest.mark.parametrize` generates independent, individually-reported test cases from a list of inputs — if user ID 2 fails but 1 and 3 pass, the failure report is precise.
+
+</En>
+<Vi>
+
+**Phần 2 — test_users_crud.py: CRUD đầy đủ với schema validation và parametrize**
+
+Đây là cốt lõi của lớp API test. Mọi hàng trong CRUD checklist đều được bao phủ. `@pytest.mark.parametrize` tạo các test case độc lập, được báo cáo riêng lẻ từ danh sách input — nếu user ID 2 thất bại nhưng 1 và 3 pass, báo cáo thất bại chính xác.
+
+</Vi>
 
 ```python
 # tests/api/test_users_crud.py
 import allure
 import pytest
-from jsonschema import validate
+from jsonschema import validate, ValidationError
 from api.client import ApiClient
-from utils.assertions import assert_status, assert_schema
 
-USER_SCHEMA = {
+# JSON Schema for a single user object inside the 'data' key.
+# This is the contract the API promises to its clients.
+SINGLE_USER_SCHEMA = {
     "type": "object",
-    "required": ["id", "email", "first_name", "last_name"],
+    "required": ["id", "email", "first_name", "last_name", "avatar"],
     "properties": {
         "id":         {"type": "integer"},
-        "email":      {"type": "string"},
-        "first_name": {"type": "string"},
-        "last_name":  {"type": "string"},
+        "email":      {"type": "string", "format": "email"},
+        "first_name": {"type": "string", "minLength": 1},
+        "last_name":  {"type": "string", "minLength": 1},
+        "avatar":     {"type": "string", "format": "uri"},
+    },
+    "additionalProperties": False,
+}
+
+LIST_RESPONSE_SCHEMA = {
+    "type": "object",
+    "required": ["data", "total", "per_page", "page"],
+    "properties": {
+        "data":     {"type": "array"},
+        "total":    {"type": "integer"},
+        "per_page": {"type": "integer"},
+        "page":     {"type": "integer"},
     },
 }
+
+CREATE_RESPONSE_SCHEMA = {
+    "type": "object",
+    "required": ["name", "job", "id", "createdAt"],
+    "properties": {
+        "name":      {"type": "string"},
+        "job":       {"type": "string"},
+        "id":        {"type": "string"},   # ReqRes returns id as string on POST
+        "createdAt": {"type": "string"},
+    },
+}
+
+
+def assert_schema(data: dict, schema: dict, label: str = "") -> None:
+    """Validate data against schema and raise a descriptive AssertionError on failure."""
+    try:
+        validate(instance=data, schema=schema)
+    except ValidationError as e:
+        raise AssertionError(
+            f"Schema validation failed{' for ' + label if label else ''}: {e.message}"
+        ) from e
+
 
 @allure.epic("ReqRes API")
 @allure.feature("Users CRUD")
 class TestUsersCRUD:
+    """Full CRUD coverage for the /users resource.
+
+    Run with: pytest tests/api/ -v -m api
+    """
+
+    # ------------------------------------------------------------------
+    # READ — List
+    # ------------------------------------------------------------------
 
     @allure.story("Read")
-    def test_list_users(self, api: ApiClient):
-        response = api.get("/users", params={"page": 1})
-        assert_status(response, 200)
-        body = response.json()
-        assert isinstance(body["data"], list)
-        assert body["total"] > 0
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.api
+    def test_list_users_page_1(self, api: ApiClient) -> None:
+        """GET /users?page=1 must return paginated data with correct structure."""
+        with allure.step("GET /users?page=1"):
+            response = api.get("/users", params={"page": 1})
+
+        with allure.step("Assert 200 and validate list schema"):
+            assert response.status_code == 200
+            body = response.json()
+            assert_schema(body, LIST_RESPONSE_SCHEMA, label="list users response")
+            assert isinstance(body["data"], list), "data must be a list"
+            assert len(body["data"]) > 0, "Page 1 must contain at least one user"
+            assert body["total"] > 0, "total must be positive"
 
     @allure.story("Read")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    @pytest.mark.parametrize("page,expected_count", [(1, 6), (2, 6)])
+    def test_pagination(self, api: ApiClient, page: int, expected_count: int) -> None:
+        """Each page of /users must return exactly 6 users (ReqRes contract)."""
+        response = api.get("/users", params={"page": page})
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert len(data) == expected_count, (
+            f"Page {page}: expected {expected_count} users, got {len(data)}"
+        )
+
+    # ------------------------------------------------------------------
+    # READ — Get by ID
+    # ------------------------------------------------------------------
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.api
     @pytest.mark.parametrize("user_id", [1, 2, 3])
-    def test_get_user_by_id(self, api: ApiClient, user_id: int):
-        response = api.get(f"/users/{user_id}")
-        assert_status(response, 200)
-        assert_schema(response.json()["data"], USER_SCHEMA, label=f"user/{user_id}")
+    def test_get_user_by_id(self, api: ApiClient, user_id: int) -> None:
+        """GET /users/{id} for a valid ID must return 200 and a conforming schema."""
+        with allure.step(f"GET /users/{user_id}"):
+            response = api.get(f"/users/{user_id}")
+
+        with allure.step("Assert 200 and validate user schema"):
+            assert response.status_code == 200
+            body = response.json()
+            assert "data" in body, f"Response missing 'data' key: {body}"
+            assert_schema(body["data"], SINGLE_USER_SCHEMA, label=f"user/{user_id}")
+            # Extra business assertion: the returned id must match the requested id
+            assert body["data"]["id"] == user_id, (
+                f"Returned id {body['data']['id']} does not match requested id {user_id}"
+            )
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    def test_get_user_not_found(self, api: ApiClient) -> None:
+        """GET /users/{invalid_id} must return 404.
+
+        Clients depend on 404 to distinguish 'resource missing' from other errors.
+        A server that returns 200 with empty body breaks client error handling.
+        """
+        response = api.get("/users/9999")
+        assert response.status_code == 404, (
+            f"Expected 404 for non-existent user, got {response.status_code}"
+        )
+
+    # ------------------------------------------------------------------
+    # CREATE
+    # ------------------------------------------------------------------
 
     @allure.story("Create")
     @allure.severity(allure.severity_level.CRITICAL)
-    def test_create_user(self, api: ApiClient):
-        payload = {"name": "Capstone QA", "job": "automation engineer"}
+    @pytest.mark.api
+    def test_create_user(self, api: ApiClient) -> None:
+        """POST /users must return 201 and the created resource with server-generated fields."""
+        payload = {"name": "Capstone QA Engineer", "job": "automation"}
+
+        with allure.step("POST /users with name and job"):
+            response = api.post("/users", json=payload)
+
+        with allure.step("Assert 201 and validate create response schema"):
+            assert response.status_code == 201, (
+                f"Expected 201 Created, got {response.status_code}. Body: {response.text}"
+            )
+            body = response.json()
+            assert_schema(body, CREATE_RESPONSE_SCHEMA, label="create user response")
+            # Server must echo back exactly what we sent
+            assert body["name"] == payload["name"]
+            assert body["job"] == payload["job"]
+            # Server must generate an id (non-empty string in ReqRes)
+            assert len(body["id"]) > 0, "Server must assign a non-empty id"
+
+    @allure.story("Create")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    @pytest.mark.parametrize("payload,description", [
+        ({"name": "Test User"}, "job field missing"),
+        ({}, "empty body"),
+    ])
+    def test_create_user_partial_payload(
+        self, api: ApiClient, payload: dict, description: str
+    ) -> None:
+        """ReqRes accepts partial payloads for POST /users.
+
+        This test documents the actual behavior: ReqRes is lenient and
+        returns 201 even for partial payloads. A stricter real API would
+        return 400/422 here — adjust assertions to match your target API's contract.
+        """
         response = api.post("/users", json=payload)
-        assert_status(response, 201)
-        body = response.json()
-        assert body["name"] == payload["name"]
-        assert "id" in body
-        assert "createdAt" in body
+        # Document the actual behavior — ReqRes does not validate required fields
+        assert response.status_code == 201, (
+            f"ReqRes returned {response.status_code} for {description}"
+        )
+
+    # ------------------------------------------------------------------
+    # UPDATE
+    # ------------------------------------------------------------------
 
     @allure.story("Update")
-    def test_update_user(self, api: ApiClient):
-        payload = {"name": "Updated Name", "job": "senior QA"}
-        response = api.put("/users/2", json=payload)
-        assert_status(response, 200)
-        assert response.json()["name"] == "Updated Name"
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    def test_update_user_put(self, api: ApiClient) -> None:
+        """PUT /users/{id} must return 200 and reflect the updated fields."""
+        payload = {"name": "Updated Full Name", "job": "senior automation engineer"}
+
+        with allure.step("PUT /users/2 with updated name and job"):
+            response = api.put("/users/2", json=payload)
+
+        with allure.step("Assert 200 and updated fields are reflected"):
+            assert response.status_code == 200
+            body = response.json()
+            assert body["name"] == payload["name"], (
+                f"name not updated. Got: {body['name']}"
+            )
+            assert body["job"] == payload["job"], (
+                f"job not updated. Got: {body['job']}"
+            )
+            # ReqRes adds updatedAt to the response — verify it is present
+            assert "updatedAt" in body, "Response must include updatedAt timestamp"
+
+    @allure.story("Update")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    def test_update_user_patch(self, api: ApiClient) -> None:
+        """PATCH /users/{id} must return 200 for a partial update."""
+        payload = {"job": "QA lead"}
+
+        response = api.patch("/users/2", json=payload)
+
+        assert response.status_code == 200
+        assert response.json()["job"] == payload["job"]
+        assert "updatedAt" in response.json()
+
+    # ------------------------------------------------------------------
+    # DELETE
+    # ------------------------------------------------------------------
 
     @allure.story("Delete")
-    def test_delete_user(self, api: ApiClient):
-        response = api.delete("/users/2")
-        assert response.status_code == 204
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.api
+    def test_delete_user(self, api: ApiClient) -> None:
+        """DELETE /users/{id} must return 204 No Content.
 
-    @allure.story("Read")
-    def test_user_not_found(self, api: ApiClient):
-        response = api.get("/users/9999")
-        assert_status(response, 404)
+        204 means 'done, nothing to return' — the correct status for a
+        successful delete. A 200 with an empty body is technically acceptable
+        in some APIs but 204 is the REST-idiomatic choice.
+        Note: always test DELETE separately from your GET-by-ID test to
+        avoid test ordering issues.
+        """
+        with allure.step("DELETE /users/2"):
+            response = api.delete("/users/2")
 
-    @allure.story("Pagination")
-    @pytest.mark.parametrize("page,expected_per_page", [(1, 6), (2, 6)])
-    def test_pagination(self, api: ApiClient, page: int, expected_per_page: int):
-        response = api.get("/users", params={"page": page})
-        assert_status(response, 200)
-        data = response.json()["data"]
-        assert len(data) == expected_per_page
+        with allure.step("Assert 204 No Content"):
+            assert response.status_code == 204, (
+                f"Expected 204 for delete, got {response.status_code}"
+            )
+            # 204 responses must have no body
+            assert response.text == "" or response.content == b"", (
+                f"204 response must have empty body, got: {response.text}"
+            )
 ```
 
+<En>
+
+**Part 3 — GitHub Actions CI: parallel API and UI jobs**
+
+The two jobs run in parallel. The `api-tests` job completes in ~2 minutes; the `ui-tests` job installs Chromium and completes in ~8–10 minutes. Total CI time is the duration of the slower job, not the sum — a significant improvement over a single sequential job.
+
+</En>
+<Vi>
+
+**Phần 3 — GitHub Actions CI: job API và UI song song**
+
+Hai job chạy song song. Job `api-tests` hoàn thành trong ~2 phút; job `ui-tests` cài Chromium và hoàn thành trong ~8–10 phút. Tổng thời gian CI là thời gian của job chậm hơn, không phải tổng — cải thiện đáng kể so với một job tuần tự duy nhất.
+
+</Vi>
+
 ```yaml
-# .github/workflows/tests.yml — final CI workflow
+# .github/workflows/tests.yml
 name: Capstone Test Suite
 
 on:
@@ -195,74 +532,570 @@ on:
     branches: [main]
 
 jobs:
+  # ----------------------------------------------------------------
+  # API tests — no browser needed, fast job (~2 min)
+  # ----------------------------------------------------------------
   api-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-      - run: pip install -r requirements.txt
-      - run: pytest tests/api/ -v --tb=short --alluredir=allure-results --junit-xml=api-results.xml
-      - uses: actions/upload-artifact@v4
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run API tests
+        run: |
+          pytest tests/api/ \
+            -v \
+            --tb=short \
+            -m api \
+            --alluredir=allure-results \
+            --junit-xml=api-results.xml
+
+      - name: Upload Allure results
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: api-allure-results
           path: allure-results
 
+      - name: Upload JUnit XML
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-junit-xml
+          path: api-results.xml
+
+  # ----------------------------------------------------------------
+  # UI tests — requires Chromium, slower job (~8-10 min)
+  # ----------------------------------------------------------------
   ui-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-      - run: pip install -r requirements.txt
-      - run: playwright install --with-deps chromium
-      - run: pytest tests/ui/ -v --tb=short --alluredir=allure-results --junit-xml=ui-results.xml
-      - uses: actions/upload-artifact@v4
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        # Only install Chromium to keep this step fast.
+        # Add --with-deps to install system dependencies on Ubuntu.
+        run: playwright install --with-deps chromium
+
+      - name: Run UI tests
+        run: |
+          pytest tests/ui/ \
+            -v \
+            --tb=short \
+            -m ui \
+            --alluredir=allure-results \
+            --junit-xml=ui-results.xml
+
+      - name: Upload Allure results
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ui-allure-results
           path: allure-results
+
+      - name: Upload JUnit XML
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-junit-xml
+          path: ui-results.xml
+```
+
+<En>
+
+**Part 4 — pytest.ini: registering markers**
+
+Without registered markers, `pytest -m api` still works but prints `PytestUnknownMarkWarning` on every run. Registering them in `pytest.ini` silences the warning, makes `--strict-markers` available (causes unregistered marks to error instead of warn), and documents the mark semantics directly in the config file.
+
+</En>
+<Vi>
+
+**Phần 4 — pytest.ini: đăng ký marker**
+
+Không có marker đã đăng ký, `pytest -m api` vẫn hoạt động nhưng in `PytestUnknownMarkWarning` mỗi lần chạy. Đăng ký chúng trong `pytest.ini` tắt cảnh báo, làm `--strict-markers` khả dụng (khiến mark chưa đăng ký gây lỗi thay vì cảnh báo), và ghi lại ngữ nghĩa mark trực tiếp trong file cấu hình.
+
+</Vi>
+
+```ini
+# pytest.ini — place this at the project root
+[pytest]
+# Treat any unregistered marks as errors.
+# This forces the team to register new marks before using them,
+# preventing typos like @pytest.mark.APi from silently running no tests.
+addopts = --strict-markers
+
+# Registered marks — every mark used in the project must appear here.
+markers =
+    api: marks tests as API-layer tests, runs without a browser
+    ui: marks tests as UI/browser tests, requires Playwright + Chromium
+    integration: marks tests that combine API setup with UI browser verification
+    slow: marks tests known to run slower than average (useful for local deselection)
+
+# Default test path discovery
+testpaths = tests
+
+# Minimum pytest version for the features used in this project
+minversion = 7.0
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Implement `test_users_crud.py` with all 7 test cases (list, get by id parametrized, create, update, delete, not found, pagination) — run the full API suite and confirm all pass
-- [ ] Add `@pytest.mark.api` to all API tests and `@pytest.mark.ui` to all UI tests, register them in `pytest.ini` under `markers`, then run `pytest -m api` to confirm only API tests run
-- [ ] Generate the final Allure report with `pytest tests/ --alluredir=allure-results && allure serve allure-results` — verify the Behaviours view shows the full epic/feature/story hierarchy
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Complete test_users_crud.py and run the full API suite",
+    code: `# FILE: tests/api/test_users_crud.py
+# This starter contains the schema definitions and the test class shell.
+# Complete the TODOs — each corresponds to one row in the CRUD checklist.
+# Run: pytest tests/api/ -v -m api
+
+import allure
+import pytest
+from jsonschema import validate, ValidationError
+from api.client import ApiClient
+
+BASE_URL = "https://reqres.in/api"
+
+SINGLE_USER_SCHEMA = {
+    "type": "object",
+    "required": ["id", "email", "first_name", "last_name", "avatar"],
+    "properties": {
+        "id":         {"type": "integer"},
+        "email":      {"type": "string"},
+        "first_name": {"type": "string"},
+        "last_name":  {"type": "string"},
+        "avatar":     {"type": "string"},
+    },
+}
+
+def assert_schema(data, schema, label=""):
+    try:
+        validate(instance=data, schema=schema)
+    except ValidationError as e:
+        raise AssertionError(f"Schema error {label}: {e.message}") from e
+
+
+@allure.epic("ReqRes API")
+@allure.feature("Users CRUD")
+class TestUsersCRUD:
+
+    @pytest.mark.api
+    def test_list_users_page_1(self, api: ApiClient) -> None:
+        # TODO (EN): GET /users?page=1, assert 200, assert data is a non-empty list
+        # TODO (VI): GET /users?page=1, assert 200, assert data là list không rỗng
+        response = api.get("/users", params={"page": 1})
+        # YOUR ASSERTIONS HERE
+        pass
+
+    @pytest.mark.api
+    @pytest.mark.parametrize("user_id", [1, 2, 3])
+    def test_get_user_by_id(self, api: ApiClient, user_id: int) -> None:
+        # TODO (EN): GET /users/{user_id}, assert 200, assert_schema on body["data"]
+        # TODO (VI): GET /users/{user_id}, assert 200, assert_schema trên body["data"]
+        response = api.get(f"/users/{user_id}")
+        # YOUR ASSERTIONS HERE
+        pass
+
+    @pytest.mark.api
+    def test_create_user(self, api: ApiClient) -> None:
+        # TODO (EN): POST /users with {"name": "...", "job": "..."}, assert 201,
+        #            assert name and job are echoed back, assert "id" is present
+        # TODO (VI): POST /users với {"name": "...", "job": "..."}, assert 201,
+        #            assert name và job được trả về, assert "id" có mặt
+        payload = {"name": "QA Capstone", "job": "automation engineer"}
+        response = api.post("/users", json=payload)
+        # YOUR ASSERTIONS HERE
+        pass
+
+    @pytest.mark.api
+    def test_update_user(self, api: ApiClient) -> None:
+        # TODO (EN): PUT /users/2 with {"name": "...", "job": "..."}, assert 200,
+        #            assert updated fields are returned, assert "updatedAt" is present
+        # TODO (VI): PUT /users/2 với {"name": "...", "job": "..."}, assert 200,
+        #            assert các field đã cập nhật được trả về, assert "updatedAt" có mặt
+        payload = {"name": "Updated Name", "job": "senior QA"}
+        response = api.put("/users/2", json=payload)
+        # YOUR ASSERTIONS HERE
+        pass
+
+    @pytest.mark.api
+    def test_delete_user(self, api: ApiClient) -> None:
+        # TODO (EN): DELETE /users/2, assert 204, assert response body is empty
+        # TODO (VI): DELETE /users/2, assert 204, assert body response rỗng
+        response = api.delete("/users/2")
+        # YOUR ASSERTIONS HERE
+        pass
+
+    @pytest.mark.api
+    def test_get_user_not_found(self, api: ApiClient) -> None:
+        # TODO (EN): GET /users/9999, assert 404
+        # TODO (VI): GET /users/9999, assert 404
+        response = api.get("/users/9999")
+        # YOUR ASSERTIONS HERE
+        pass
+
+    @pytest.mark.api
+    @pytest.mark.parametrize("page,expected_count", [(1, 6), (2, 6)])
+    def test_pagination(self, api: ApiClient, page: int, expected_count: int) -> None:
+        # TODO (EN): GET /users?page={page}, assert 200,
+        #            assert len(data) == expected_count
+        # TODO (VI): GET /users?page={page}, assert 200,
+        #            assert len(data) == expected_count
+        response = api.get("/users", params={"page": page})
+        # YOUR ASSERTIONS HERE
+        pass`
+  },
+  {
+    title: "Exercise 2 — Add marks to all tests and register them in pytest.ini",
+    code: `# STEP 1: Add @pytest.mark.api to every test in tests/api/
+# STEP 2: Add @pytest.mark.ui to every test in tests/ui/
+# STEP 3: Create pytest.ini at the project root with markers registered
+
+# pytest.ini starter — complete the TODOs
+# [pytest]
+# addopts = ???           # TODO (EN): add --strict-markers flag
+#                         # TODO (VI): thêm flag --strict-markers
+# markers =
+#     api: ???            # TODO (EN): describe what api mark covers
+#     ui: ???             # TODO (VI): mô tả mark ui bao phủ gì
+#     integration: ???
+# testpaths = tests
+# minversion = 7.0
+
+# STEP 4: Verify the marks work correctly
+# Run these three commands and confirm the output:
+
+# Run only API tests (should show only tests/api/ tests):
+#   pytest -m api -v
+# Expected: no "tests/ui/" tests appear in output
+
+# Run only UI tests (should show only tests/ui/ tests):
+#   pytest -m ui -v
+# Expected: no "tests/api/" tests appear in output
+
+# Run everything (no -m filter):
+#   pytest tests/ -v
+# Expected: all tests appear, no PytestUnknownMarkWarning in output
+
+# TODO (EN): Confirm that running pytest -m api shows ONLY API tests.
+# TODO (VI): Xác nhận rằng chạy pytest -m api chỉ hiển thị API test.
+# If you see PytestUnknownMarkWarning, your pytest.ini is missing or the
+# marker name in the file doesn't match what you used in the test.
+
+print("This exercise is about config files — no Python to run here")`
+  },
+  {
+    title: "Exercise 3 — Generate the final Allure report and verify hierarchy",
+    code: `# Run the full suite with Allure output and serve the report.
+# Prerequisites:
+#   pip install allure-pytest
+#   brew install allure    # macOS, OR
+#   scoop install allure   # Windows, OR
+#   sudo apt install allure  # Ubuntu
+
+# Step 1: Run all tests and collect Allure results
+#   pytest tests/ -v --alluredir=allure-results
+
+# Step 2: Serve the Allure report in your browser
+#   allure serve allure-results
+# This opens a local web server and launches your default browser.
+
+# TODO (EN): In the Allure report, navigate to the Behaviours view and verify:
+#   [ ] "ReqRes API" epic is present with "Auth" and "Users CRUD" features
+#   [ ] Each feature shows the correct stories (Login, Register, Read, Create, etc.)
+#   [ ] All test cases show PASSED status
+#   [ ] The failed screenshot test from Day 54 Exercise 2 shows a PNG attachment
+#       (if you kept it) or all tests pass cleanly
+# TODO (VI): Trong Allure report, điều hướng đến Behaviours view và xác minh:
+#   [ ] Epic "ReqRes API" có mặt với feature "Auth" và "Users CRUD"
+#   [ ] Mỗi feature hiển thị story đúng
+#   [ ] Tất cả test case hiển thị trạng thái PASSED
+#   [ ] Screenshot test thất bại từ Bài 54 Bài tập 2 hiển thị đính kèm PNG
+
+# Step 3: Verify parallel job readiness
+# Count how many tests belong to each mark:
+#   pytest tests/ --collect-only -q -m api   | tail -2
+#   pytest tests/ --collect-only -q -m ui    | tail -2
+# The numbers should match what you expect from your test files.
+
+# BONUS: Generate a static HTML report instead of serving live:
+#   allure generate allure-results --clean -o allure-report
+#   open allure-report/index.html   # macOS
+# The allure-report/ directory can be published to GitHub Pages.
+
+print("Run the commands above in your terminal — this is a shell exercise")`
+  }
+]}>
+<En>
+
+**Instructions:**
+
+All exercises use ReqRes.in (https://reqres.in/api) which is a public, always-available mock API — no auth token or account setup needed. Your `ApiClient` should use `https://reqres.in/api` as the base URL.
+
+Setup for your ApiClient fixture in `tests/api/conftest.py`:
+```python
+import pytest
+from api.client import ApiClient
+
+@pytest.fixture
+def api() -> ApiClient:
+    return ApiClient(base_url="https://reqres.in/api")
+```
+
+Install required packages:
+```bash
+pip install pytest allure-pytest jsonschema requests
+```
+
+- [ ] Exercise 1: Implement all 7 test cases in `test_users_crud.py`. Run `pytest tests/api/ -v -m api` and confirm all 7 (plus parametrized variants = 11 total) pass.
+- [ ] Exercise 2: Add `@pytest.mark.api` and `@pytest.mark.ui` to all tests, create `pytest.ini` with `--strict-markers` and registered markers. Run `pytest -m api -v` and confirm no UI tests appear.
+- [ ] Exercise 3: Generate the Allure report with `pytest tests/ --alluredir=allure-results && allure serve allure-results`. Verify the Behaviours view shows the complete epic → feature → story hierarchy.
+
+> Note: ReqRes.in is a stateless mock — DELETE and PATCH operations return correct status codes but do not actually modify the data (a subsequent GET still returns the same user). This is expected behavior for a public mock API.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+
+Tất cả bài tập dùng ReqRes.in (https://reqres.in/api) là mock API công khai, luôn khả dụng — không cần auth token hay thiết lập tài khoản. `ApiClient` của bạn nên dùng `https://reqres.in/api` làm base URL.
+
+Thiết lập fixture ApiClient trong `tests/api/conftest.py`:
+```python
+import pytest
+from api.client import ApiClient
+
+@pytest.fixture
+def api() -> ApiClient:
+    return ApiClient(base_url="https://reqres.in/api")
+```
+
+Cài các gói cần thiết:
+```bash
+pip install pytest allure-pytest jsonschema requests
+```
+
+- [ ] Bài 1: Triển khai tất cả 7 test case trong `test_users_crud.py`. Chạy `pytest tests/api/ -v -m api` và xác nhận tất cả 7 (cộng với biến thể parametrized = 11 tổng cộng) pass.
+- [ ] Bài 2: Thêm `@pytest.mark.api` và `@pytest.mark.ui` vào tất cả test, tạo `pytest.ini` với `--strict-markers` và marker đã đăng ký. Chạy `pytest -m api -v` và xác nhận không có UI test xuất hiện.
+- [ ] Bài 3: Tạo Allure report với `pytest tests/ --alluredir=allure-results && allure serve allure-results`. Xác minh Behaviours view hiển thị hệ thống phân cấp epic → feature → story đầy đủ.
+
+> Lưu ý: ReqRes.in là mock không trạng thái — DELETE và PATCH trả về status code đúng nhưng không thực sự chỉnh sửa dữ liệu (GET tiếp theo vẫn trả về cùng user). Đây là hành vi dự kiến cho mock API công khai.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "Why use `pytest.mark.parametrize` for testing multiple user IDs instead of writing separate test functions?",
+    q: "Why must you test DELETE explicitly rather than assuming it works if Create works?",
+    qVi: "Tại sao bạn phải test DELETE rõ ràng thay vì giả định nó hoạt động nếu Create hoạt động?",
     choices: [
-      "Parametrize is faster because tests run in parallel",
-      "It generates one test case per parameter set with distinct names — the same logic runs against all values without code duplication",
-      "pytest requires parametrize for integer inputs",
-      "Separate test functions don't support fixtures"
+      "DELETE uses a different HTTP method so pytest handles it differently",
+      "Create and Delete are independent code paths. A soft-delete feature, status code regression (204 → 200), or missing cascade delete are real bugs that only a DELETE test catches",
+      "DELETE always requires authentication, Create does not",
+      "HTTP DELETE is optional in REST APIs so clients handle it specially"
+    ],
+    choicesVi: [
+      "DELETE dùng HTTP method khác nên pytest xử lý khác",
+      "Create và Delete là các code path độc lập. Tính năng soft-delete, regression status code (204 → 200), hoặc cascade delete bị thiếu là các bug thực sự mà chỉ DELETE test mới bắt được",
+      "DELETE luôn yêu cầu xác thực, Create thì không",
+      "HTTP DELETE là tùy chọn trong REST API nên client xử lý đặc biệt"
     ],
     answer: 1,
-    explain: "Parametrize creates individual, independently-reported test cases from a list of inputs. If user ID 2 fails but 1 and 3 pass, you see exactly which one failed. Three separate functions would duplicate the assertion logic — one change to the assertion means three edits."
+    explain: "An untested code path is an unverified code path. Developers can introduce a soft-delete feature (is_deleted flag) that satisfies the product requirement but changes the DELETE response from 204 to 200, or introduces a 500 for cascade operations. None of that appears in your test suite unless you have a DELETE test. Create working tells you nothing about whether Delete works — they are separate database operations.",
+    explainVi: "Code path chưa được test là code path chưa được xác minh. Developer có thể giới thiệu tính năng soft-delete (flag is_deleted) thỏa mãn yêu cầu sản phẩm nhưng thay đổi DELETE response từ 204 sang 200, hoặc giới thiệu 500 cho cascade operation. Không có gì trong số đó xuất hiện trong suite test trừ khi bạn có DELETE test. Create hoạt động không cho bạn biết gì về Delete hoạt động — chúng là database operation riêng biệt."
   },
   {
-    q: "What is the benefit of running API tests and UI tests as separate jobs in CI?",
+    q: "Why does `@pytest.mark.parametrize('user_id', [1, 2, 3])` produce better test output than writing three separate test functions?",
+    qVi: "Tại sao `@pytest.mark.parametrize('user_id', [1, 2, 3])` tạo output test tốt hơn so với viết ba hàm test riêng biệt?",
     choices: [
-      "Required — pytest can only run one type of test at a time",
-      "They can run in parallel (reducing total CI time), and a UI test failure won't block the API results from being reported",
-      "It prevents browser installation from affecting the Python environment",
-      "GitHub Actions requires separate jobs for different test types"
+      "Parametrize runs tests in parallel automatically",
+      "Parametrize generates three independently-named and independently-reportable test cases from a single function. If ID 2 fails but 1 and 3 pass, the failure is isolated in the report. Three separate functions would duplicate assertion logic — one schema change needs three edits",
+      "pytest requires parametrize when testing integers",
+      "Three separate functions cannot use the same fixture"
+    ],
+    choicesVi: [
+      "Parametrize chạy test song song tự động",
+      "Parametrize tạo ba test case có tên độc lập và có thể báo cáo độc lập từ một hàm duy nhất. Nếu ID 2 thất bại nhưng 1 và 3 pass, thất bại được cô lập trong report. Ba hàm riêng biệt sẽ nhân đôi logic assertion — một thay đổi schema cần ba lần chỉnh sửa",
+      "pytest yêu cầu parametrize khi test integer",
+      "Ba hàm riêng biệt không thể dùng cùng fixture"
     ],
     answer: 1,
-    explain: "Parallel jobs reduce wall-clock CI time — 8 minutes of API + 12 minutes of UI becomes 12 minutes total, not 20. It also means a flaky UI test (browser, network) doesn't block visibility of API test results, which run in a lighter environment."
+    explain: "pytest.mark.parametrize creates test IDs like test_get_user_by_id[1], test_get_user_by_id[2], test_get_user_by_id[3]. Each is reported independently. A failure on [2] does not hide [1] and [3] results. The assertion code lives in one place — add user_id=4 to the list and you have a fourth test case with zero new code. Three separate functions would each need their own assert_schema call, and any change to the assertion must be made three times.",
+    explainVi: "pytest.mark.parametrize tạo test ID như test_get_user_by_id[1], test_get_user_by_id[2], test_get_user_by_id[3]. Mỗi cái được báo cáo độc lập. Thất bại trên [2] không ẩn kết quả [1] và [3]. Code assertion nằm ở một nơi — thêm user_id=4 vào danh sách và bạn có test case thứ tư mà không cần code mới. Ba hàm riêng biệt mỗi cái cần lời gọi assert_schema riêng, và bất kỳ thay đổi nào cho assertion phải thực hiện ba lần."
+  },
+  {
+    q: "What is the key advantage of using the API for test data setup in an integration test instead of the UI?",
+    qVi: "Lợi thế chính của việc dùng API cho thiết lập dữ liệu test trong test tích hợp thay vì UI là gì?",
+    choices: [
+      "The API has higher test coverage than the UI",
+      "API calls are 20-100x faster than UI form interactions, and setup failures isolate to the API layer rather than hiding bugs in the feature under test",
+      "The UI does not support creating users in most applications",
+      "pytest-playwright cannot navigate to registration forms"
+    ],
+    choicesVi: [
+      "API có độ bao phủ test cao hơn UI",
+      "API call nhanh hơn 20-100 lần so với tương tác UI form, và setup failure được cô lập ở lớp API thay vì ẩn bug trong tính năng đang test",
+      "UI không hỗ trợ tạo user trong hầu hết ứng dụng",
+      "pytest-playwright không thể điều hướng đến form đăng ký"
+    ],
+    answer: 1,
+    explain: "A UI form fill takes 3-5 seconds: navigate, find each field, type, click submit, wait for redirect. A POST request takes 50-150ms. Over a full test suite, this difference is massive. More importantly, when the UI registration form is broken, a test that uses UI for setup fails at the setup step — making it unclear whether the login feature under test is broken or the registration form is. API setup bypasses that ambiguity: if the setup API call succeeds and the login UI fails, you know exactly where the bug is.",
+    explainVi: "Điền UI form mất 3-5 giây: điều hướng, tìm mỗi field, gõ, click submit, chờ redirect. POST request mất 50-150ms. Trên toàn bộ test suite, sự khác biệt này là khổng lồ. Quan trọng hơn, khi form đăng ký UI bị hỏng, test dùng UI cho setup thất bại ở bước setup — không rõ tính năng login đang test bị hỏng hay form đăng ký. API setup bỏ qua sự mơ hồ đó: nếu API setup call thành công và login UI thất bại, bạn biết chính xác bug ở đâu."
+  },
+  {
+    q: "Why should `--strict-markers` be added to addopts in pytest.ini?",
+    qVi: "Tại sao nên thêm `--strict-markers` vào addopts trong pytest.ini?",
+    choices: [
+      "It makes pytest run faster by pre-validating all marks",
+      "Without it, a typo like @pytest.mark.APi (capital P) silently passes no tests when running pytest -m api, giving a false green. With --strict-markers, using an unregistered mark errors immediately, catching the typo at collection time",
+      "GitHub Actions requires --strict-markers for CI",
+      "It prevents parametrize from creating duplicate test IDs"
+    ],
+    choicesVi: [
+      "Nó làm pytest chạy nhanh hơn bằng cách xác thực trước tất cả mark",
+      "Không có nó, lỗi đánh máy như @pytest.mark.APi (chữ P hoa) im lặng không pass test nào khi chạy pytest -m api, cho false green. Với --strict-markers, dùng mark chưa đăng ký sẽ báo lỗi ngay lập tức, bắt lỗi đánh máy lúc collection",
+      "GitHub Actions yêu cầu --strict-markers cho CI",
+      "Nó ngăn parametrize tạo test ID trùng lặp"
+    ],
+    answer: 1,
+    explain: "Without --strict-markers, pytest treats unknown marks as valid but inactive. If a developer writes @pytest.mark.APi (capital P), pytest -m api selects zero tests but reports 'no tests ran' without an error — the CI job passes with an empty suite, which is a silent false green. With --strict-markers enabled, that mark causes a collection error immediately. The error says exactly which mark is unknown and which file it is in.",
+    explainVi: "Không có --strict-markers, pytest coi mark không xác định là hợp lệ nhưng không hoạt động. Nếu developer viết @pytest.mark.APi (chữ P hoa), pytest -m api chọn không có test nào nhưng báo cáo 'no tests ran' mà không có lỗi — job CI pass với suite trống, đây là false green im lặng. Với --strict-markers được bật, mark đó gây ra collection error ngay lập tức. Lỗi cho biết chính xác mark nào không xác định và nó ở file nào."
+  },
+  {
+    q: "In the CI workflow, why does running api-tests and ui-tests as parallel jobs reduce total CI time?",
+    qVi: "Trong CI workflow, tại sao chạy api-tests và ui-tests dưới dạng job song song giảm tổng thời gian CI?",
+    choices: [
+      "Parallel jobs share the same runner so each runs twice as fast",
+      "Parallel jobs run on separate runners simultaneously. Total wall-clock time equals the duration of the slowest job, not the sum — if api takes 2 min and ui takes 8 min, total is 8 min rather than 10 min",
+      "GitHub Actions charges less for parallel jobs",
+      "Parallel jobs skip the pytest collection phase"
+    ],
+    choicesVi: [
+      "Job song song chia sẻ cùng runner nên mỗi cái chạy nhanh gấp đôi",
+      "Job song song chạy trên runner riêng biệt đồng thời. Tổng thời gian wall-clock bằng thời gian của job chậm nhất, không phải tổng — nếu api mất 2 phút và ui mất 8 phút, tổng là 8 phút thay vì 10 phút",
+      "GitHub Actions tính phí ít hơn cho job song song",
+      "Job song song bỏ qua phase collection pytest"
+    ],
+    answer: 1,
+    explain: "Sequential jobs: api (2 min) → ui (8 min) → total 10 min. Parallel jobs: both start simultaneously, finish at max(2, 8) = 8 min. For a suite that runs 20 times per day, saving 2 minutes per run is 40 minutes of developer waiting time saved daily. The benefit compounds as the suite grows.",
+    explainVi: "Job tuần tự: api (2 phút) → ui (8 phút) → tổng 10 phút. Job song song: cả hai bắt đầu đồng thời, kết thúc tại max(2, 8) = 8 phút. Với suite chạy 20 lần mỗi ngày, tiết kiệm 2 phút mỗi lần là 40 phút thời gian chờ developer tiết kiệm hàng ngày. Lợi ích tích lũy khi suite phát triển."
+  },
+  {
+    q: "Why does a DELETE test for /users/2 in ReqRes.in return 204 even when you GET /users/2 afterwards and it still returns 200?",
+    qVi: "Tại sao DELETE test cho /users/2 trong ReqRes.in trả về 204 ngay cả khi bạn GET /users/2 sau đó và nó vẫn trả về 200?",
+    choices: [
+      "204 means the deletion is pending and will complete asynchronously",
+      "ReqRes.in is a stateless mock API — it simulates the correct HTTP response codes but does not actually persist changes. A real API with a database would remove the record",
+      "GET /users/2 after DELETE uses a cached response",
+      "The DELETE endpoint requires an authorization header that was not sent"
+    ],
+    choicesVi: [
+      "204 có nghĩa là việc xóa đang chờ xử lý và sẽ hoàn thành bất đồng bộ",
+      "ReqRes.in là mock API không trạng thái — nó mô phỏng HTTP response code đúng nhưng không thực sự lưu trữ thay đổi. API thực với database sẽ xóa record",
+      "GET /users/2 sau DELETE dùng cached response",
+      "Endpoint DELETE yêu cầu authorization header chưa được gửi"
+    ],
+    answer: 1,
+    explain: "ReqRes.in is intentionally stateless — it is a practice target that reliably returns the correct status codes and response shapes for learning purposes, without a persistent database. This is why it is safe to use in CI (no cleanup needed) and consistent across test runs. When testing against a real API, you would need to either chain DELETE → GET to verify the 404, or use test database isolation strategies.",
+    explainVi: "ReqRes.in cố ý không có trạng thái — nó là mục tiêu luyện tập trả về status code và response shape đúng một cách đáng tin cậy cho mục đích học tập, không có database lưu trữ. Đây là lý do tại sao nó an toàn để dùng trong CI (không cần dọn dẹp) và nhất quán qua các lần chạy test. Khi test trên API thực, bạn cần chain DELETE → GET để xác minh 404, hoặc dùng chiến lược cô lập database test."
+  },
+  {
+    q: "In test_create_user, why assert `body['name'] == payload['name']` in addition to just validating the schema?",
+    qVi: "Trong test_create_user, tại sao assert `body['name'] == payload['name']` ngoài việc chỉ validate schema?",
+    choices: [
+      "Schema validation does not check string values, only types",
+      "Schema validates structure and types. A value assertion catches a bug where the server echoes back a different record's name or a default value — the schema would pass but the wrong data was stored",
+      "jsonschema.validate raises an exception for strings without value checks",
+      "It is required for Allure to display the correct step name"
+    ],
+    choicesVi: [
+      "Schema validation không kiểm tra giá trị string, chỉ kiểm tra kiểu",
+      "Schema validate cấu trúc và kiểu. Value assertion bắt bug nơi server trả về tên của record khác hoặc giá trị mặc định — schema sẽ pass nhưng dữ liệu sai đã được lưu",
+      "jsonschema.validate ném exception cho string mà không kiểm tra giá trị",
+      "Nó được yêu cầu để Allure hiển thị tên step đúng"
+    ],
+    answer: 1,
+    explain: "Schema validation confirms the response has the right shape: 'name' is a string, 'id' is present, etc. But a schema allows any string for 'name' — including an empty string, a default placeholder, or the name from a completely different user. Value assertions catch the specific bug where the server processed the request but stored or returned the wrong data. Both layers of assertion are necessary for thorough POST test coverage.",
+    explainVi: "Schema validation xác nhận response có shape đúng: 'name' là string, 'id' có mặt, v.v. Nhưng schema cho phép bất kỳ string nào cho 'name' — kể cả chuỗi rỗng, placeholder mặc định, hoặc tên từ user hoàn toàn khác. Value assertion bắt bug cụ thể nơi server xử lý request nhưng lưu hoặc trả về dữ liệu sai. Cả hai lớp assertion đều cần thiết cho bao phủ POST test kỹ lưỡng."
+  },
+  {
+    q: "What problem does the `timeout-minutes` setting in each GitHub Actions job prevent?",
+    qVi: "Cài đặt `timeout-minutes` trong mỗi GitHub Actions job ngăn vấn đề gì?",
+    choices: [
+      "It prevents tests from running too quickly and being marked flaky",
+      "It cancels the job if it runs longer than expected — protecting against browser hangs, infinite waits, or test infrastructure failures that would otherwise consume CI runner time for hours",
+      "It is required by GitHub to avoid billing overcharges",
+      "It limits the number of parallel test threads"
+    ],
+    choicesVi: [
+      "Nó ngăn test chạy quá nhanh và bị đánh dấu flaky",
+      "Nó hủy job nếu nó chạy lâu hơn dự kiến — bảo vệ trước browser hang, infinite wait, hoặc lỗi test infrastructure sẽ tiêu tốn thời gian CI runner hàng giờ",
+      "Nó được GitHub yêu cầu để tránh billing quá mức",
+      "Nó giới hạn số luồng test song song"
+    ],
+    answer: 1,
+    explain: "Without timeout-minutes, a single test that hangs waiting for a browser event that never comes (e.g., a network request to a dead endpoint, an element that never appears) will run until GitHub's hard limit of 6 hours. The entire CI pipeline is blocked, the runner is consumed, and no other PRs can be processed. Setting realistic timeouts (10 min for API, 20 min for UI) means a hung test fails fast and the runner is returned to the pool.",
+    explainVi: "Không có timeout-minutes, một test duy nhất bị treo chờ browser event không bao giờ đến (ví dụ: network request đến endpoint chết, phần tử không bao giờ xuất hiện) sẽ chạy đến giới hạn cứng của GitHub là 6 giờ. Toàn bộ CI pipeline bị chặn, runner bị tiêu thụ và không có PR nào khác có thể được xử lý. Đặt timeout thực tế (10 phút cho API, 20 phút cho UI) nghĩa là test bị treo thất bại nhanh và runner được trả về pool."
+  },
+  {
+    q: "Why does the validation failure test (POST with missing fields) belong in the API test suite even if the UI validates the form before submission?",
+    qVi: "Tại sao test validation failure (POST với thiếu field) thuộc về API test suite ngay cả khi UI validate form trước khi submit?",
+    choices: [
+      "It does not belong — UI validation makes the API test redundant",
+      "UI validation is client-side and can be bypassed. The API must validate independently. If someone submits a direct API request (curl, Postman, mobile app) without going through the UI, the API must still reject invalid input",
+      "pytest cannot test UI forms so API testing is the only option",
+      "Validation tests are required by the jsonschema library"
+    ],
+    choicesVi: [
+      "Nó không thuộc về — UI validation làm API test dư thừa",
+      "UI validation là client-side và có thể bị bypass. API phải validate độc lập. Nếu ai đó submit API request trực tiếp (curl, Postman, mobile app) mà không qua UI, API vẫn phải từ chối input không hợp lệ",
+      "pytest không thể test UI form nên API testing là lựa chọn duy nhất",
+      "Test validation được yêu cầu bởi thư viện jsonschema"
+    ],
+    answer: 1,
+    explain: "Defense in depth: client-side validation (UI) is a UX feature, not a security feature. Any HTTP client can bypass the UI entirely and send malformed requests directly to the API. The API must validate all input independently of the UI. An API that relies on the UI to prevent bad data will accept malformed requests from curl, mobile clients, other services, or malicious actors — often causing database corruption or unhandled server errors.",
+    explainVi: "Phòng thủ theo chiều sâu: client-side validation (UI) là tính năng UX, không phải tính năng bảo mật. Bất kỳ HTTP client nào cũng có thể bypass UI hoàn toàn và gửi request không đúng định dạng trực tiếp đến API. API phải validate tất cả input độc lập với UI. API dựa vào UI để ngăn dữ liệu xấu sẽ chấp nhận request không đúng định dạng từ curl, mobile client, service khác, hoặc kẻ xấu — thường gây ra database corruption hoặc server error chưa được xử lý."
+  },
+  {
+    q: "What does `if: always()` on the 'Upload Allure results' step in the CI workflow ensure?",
+    qVi: "`if: always()` trên bước 'Upload Allure results' trong CI workflow đảm bảo điều gì?",
+    choices: [
+      "The step runs even on the first push to the repository",
+      "The Allure results are uploaded regardless of whether the test step passed or failed — so you always have evidence of what failed, not just results from passing runs",
+      "GitHub Actions always runs this step in parallel with the tests",
+      "It prevents the workflow from being cancelled if the runner is overloaded"
+    ],
+    choicesVi: [
+      "Bước chạy ngay cả ở lần push đầu tiên vào repository",
+      "Allure results được upload bất kể bước test pass hay fail — nên bạn luôn có bằng chứng về những gì thất bại, không chỉ kết quả từ các lần chạy pass",
+      "GitHub Actions luôn chạy bước này song song với test",
+      "Nó ngăn workflow bị hủy nếu runner quá tải"
+    ],
+    answer: 1,
+    explain: "By default, if a step fails, subsequent steps are skipped. Without 'if: always()', a test failure would skip the artifact upload — leaving you with no Allure results to investigate why the tests failed. 'if: always()' makes the upload unconditional, so failing test runs produce the most valuable artifacts: the full Allure report showing exactly which tests failed and their attached screenshots.",
+    explainVi: "Theo mặc định, nếu một bước thất bại, các bước tiếp theo bị bỏ qua. Không có 'if: always()', test failure sẽ bỏ qua upload artifact — không có Allure results để điều tra tại sao test thất bại. 'if: always()' làm cho upload vô điều kiện, nên các lần chạy test thất bại tạo ra artifact có giá trị nhất: Allure report đầy đủ hiển thị chính xác test nào thất bại và screenshot đính kèm của chúng."
   }
 ]} />
 

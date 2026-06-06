@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, MessageSquare, Users, BookOpen, Home } from 'lucide-react'
+import { LayoutDashboard, MessageSquare, Users, BookOpen, Home, Gift } from 'lucide-react'
 
 const links = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/admin/comments', label: 'Comments', icon: MessageSquare, exact: false },
   { href: '/admin/users', label: 'Users', icon: Users, exact: false },
   { href: '/admin/lessons', label: 'Lessons', icon: BookOpen, exact: false },
+  { href: '/admin/pride', label: 'Pride', icon: Gift, exact: false },
 ]
 
 export function AdminNav() {

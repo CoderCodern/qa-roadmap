@@ -219,3 +219,27 @@ export const lessonAvailability = pgTable('lesson_availability', {
   available: boolean('available').notNull().default(true),
   updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().defaultNow(),
 })
+
+/**
+ * One row per pride/reward redemption — created when a logged-in user
+ * redeems a shop product (points spend) or claims a phase completion reward.
+ * Admin marks delivered=true once the physical item has been handed to the user.
+ */
+export const prideRedemptions = pgTable('pride_redemption', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  productId: integer('product_id').notNull(),
+  productName: text('product_name').notNull(),
+  productNameVi: text('product_name_vi').notNull(),
+  price: text('price').notNull(),
+  pointsSpent: integer('points_spent').notNull().default(0),
+  type: text('type').notNull(), // 'shop' | 'phase'
+  phaseId: integer('phase_id'),
+  delivered: boolean('delivered').notNull().default(false),
+  deliveredAt: timestamp('delivered_at', { mode: 'date' }),
+  createdAt: timestamp('created_at', { mode: 'date' }).notNull().defaultNow(),
+})

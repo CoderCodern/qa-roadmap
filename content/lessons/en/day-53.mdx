@@ -9,226 +9,1119 @@ tags: ["capstone", "planning", "architecture"]
 ## Intro
 
 <En>
-The capstone project is your chance to demonstrate everything from the past eight weeks in one cohesive, professional framework. Today you kick off the project: you define requirements, choose your target application, scaffold the full directory structure, and write your first passing test. By the end of this session your framework is alive — not just a plan.
+The capstone project is your chance to demonstrate everything from the past eight weeks in one cohesive, professional framework. Today you kick off the project: you scaffold the full directory structure, install dependencies, write the foundational client and fixture code, and verify your setup by getting one test green. Getting a single test green before writing more is not a shortcut — it is the discipline. Every minute you spend writing test 2 through 50 on an environment that doesn't actually work is wasted. The scaffold-first, verify-first approach is the same one professional engineers use when starting any project from scratch.
 </En>
 <Vi>
-Dự án capstone là cơ hội để bạn thể hiện mọi thứ từ tám tuần qua trong một framework chuyên nghiệp, gắn kết. Hôm nay bạn khởi động dự án: xác định yêu cầu, chọn ứng dụng mục tiêu, khởi tạo cấu trúc thư mục đầy đủ và viết test đầu tiên vượt qua. Đến cuối buổi này framework của bạn đã hoạt động — không chỉ là kế hoạch.
+Dự án capstone là cơ hội để bạn thể hiện mọi thứ từ tám tuần qua trong một framework chuyên nghiệp, gắn kết. Hôm nay bạn khởi động dự án: bạn tạo cấu trúc thư mục đầy đủ, cài đặt dependency, viết code client và fixture nền tảng, và xác minh thiết lập bằng cách có một test vượt qua. Có một test vượt qua trước khi viết thêm không phải là đường tắt — đó là kỷ luật. Mỗi phút bạn dành viết test 2 đến 50 trên một môi trường thực ra không hoạt động là lãng phí. Phương pháp scaffold trước, xác minh trước là phương pháp mà các kỹ sư chuyên nghiệp dùng khi bắt đầu bất kỳ dự án nào từ đầu.
 </Vi>
 
 ## Concept
 
 <En>
-**Capstone requirements checklist:**
+**Why scaffold before writing tests — the engineering reasoning**
+
+When you sit down to write a capstone framework, the temptation is to dive straight into test code. Resist it. The reason to scaffold first is not procedural — it is risk management. Before you write one `assert`, you want to know that:
+
+1. Python finds your `api/` package (import path is correct)
+2. `pytest` discovers your test files (naming and `testpaths` are configured)
+3. The target API is reachable from your machine
+4. The fixture chain works end-to-end (session → client → HTTP call)
+
+If any of these are broken and you don't discover it until test #15, you'll waste significant debugging time — and the failure will look like a test bug when it's actually a configuration bug. Scaffolding and verifying with one test is the cheapest way to smoke-test the entire stack.
+
+---
+
+**Why `requirements.txt` matters for reproducibility**
+
+A `requirements.txt` (or its equivalent) is not optional infrastructure — it is a reproducibility contract. It answers the question: "can someone else (or a CI runner) set up this project from scratch and get the same results?"
+
+Without it:
+- Your CI pipeline installs different (newer) versions of libraries and your tests break in unexpected ways
+- A teammate clones your repo and can't reproduce your test failures because they're running a different `requests` version
+- Six months from now, you revisit the project and can't remember which version of `allure-pytest` you used
+
+With pinned versions in `requirements.txt`:
+```
+pytest==8.3.2
+requests==2.32.3
+jsonschema==4.23.0
+allure-pytest==2.13.5
+```
+
+The environment is deterministic. Anyone running `pip install -r requirements.txt` gets the exact same dependency tree you tested with.
+
+---
+
+**Why `pytest.ini` matters**
+
+`pytest.ini` centralizes configuration so that running `pytest` from the project root always works — no flags to remember, no environment variables to set. The two most important settings:
+
+- `testpaths = tests` — tells pytest exactly where to look for tests instead of searching the whole tree (faster and prevents accidental test discovery in `venv/` or `node_modules/`)
+- `addopts = -v --tb=short` — applies `-v` (verbose output showing each test name) and `--tb=short` (concise traceback for failures) to every run
+
+Without `pytest.ini`, a new contributor would need to know the correct invocation. With it, `pytest` just works.
+
+---
+
+**Why session-scoped auth fixture — the engineering reasoning**
+
+ReqRes.in's `POST /login` returns a token. Your test suite needs that token for any authenticated endpoint. You have two choices for how to provide it:
+
+**Option A — function scope (default)**
+```python
+@pytest.fixture  # scope="function" is the default
+def auth_api():
+    # This runs before EVERY SINGLE test function that requests it
+    client.post("/login", ...)
+```
+With 30 tests that request `auth_api`, this makes 30 login calls. For ReqRes.in it doesn't matter much, but for a real application with rate limiting, a slow auth service, or billable API calls, this is wasteful and fragile.
+
+**Option B — session scope**
+```python
+@pytest.fixture(scope="session")
+def auth_api():
+    # This runs ONCE for the entire test session
+    client.post("/login", ...)
+```
+One login call. The token is reused across all tests that need it. This is the correct choice for any fixture that produces expensive-to-acquire, reusable state.
+
+The general rule: use the widest scope that is still correct. Session > module > class > function.
+
+---
+
+**Why `api/client.py` is a wrapper and not just raw `requests` calls**
+
+Wrapping `requests.Session` in an `ApiClient` class gives you four things that raw `requests.get(url)` calls don't:
+
+1. **Base URL centralization** — change `https://reqres.in/api` in one place, not in 50 test files
+2. **Auth header injection** — set `Authorization: Bearer <token>` once at client construction; every request carries it automatically
+3. **Session reuse** — `requests.Session` reuses the TCP connection between calls (connection pooling), which is meaningfully faster than creating a new connection per call
+4. **Testability** — you can mock `ApiClient` in unit tests without touching the network
+
+The capstone `ApiClient` is intentionally minimal — no retry logic, no response parsing, no business logic. It is a thin HTTP adapter, nothing more. Business logic belongs in tests, not in the client.
+
+---
+
+**Capstone requirements checklist**
 
 A portfolio-grade capstone framework must include:
-- [ ] A real target application (not a toy — use JSONPlaceholder, ReqRes, or Restful-Booker)
+- [ ] A real target application (ReqRes.in, Restful-Booker, or similar — not a toy)
 - [ ] API tests covering at least 3 endpoints (CRUD)
-- [ ] UI tests covering at least 2 user flows
 - [ ] Schema validation on all GET responses
-- [ ] Positive and negative test cases
-- [ ] Shared fixtures and data factory
-- [ ] Allure report integration
-- [ ] GitHub Actions CI
-- [ ] Written test plan (Day 52)
-- [ ] README with setup instructions
+- [ ] Positive and negative test cases for each endpoint
+- [ ] Shared fixtures with appropriate scope (session for auth, function for ephemeral data)
+- [ ] Allure report integration (decorators + report generation)
+- [ ] GitHub Actions CI (runs on push to main)
+- [ ] Written test plan (Day 52's document)
+- [ ] `requirements.txt` with pinned versions
+- [ ] `README.md` with setup instructions
 
-**Choosing a target application:**
+**ReqRes.in as the target:**
 
-| App | API | UI | Auth | Notes |
-|-----|-----|-----|------|-------|
-| JSONPlaceholder | ✓ | ✗ | ✗ | Best for API-only capstone |
-| ReqRes.in | ✓ | ✗ | ✓ | Has login endpoint — good for auth testing |
-| Restful-Booker | ✓ | ✓ | ✓ | Best full-stack capstone target |
-| Swag Labs (Sauce Demo) | ✗ | ✓ | ✓ | Classic UI testing app |
+ReqRes.in (`https://reqres.in/api`) is a purpose-built public REST API for testing. It is an excellent capstone target because:
+- No API key or registration required
+- Has user list, user detail, create, update, delete, login, register, and pagination
+- Simulates writes (returns correct responses without persisting data, so no cleanup needed)
+- Fast and reliable with no rate limiting
 
-**ReqRes.in** is a strong choice: it has user listing, user creation, login/auth, and pagination — enough to demonstrate all API testing skills with a real auth flow.
-
-**Kickoff checklist (do these today):**
-1. Create the project directory structure
-2. Install all dependencies
-3. Write `conftest.py` with base URL and session fixture
-4. Write one passing API test
-5. Verify `pytest tests/ -v` shows green
+Available endpoints for your capstone:
+- `GET /users?page=1` — paginated user list
+- `GET /users/{id}` — single user (valid: 1–12, invalid: 13+ returns 404)
+- `POST /users` — create user
+- `PUT /users/{id}` — full update
+- `PATCH /users/{id}` — partial update
+- `DELETE /users/{id}` — returns 204
+- `POST /login` — returns `{"token": "QpwL5tpe83ilfN2"}` for valid credentials
+- `POST /register` — returns `{"id": 4, "token": "..."}` or 400 for missing fields
 </En>
 <Vi>
-**Checklist yêu cầu capstone:**
+**Tại sao scaffold trước khi viết test — lý luận kỹ thuật**
+
+Khi bạn ngồi xuống viết framework capstone, sự cám dỗ là lao thẳng vào code test. Hãy cưỡng lại. Lý do để scaffold trước không phải là thủ tục — đó là quản lý rủi ro. Trước khi viết một `assert`, bạn muốn biết rằng:
+
+1. Python tìm thấy package `api/` của bạn (đường dẫn import đúng)
+2. `pytest` khám phá các file test của bạn (đặt tên và `testpaths` được cấu hình)
+3. API mục tiêu có thể truy cập từ máy của bạn
+4. Chuỗi fixture hoạt động end-to-end (session → client → HTTP call)
+
+Nếu bất kỳ điều nào trong số này bị hỏng và bạn không phát hiện ra cho đến test thứ 15, bạn sẽ lãng phí thời gian debug đáng kể — và lỗi sẽ trông giống như lỗi test trong khi thực ra là lỗi cấu hình. Scaffold và xác minh với một test là cách rẻ nhất để smoke-test toàn bộ stack.
+
+---
+
+**Tại sao `scope="session"` cho auth fixture**
+
+Với 30 test yêu cầu `auth_api`, function scope thực hiện 30 lần đăng nhập. Session scope thực hiện một lần duy nhất. Quy tắc chung: dùng scope rộng nhất vẫn còn đúng. Session > module > class > function.
+
+---
+
+**Tại sao `api/client.py` là wrapper và không phải là lời gọi `requests` thuần**
+
+Bọc `requests.Session` trong class `ApiClient` cho bạn bốn thứ mà lời gọi `requests.get(url)` thuần không có:
+
+1. **Tập trung hóa base URL** — thay đổi một chỗ, không phải 50 file test
+2. **Tiêm auth header** — đặt `Authorization: Bearer <token>` một lần khi khởi tạo client; mọi request tự động mang nó
+3. **Tái sử dụng session** — `requests.Session` tái sử dụng kết nối TCP giữa các lần gọi (connection pooling)
+4. **Khả năng test** — bạn có thể mock `ApiClient` trong unit test mà không cần chạm đến mạng
+
+---
+
+**Checklist yêu cầu capstone**
 
 Một framework capstone đạt chuẩn portfolio phải bao gồm:
-- [ ] Ứng dụng mục tiêu thực sự (không phải đồ chơi — dùng JSONPlaceholder, ReqRes, hoặc Restful-Booker)
+- [ ] Ứng dụng mục tiêu thực sự (ReqRes.in, Restful-Booker, hoặc tương tự — không phải đồ chơi)
 - [ ] API test bao phủ ít nhất 3 endpoint (CRUD)
-- [ ] UI test bao phủ ít nhất 2 luồng người dùng
 - [ ] Xác thực schema trên tất cả GET response
-- [ ] Test case tích cực và tiêu cực
-- [ ] Fixture dùng chung và data factory
+- [ ] Test case tích cực và tiêu cực cho mỗi endpoint
+- [ ] Fixture dùng chung với scope phù hợp (session cho auth, function cho dữ liệu tạm thời)
 - [ ] Tích hợp báo cáo Allure
 - [ ] GitHub Actions CI
-- [ ] Kế hoạch test đã viết (Ngày 52)
-- [ ] README với hướng dẫn thiết lập
-
-**Checklist khởi động (làm hôm nay):**
-1. Tạo cấu trúc thư mục dự án
-2. Cài đặt tất cả dependency
-3. Viết `conftest.py` với URL cơ sở và session fixture
-4. Viết một API test vượt qua
-5. Xác minh `pytest tests/ -v` hiển thị màu xanh
+- [ ] Kế hoạch test đã viết (tài liệu của Ngày 52)
+- [ ] `requirements.txt` với phiên bản được ghim
+- [ ] `README.md` với hướng dẫn thiết lập
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Scaffold the project structure**
+
+</En>
+<Vi>
+
+**Phần 1 — Tạo cấu trúc dự án**
+
+</Vi>
+
 ```bash
-# Scaffold the full project
+# Run these commands in your terminal to scaffold the capstone project.
+# After running, `tree capstone-framework` should match the structure shown below.
+
 mkdir capstone-framework && cd capstone-framework
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-pip install pytest requests jsonschema playwright allure-pytest pytest-playwright responses
-playwright install chromium
+# Create virtual environment and activate it
+python -m venv .venv
+source .venv/bin/activate           # macOS / Linux
+# .venv\Scripts\activate            # Windows
 
-# Create directory structure
-mkdir -p api/endpoints pages schemas fixtures tests/api tests/ui utils .github/workflows
-touch api/__init__.py api/client.py api/endpoints/__init__.py
-touch pages/__init__.py pages/base_page.py pages/login_page.py
-touch tests/__init__.py tests/conftest.py tests/api/__init__.py tests/ui/__init__.py
-touch utils/__init__.py utils/assertions.py utils/data_factory.py
+# Install all dependencies at once
+pip install pytest==8.3.2 requests==2.32.3 jsonschema==4.23.0 \
+            allure-pytest==2.13.5 pytest-xdist==3.6.1
+
+# Freeze exact versions to requirements.txt for reproducibility
+pip freeze > requirements.txt
+
+# Create the directory tree
+mkdir -p api/endpoints
+mkdir -p schemas
+mkdir -p tests/api
+mkdir -p utils
+mkdir -p .github/workflows
+
+# Create Python package marker files
+touch api/__init__.py
+touch api/endpoints/__init__.py
+touch tests/__init__.py
+touch tests/api/__init__.py
+touch utils/__init__.py
+
+# Create source files (empty for now — we'll fill them in the parts below)
+touch api/client.py
+touch tests/conftest.py
+touch tests/api/test_users.py
+touch utils/assertions.py
 touch pytest.ini
+touch .github/workflows/api-tests.yml
+
+# Expected directory tree:
+# capstone-framework/
+# ├── api/
+# │   ├── __init__.py
+# │   ├── client.py
+# │   └── endpoints/
+# │       └── __init__.py
+# ├── schemas/
+# ├── tests/
+# │   ├── __init__.py
+# │   ├── conftest.py
+# │   └── api/
+# │       ├── __init__.py
+# │       └── test_users.py
+# ├── utils/
+# │   ├── __init__.py
+# │   └── assertions.py
+# ├── .github/
+# │   └── workflows/
+# │       └── api-tests.yml
+# ├── pytest.ini
+# └── requirements.txt
 ```
+
+<En>
+
+**Part 2 — `api/client.py`: the HTTP adapter**
+
+</En>
+<Vi>
+
+**Phần 2 — `api/client.py`: HTTP adapter**
+
+</Vi>
 
 ```python
 # api/client.py
+#
+# A thin wrapper around requests.Session that centralizes the base URL,
+# injects auth headers automatically, and provides one method per HTTP verb.
+# This class contains zero business logic — it is purely an HTTP adapter.
+# All assertions and validations belong in the test files, not here.
+
 import requests
 
+
 class ApiClient:
+    """
+    Reusable HTTP client for the capstone test suite.
+
+    Usage:
+        client = ApiClient("https://reqres.in/api")
+        resp = client.get("/users/2")
+
+        # Authenticated client (token injected automatically into every request):
+        auth_client = ApiClient("https://reqres.in/api", token="QpwL5tpe83ilfN2")
+        resp = auth_client.get("/users/2")
+    """
+
     def __init__(self, base_url: str, token: str | None = None) -> None:
         self._session = requests.Session()
-        self._session.headers["Content-Type"] = "application/json"
+        self._session.headers.update({
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        })
         if token:
             self._session.headers["Authorization"] = f"Bearer {token}"
+        # Strip trailing slash so paths like "/users/1" always work correctly
         self.base_url = base_url.rstrip("/")
 
+    def _url(self, path: str) -> str:
+        """Prepend the base URL to a relative path."""
+        return f"{self.base_url}{path}"
+
     def get(self, path: str, **kwargs) -> requests.Response:
-        return self._session.get(f"{self.base_url}{path}", **kwargs)
+        return self._session.get(self._url(path), **kwargs)
 
     def post(self, path: str, **kwargs) -> requests.Response:
-        return self._session.post(f"{self.base_url}{path}", **kwargs)
+        return self._session.post(self._url(path), **kwargs)
 
     def put(self, path: str, **kwargs) -> requests.Response:
-        return self._session.put(f"{self.base_url}{path}", **kwargs)
-
-    def delete(self, path: str, **kwargs) -> requests.Response:
-        return self._session.delete(f"{self.base_url}{path}", **kwargs)
+        return self._session.put(self._url(path), **kwargs)
 
     def patch(self, path: str, **kwargs) -> requests.Response:
-        return self._session.patch(f"{self.base_url}{path}", **kwargs)
+        return self._session.patch(self._url(path), **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self._session.delete(self._url(path), **kwargs)
+
+    def close(self) -> None:
+        """Explicitly close the underlying session (releases TCP connections)."""
+        self._session.close()
 ```
+
+<En>
+
+**Part 3 — `tests/conftest.py`: fixtures**
+
+</En>
+<Vi>
+
+**Phần 3 — `tests/conftest.py`: fixtures**
+
+</Vi>
 
 ```python
 # tests/conftest.py
+#
+# Session-scoped fixtures are defined here so they are available to ALL test
+# files under tests/ without needing to import anything.
+#
+# Fixture scope quick reference:
+#   scope="function"  — created/destroyed for EVERY test function (default)
+#   scope="class"     — created/destroyed once per test class
+#   scope="module"    — created/destroyed once per test file
+#   scope="session"   — created/destroyed once for the entire pytest run
+#
+# Use "session" for expensive, reusable state (HTTP clients, auth tokens).
+# Use "function" for data that must be fresh per test (created resources, etc).
+
 import pytest
 from api.client import ApiClient
 
 BASE_URL = "https://reqres.in/api"
 
+
 @pytest.fixture(scope="session")
 def api() -> ApiClient:
-    return ApiClient(BASE_URL)
+    """
+    Unauthenticated API client for the entire test session.
+
+    Session scope: the client is created once and reused by all tests that
+    request it. This avoids re-initializing the requests.Session on every test,
+    which would waste the connection pool and slow down the suite.
+    """
+    client = ApiClient(BASE_URL)
+    yield client
+    client.close()  # release TCP connections when the session ends
+
 
 @pytest.fixture(scope="session")
 def auth_api() -> ApiClient:
-    """Authenticated client — logs in once for the whole session."""
+    """
+    Authenticated API client — logs in once and reuses the token for all tests.
+
+    Why session scope?
+    - POST /login is a real network call. With scope="function" (the default),
+      a suite of 30 tests using auth_api would make 30 login calls.
+    - With scope="session", the login call happens once. The token is valid
+      for the entire run. This is both faster and less fragile.
+
+    The assert on resp.status_code here is intentional: if login fails,
+    pytest raises an error during fixture setup, which makes the failure
+    reason immediately clear rather than burying it inside a test body.
+    """
     client = ApiClient(BASE_URL)
-    resp = client.post("/login", json={"email": "eve.holt@reqres.in", "password": "cityslicka"})
-    assert resp.status_code == 200, f"Login failed: {resp.text}"
+    resp = client.post("/login", json={
+        "email": "eve.holt@reqres.in",
+        "password": "cityslicka",
+    })
+    assert resp.status_code == 200, (
+        f"Auth fixture: login failed with {resp.status_code}. "
+        f"Response: {resp.text}"
+    )
     token = resp.json()["token"]
-    return ApiClient(BASE_URL, token=token)
+
+    # Return a new client pre-configured with the token.
+    # This client injects `Authorization: Bearer <token>` on every request.
+    auth_client = ApiClient(BASE_URL, token=token)
+    yield auth_client
+    auth_client.close()
 ```
 
+<En>
+
+**Part 4 — `tests/api/test_users.py`: the first passing tests**
+
+</En>
+<Vi>
+
+**Phần 4 — `tests/api/test_users.py`: những test vượt qua đầu tiên**
+
+</Vi>
+
 ```python
-# tests/api/test_users.py — first passing test
-import pytest
+# tests/api/test_users.py
+#
+# Run with: pytest tests/ -v
+# Run with Allure: pytest tests/ -v --alluredir=allure-results
+#                 allure serve allure-results
+#
+# These tests target https://reqres.in/api — a public mock API.
+# No credentials or setup required for the unauthenticated tests.
+
 import allure
-from jsonschema import validate
+import pytest
+from jsonschema import validate, ValidationError
+
 from api.client import ApiClient
+
+
+# ---------------------------------------------------------------------------
+# JSON Schema definitions
+# Schema validation catches contract violations that status code checks miss.
+# Example: the API returns 200 but renames "first_name" to "firstName" —
+# the status check passes but the schema check catches the breaking change.
+# ---------------------------------------------------------------------------
 
 USER_SCHEMA = {
     "type": "object",
     "required": ["id", "email", "first_name", "last_name", "avatar"],
     "properties": {
         "id":         {"type": "integer"},
-        "email":      {"type": "string"},
-        "first_name": {"type": "string"},
-        "last_name":  {"type": "string"},
-        "avatar":     {"type": "string"},
+        "email":      {"type": "string", "format": "email"},
+        "first_name": {"type": "string", "minLength": 1},
+        "last_name":  {"type": "string", "minLength": 1},
+        "avatar":     {"type": "string", "format": "uri"},
+    },
+    "additionalProperties": False,
+}
+
+LIST_RESPONSE_SCHEMA = {
+    "type": "object",
+    "required": ["page", "per_page", "total", "total_pages", "data"],
+    "properties": {
+        "page":        {"type": "integer"},
+        "per_page":    {"type": "integer"},
+        "total":       {"type": "integer"},
+        "total_pages": {"type": "integer"},
+        "data":        {"type": "array", "items": USER_SCHEMA},
     },
 }
 
-@allure.epic("User API")
-@allure.feature("Users")
+
+# ---------------------------------------------------------------------------
+# Test class
+# ---------------------------------------------------------------------------
+
+@allure.epic("ReqRes.in Capstone")
+@allure.feature("User API")
 class TestUsers:
 
-    @allure.story("Read")
+    @allure.story("List users")
     @allure.severity(allure.severity_level.CRITICAL)
+    @allure.title("GET /users?page=1 returns paginated list with correct schema")
+    def test_list_users_page_1(self, api: ApiClient):
+        """Verify that the paginated user list endpoint returns valid data."""
+        with allure.step("GET /users?page=1"):
+            response = api.get("/users", params={"page": 1})
+
+        with allure.step("Verify 200 status code"):
+            assert response.status_code == 200, (
+                f"Expected 200, got {response.status_code}. Body: {response.text}"
+            )
+
+        with allure.step("Parse response body"):
+            body = response.json()
+
+        with allure.step("Validate list response schema"):
+            # jsonschema.validate raises ValidationError if the response
+            # doesn't match the schema — catching contract regressions early.
+            validate(instance=body, schema=LIST_RESPONSE_SCHEMA)
+
+        with allure.step("Verify pagination metadata"):
+            assert body["page"] == 1
+            assert body["per_page"] > 0
+            assert body["total"] > 0
+            assert len(body["data"]) > 0, "Expected at least one user in the list"
+
+    @allure.story("Retrieve user")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.title("GET /users/2 returns correct user data and schema")
     def test_get_user_by_id(self, api: ApiClient):
+        """Verify that a valid user ID returns the user object with correct schema."""
         with allure.step("GET /users/2"):
             response = api.get("/users/2")
-        with allure.step("Verify 200 status"):
+
+        with allure.step("Verify 200 status code"):
             assert response.status_code == 200
-        with allure.step("Validate schema"):
+
+        with allure.step("Validate user schema"):
             data = response.json()["data"]
             validate(instance=data, schema=USER_SCHEMA)
 
-    @allure.story("Read")
-    def test_list_users_page_1(self, api: ApiClient):
-        with allure.step("GET /users?page=1"):
-            response = api.get("/users", params={"page": 1})
-        assert response.status_code == 200
-        body = response.json()
-        assert body["page"] == 1
-        assert len(body["data"]) > 0
+        with allure.step("Verify user ID matches requested ID"):
+            assert data["id"] == 2
 
-    @allure.story("Read")
-    def test_user_not_found(self, api: ApiClient):
-        response = api.get("/users/9999")
-        assert response.status_code == 404
+    @allure.story("Retrieve user")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("GET /users/9999 returns 404 for non-existent user")
+    def test_get_user_not_found(self, api: ApiClient):
+        """Verify that requesting a non-existent user ID returns 404."""
+        with allure.step("GET /users/9999"):
+            response = api.get("/users/9999")
+
+        with allure.step("Verify 404 status code"):
+            assert response.status_code == 404, (
+                f"Expected 404 for non-existent user, got {response.status_code}"
+            )
+
+    @allure.story("Create user")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.title("POST /users creates a user and returns 201 with id and createdAt")
+    def test_create_user(self, api: ApiClient):
+        """Verify that creating a user returns 201 with the expected fields."""
+        payload = {"name": "QA Engineer", "job": "Test Automation"}
+
+        with allure.step("POST /users with valid payload"):
+            response = api.post("/users", json=payload)
+
+        with allure.step("Verify 201 status code"):
+            assert response.status_code == 201, (
+                f"Expected 201, got {response.status_code}. Body: {response.text}"
+            )
+
+        with allure.step("Verify response contains expected fields"):
+            body = response.json()
+            assert "id" in body, "Response must contain 'id'"
+            assert "createdAt" in body, "Response must contain 'createdAt'"
+            assert body["name"] == payload["name"]
+            assert body["job"] == payload["job"]
+
+    @allure.story("Retrieve user")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("GET /users?page=N returns correct page metadata for pages 1 and 2")
+    @pytest.mark.parametrize("page", [1, 2])
+    def test_list_users_pagination(self, api: ApiClient, page: int):
+        """Verify that the page metadata in the response matches the requested page."""
+        with allure.step(f"GET /users?page={page}"):
+            response = api.get("/users", params={"page": page})
+
+        assert response.status_code == 200
+        assert response.json()["page"] == page
 ```
+
+<En>
+
+**Part 5 — `pytest.ini` and `requirements.txt`**
+
+</En>
+<Vi>
+
+**Phần 5 — `pytest.ini` và `requirements.txt`**
+
+</Vi>
 
 ```ini
 # pytest.ini
+# Centralizes pytest configuration so `pytest` works from the project root
+# without any additional flags or environment variables.
+
 [pytest]
+# testpaths: tells pytest where to look for tests.
+# Without this, pytest searches the entire directory tree — which would
+# accidentally discover tests inside .venv/, node_modules/, or build/ folders.
 testpaths = tests
+
+# addopts: default flags applied to every pytest run.
+# -v          : verbose output — shows each test name with PASSED/FAILED
+# --tb=short  : short traceback format — shows the error line without the full stack
+# These are safe defaults for both local development and CI.
 addopts = -v --tb=short
+```
+
+```
+# requirements.txt
+# Pinned dependency versions for deterministic environments.
+# Install with: pip install -r requirements.txt
+#
+# Why pin versions?
+# - Ensures CI, teammates, and your own future self get the same library versions
+# - Prevents "works on my machine" failures caused by newer library versions
+#   with breaking changes or different behavior
+#
+# Regenerate with: pip freeze > requirements.txt  (after installing in a clean venv)
+
+pytest==8.3.2
+requests==2.32.3
+jsonschema==4.23.0
+allure-pytest==2.13.5
+pytest-xdist==3.6.1
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Scaffold the full capstone directory structure and run `pytest tests/ -v` — confirm the first test passes (green) before writing any more tests
-- [ ] Write `utils/assertions.py` with `assert_status()`, `assert_schema()`, and `assert_response_ok()` — refactor the users test to use these helpers instead of raw asserts
-- [ ] Document your chosen target application in your `TEST_PLAN.md` — fill in sections 1 (Objective) and 2 (Scope) with specifics for that app
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Scaffold and verify: get one test green",
+    code: `# scaffold_verify.py
+# This script scaffolds the capstone project and verifies the setup.
+# Run with: python scaffold_verify.py
+# After running, execute: pytest tests/ -v
+# You should see at least 1 PASSED test before writing any more.
+
+import subprocess
+import sys
+import os
+
+def run(cmd: str, check: bool = True) -> subprocess.CompletedProcess:
+    """Run a shell command and print it."""
+    print(f"  $ {cmd}")
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if check and result.returncode != 0:
+        print(f"  ERROR: {result.stderr.strip()}")
+        sys.exit(1)
+    if result.stdout.strip():
+        print(f"  {result.stdout.strip()}")
+    return result
+
+print("=== Step 1: Verify Python version ===")
+# TODO (EN): Check that Python 3.11+ is installed.
+# Hint: import sys and check sys.version_info.major and .minor
+# TODO (VI): Kiểm tra Python 3.11+ đã được cài đặt.
+# Gợi ý: import sys và kiểm tra sys.version_info.major và .minor
+major, minor = sys.version_info.major, sys.version_info.minor
+assert major == 3 and minor >= 11, f"Need Python 3.11+, got {major}.{minor}"
+print(f"  Python {major}.{minor} OK")
+
+print()
+print("=== Step 2: Install dependencies ===")
+# TODO (EN): Run pip install for all required packages.
+# Use the exact versions from requirements.txt shown in the lesson.
+# TODO (VI): Chạy pip install cho tất cả package cần thiết.
+# Dùng phiên bản chính xác từ requirements.txt được hiển thị trong bài học.
+run("pip install pytest==8.3.2 requests==2.32.3 jsonschema==4.23.0 allure-pytest==2.13.5")
+
+print()
+print("=== Step 3: Verify ReqRes.in is reachable ===")
+# TODO (EN): Use the requests library to GET https://reqres.in/api/users/1
+# and assert the status code is 200. Print the user's first_name on success.
+# TODO (VI): Dùng thư viện requests để GET https://reqres.in/api/users/1
+# và assert status code là 200. In first_name của user khi thành công.
+import requests
+resp = requests.get("https://reqres.in/api/users/1")
+assert resp.status_code == 200, f"ReqRes.in not reachable: {resp.status_code}"
+print(f"  API reachable. First user: {resp.json()['data']['first_name']}")
+
+print()
+print("=== Step 4: Verify pytest discovers tests ===")
+# TODO (EN): Run "pytest tests/ --collect-only -q" and check it exits 0.
+# This step verifies imports and test discovery before running any tests.
+# TODO (VI): Chạy "pytest tests/ --collect-only -q" và kiểm tra exit 0.
+# Bước này xác minh import và test discovery trước khi chạy bất kỳ test nào.
+result = run("pytest tests/ --collect-only -q", check=False)
+if result.returncode != 0:
+    print("  Test discovery failed. Check your directory structure and __init__.py files.")
+    sys.exit(1)
+print("  Test discovery OK")
+
+print()
+print("=== Step 5: Run the first test ===")
+# TODO (EN): Run "pytest tests/ -v -k test_get_user_by_id" and assert exit 0.
+# This is the smoke test — one green test proves the full stack works.
+# TODO (VI): Chạy "pytest tests/ -v -k test_get_user_by_id" và assert exit 0.
+# Đây là smoke test — một test xanh chứng minh toàn bộ stack hoạt động.
+result = run("pytest tests/ -v -k test_get_user_by_id", check=False)
+if result.returncode == 0:
+    print()
+    print("SUCCESS: First test is green. Framework is alive.")
+    print("Next step: write more tests in tests/api/test_users.py")
+else:
+    print()
+    print("FAILED: First test did not pass. Debug before writing more tests.")
+    print("Common causes:")
+    print("  - Missing __init__.py files in api/ or tests/")
+    print("  - pytest.ini testpaths not set to 'tests'")
+    print("  - Import error in api/client.py or tests/conftest.py")`
+  },
+  {
+    title: "Exercise 2 — Extend the test suite with auth and negative cases",
+    code: `# tests/api/test_auth.py
+# Add these tests to your capstone project.
+# ReqRes.in login endpoint: POST https://reqres.in/api/login
+# Valid credentials:   email="eve.holt@reqres.in", password="cityslicka"
+# Invalid credentials: any email + wrong password → 400
+# Missing password:    email only, no password field → 400 with "Missing password"
+
+import pytest
+import allure
+import requests
+
+BASE_URL = "https://reqres.in/api"
+
+
+@allure.epic("ReqRes.in Capstone")
+@allure.feature("Authentication")
+class TestLogin:
+
+    @allure.story("Successful login")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.title("POST /login with valid credentials returns 200 and token")
+    def test_login_valid_credentials(self):
+        # TODO (EN): POST to /login with valid credentials.
+        # Assert: status code is 200, response body contains "token" key,
+        # and the token value is a non-empty string.
+        # TODO (VI): POST đến /login với credentials hợp lệ.
+        # Assert: status code là 200, response body chứa key "token",
+        # và giá trị token là chuỗi không rỗng.
+        response = requests.post(
+            f"{BASE_URL}/login",
+            json={
+                "email": "eve.holt@reqres.in",
+                "password": "cityslicka",
+            }
+        )
+        # YOUR ASSERTIONS HERE:
+        assert response.status_code == ???
+        body = response.json()
+        assert ??? in body, "Response must contain 'token'"
+        assert isinstance(body[???], str) and len(body[???]) > 0
+
+    @allure.story("Failed login")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("POST /login without password returns 400 with error message")
+    def test_login_missing_password(self):
+        # TODO (EN): POST to /login with only an email (no password field).
+        # Assert: status code is 400, response body contains "error" key.
+        # TODO (VI): POST đến /login chỉ với email (không có trường password).
+        # Assert: status code là 400, response body chứa key "error".
+        response = requests.post(
+            f"{BASE_URL}/login",
+            json={"email": "eve.holt@reqres.in"}  # no password
+        )
+        assert response.status_code == ???
+        assert ??? in response.json()
+
+    @allure.story("Failed login")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("POST /login with wrong password returns 400")
+    def test_login_wrong_password(self):
+        # TODO (EN): POST to /login with a valid email but wrong password.
+        # Assert: status code is 400.
+        # TODO (VI): POST đến /login với email hợp lệ nhưng password sai.
+        # Assert: status code là 400.
+        response = requests.post(
+            f"{BASE_URL}/login",
+            json={"email": "eve.holt@reqres.in", "password": "wrongpassword"}
+        )
+        assert response.status_code == ???
+
+    @allure.story("Successful login")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("POST /login token can be used to call an authenticated endpoint")
+    def test_login_token_is_usable(self):
+        # TODO (EN): Log in to get a token, then use it to make a GET request
+        # to /users/2 with the header "Authorization: Bearer <token>".
+        # Assert: status code is 200 (proves the token works).
+        # TODO (VI): Đăng nhập để lấy token, rồi dùng nó để thực hiện GET request
+        # đến /users/2 với header "Authorization: Bearer <token>".
+        # Assert: status code là 200 (chứng minh token hoạt động).
+
+        # Step 1: log in
+        login_resp = requests.post(
+            f"{BASE_URL}/login",
+            json={"email": "eve.holt@reqres.in", "password": "cityslicka"}
+        )
+        assert login_resp.status_code == 200
+        token = login_resp.json()[???]
+
+        # Step 2: use the token
+        headers = {"Authorization": f"Bearer {???}"}
+        user_resp = requests.get(f"{BASE_URL}/users/2", headers=headers)
+        assert user_resp.status_code == ???`
+  },
+  {
+    title: "Exercise 3 — Write `utils/assertions.py` and refactor one test to use it",
+    code: `# utils/assertions.py
+# Shared assertion helpers that eliminate boilerplate from test files.
+# After writing these helpers, refactor test_get_user_by_id in test_users.py
+# to use assert_status() and assert_schema() instead of raw asserts.
+
+import requests
+from jsonschema import validate, ValidationError
+from typing import Any
+
+
+def assert_status(response: requests.Response, expected: int) -> None:
+    """
+    Assert HTTP status code with a descriptive failure message.
+
+    Why not just write \`assert response.status_code == 200\`?
+    When a raw assert fails you see: AssertionError
+    When this helper fails you see:
+        Expected status 200, got 404. URL: GET https://reqres.in/api/users/9999
+        Body: {}
+    The context makes the failure immediately actionable.
+
+    TODO (EN): Implement this function.
+    - Assert response.status_code == expected
+    - On failure, raise AssertionError with a message that includes:
+        the expected status, the actual status, the request method+URL, and the response body
+    TODO (VI): Triển khai hàm này.
+    - Assert response.status_code == expected
+    - Khi thất bại, raise AssertionError với thông báo bao gồm:
+        status mong đợi, status thực tế, method+URL của request, và body của response
+    """
+    # YOUR IMPLEMENTATION HERE:
+    if response.status_code != expected:
+        method = response.request.method if response.request else "?"
+        url = response.url
+        raise AssertionError(
+            f"Expected status {???}, got {???}. "
+            f"URL: {???} {???}\n"
+            f"Body: {response.text[:500]}"
+        )
+
+
+def assert_schema(data: Any, schema: dict) -> None:
+    """
+    Assert that \`data\` conforms to the given JSON Schema.
+
+    Wraps jsonschema.validate() with a cleaner error message.
+
+    TODO (EN): Implement this function.
+    - Call jsonschema.validate(instance=data, schema=schema)
+    - Catch ValidationError and re-raise as AssertionError with the message:
+        "Schema validation failed: <original error message>"
+    TODO (VI): Triển khai hàm này.
+    - Gọi jsonschema.validate(instance=data, schema=schema)
+    - Bắt ValidationError và re-raise thành AssertionError với thông báo:
+        "Schema validation failed: <thông báo lỗi gốc>"
+    """
+    # YOUR IMPLEMENTATION HERE:
+    try:
+        validate(instance=???, schema=???)
+    except ValidationError as exc:
+        raise AssertionError(f"Schema validation failed: {exc.message}") from exc
+
+
+def assert_response_ok(response: requests.Response, schema: dict | None = None) -> dict:
+    """
+    Combined helper: assert 200 status + optionally validate schema.
+    Returns the parsed JSON body for use in the calling test.
+
+    TODO (EN): Implement using assert_status() and assert_schema() above.
+    1. Call assert_status(response, 200)
+    2. Parse response.json() into body
+    3. If schema is not None, call assert_schema(body, schema)
+    4. Return body
+
+    TODO (VI): Triển khai dùng assert_status() và assert_schema() ở trên.
+    1. Gọi assert_status(response, 200)
+    2. Parse response.json() thành body
+    3. Nếu schema không phải None, gọi assert_schema(body, schema)
+    4. Trả về body
+    """
+    # YOUR IMPLEMENTATION HERE:
+    assert_status(???, ???)
+    body = response.???()
+    if schema is not None:
+        assert_schema(???, ???)
+    return ???
+
+
+# ---------------------------------------------------------------------------
+# Quick self-test — run with: python utils/assertions.py
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    import requests as _requests
+
+    print("Testing assert_status...")
+    mock_resp = _requests.Response()
+    mock_resp.status_code = 200
+    assert_status(mock_resp, 200)   # should pass silently
+    print("  assert_status(200, expected=200) → PASS")
+
+    try:
+        assert_status(mock_resp, 404)  # should raise
+        print("  ERROR: should have raised AssertionError")
+    except AssertionError as e:
+        print(f"  assert_status(200, expected=404) raises as expected: {e}")
+
+    print("All self-tests passed.")`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Run the scaffold script, then run `pytest tests/ -v` — you must see at least `1 passed` before writing any more tests. Do NOT proceed to exercises 2 and 3 until exercise 1 passes.
+- [ ] Exercise 2: Add `tests/api/test_auth.py` to your project. Fill in every `???` placeholder, then run `pytest tests/api/test_auth.py -v` and confirm all 4 tests pass.
+- [ ] Exercise 3: Implement all three functions in `utils/assertions.py`, run the self-test (`python utils/assertions.py`), then refactor `test_get_user_by_id` in `test_users.py` to use `assert_response_ok()` instead of raw asserts.
+
+> Note: ReqRes.in is a public API — no API key or registration required. All exercises run against live endpoints and require an internet connection. Run `pytest tests/ -v` to see results; run `pytest tests/ -v --alluredir=allure-results && allure serve allure-results` to see the Allure report.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài 1: Chạy scaffold script, rồi chạy `pytest tests/ -v` — bạn phải thấy ít nhất `1 passed` trước khi viết thêm test nào. KHÔNG tiếp tục sang bài 2 và 3 cho đến khi bài 1 vượt qua.
+- [ ] Bài 2: Thêm `tests/api/test_auth.py` vào dự án của bạn. Điền vào mọi placeholder `???`, rồi chạy `pytest tests/api/test_auth.py -v` và xác nhận cả 4 test vượt qua.
+- [ ] Bài 3: Triển khai cả ba hàm trong `utils/assertions.py`, chạy self-test (`python utils/assertions.py`), rồi refactor `test_get_user_by_id` trong `test_users.py` để dùng `assert_response_ok()` thay vì raw assert.
+
+> Lưu ý: ReqRes.in là API công khai — không cần API key hay đăng ký. Tất cả bài tập chạy đối với endpoint trực tiếp và yêu cầu kết nối internet. Chạy `pytest tests/ -v` để xem kết quả; chạy `pytest tests/ -v --alluredir=allure-results && allure serve allure-results` để xem báo cáo Allure.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Why should the `auth_api` fixture have `scope='session'` rather than the default `scope='function'`?",
+    qVi: "Tại sao fixture `auth_api` phải có `scope='session'` thay vì `scope='function'` mặc định?",
     choices: [
-      "Session scope is required for authenticated requests",
+      "Session scope is required by the requests library for authenticated HTTP calls",
       "It logs in once and reuses the token for all tests — avoiding a login API call before every single test function",
-      "Function scope would cause token expiry",
-      "pytest requires session scope for all fixtures"
+      "Function scope would cause the authentication token to expire between tests",
+      "pytest requires session scope for all network-related fixtures"
+    ],
+    choicesVi: [
+      "Session scope được yêu cầu bởi thư viện requests cho các HTTP call đã xác thực",
+      "Nó đăng nhập một lần và tái sử dụng token cho tất cả test — tránh gọi API đăng nhập trước mỗi hàm test đơn lẻ",
+      "Function scope sẽ khiến token xác thực hết hạn giữa các test",
+      "pytest yêu cầu session scope cho tất cả fixture liên quan đến mạng"
     ],
     answer: 1,
-    explain: "With scope='session', the login call happens once per test run. With scope='function' (the default), pytest would log in before every test function — 30 login calls for 30 tests. Session scope is the correct choice for expensive setup that produces reusable state."
+    explain: "With scope='session', the login call happens once per test run — one POST /login regardless of how many tests use the fixture. With scope='function' (the default), pytest re-runs the login fixture before every test function that requests it. For 30 tests, that's 30 login calls. Session scope is the correct choice for any fixture that produces expensive-to-acquire, reusable state.",
+    explainVi: "Với scope='session', lần gọi đăng nhập xảy ra một lần mỗi lần chạy test — một POST /login bất kể bao nhiêu test dùng fixture. Với scope='function' (mặc định), pytest chạy lại login fixture trước mỗi hàm test yêu cầu nó. Với 30 test, đó là 30 lần gọi đăng nhập. Session scope là lựa chọn đúng cho bất kỳ fixture nào tạo ra trạng thái có thể tái sử dụng tốn kém để có được."
   },
   {
     q: "What is the first thing you should do when starting a capstone project?",
+    qVi: "Điều đầu tiên bạn nên làm khi bắt đầu capstone project là gì?",
     choices: [
-      "Write all 50+ tests",
-      "Set up CI/CD",
-      "Scaffold the directory structure and get one test green — proves the environment works before investing in more code",
-      "Install all dependencies and configure Allure"
+      "Write all 50+ tests to maximize coverage quickly",
+      "Set up CI/CD on GitHub Actions before writing any test code",
+      "Scaffold the directory structure and get one test green — this proves the environment works before investing time in more code",
+      "Install all dependencies and configure Allure reporting"
+    ],
+    choicesVi: [
+      "Viết tất cả 50+ test để tối đa hóa độ bao phủ nhanh chóng",
+      "Thiết lập CI/CD trên GitHub Actions trước khi viết bất kỳ code test nào",
+      "Scaffold cấu trúc thư mục và có một test xanh — điều này chứng minh môi trường hoạt động trước khi đầu tư thời gian vào code khác",
+      "Cài đặt tất cả dependency và cấu hình báo cáo Allure"
     ],
     answer: 2,
-    explain: "Walking the project skeleton end-to-end (scaffold → install → first test green) validates the environment before you write dozens of tests. Discovering that pytest can't find the test directory after writing 50 tests is extremely painful — get one green test first."
+    explain: "Walking the project skeleton end-to-end (scaffold → install → first test green) validates the environment before you write dozens of tests. Discovering that pytest can't find the test directory, or that the import path for api/client.py is wrong, after writing 50 tests is extremely painful. One green test proves the full stack works: Python finds the package, pytest discovers the test, the fixture runs, the HTTP call succeeds, and the assertion passes.",
+    explainVi: "Đi qua skeleton dự án từ đầu đến cuối (scaffold → install → test đầu tiên xanh) xác thực môi trường trước khi bạn viết hàng chục test. Phát hiện rằng pytest không tìm thấy thư mục test, hoặc đường dẫn import cho api/client.py sai, sau khi viết 50 test là cực kỳ đau đớn. Một test xanh chứng minh toàn bộ stack hoạt động: Python tìm thấy package, pytest khám phá test, fixture chạy, HTTP call thành công, và assertion vượt qua."
+  },
+  {
+    q: "Why does `ApiClient` wrap `requests.Session` instead of calling `requests.get()` directly?",
+    qVi: "Tại sao `ApiClient` bọc `requests.Session` thay vì gọi `requests.get()` trực tiếp?",
+    choices: [
+      "requests.Session is required for HTTPS connections",
+      "It centralizes the base URL, injects auth headers automatically, reuses TCP connections via session pooling, and makes the client mockable in unit tests",
+      "Direct requests.get() calls do not support JSON payloads",
+      "requests.Session provides automatic retry logic that requests.get() lacks"
+    ],
+    choicesVi: [
+      "requests.Session được yêu cầu cho các kết nối HTTPS",
+      "Nó tập trung hóa base URL, tự động tiêm auth header, tái sử dụng kết nối TCP qua session pooling, và làm cho client có thể mock trong unit test",
+      "Các lời gọi requests.get() trực tiếp không hỗ trợ JSON payload",
+      "requests.Session cung cấp logic retry tự động mà requests.get() không có"
+    ],
+    answer: 1,
+    explain: "A wrapper class gives you four things: (1) base URL centralization — change the URL in one place, not in 50 test files; (2) automatic auth header injection — set the token once at construction, every request carries it; (3) TCP connection reuse via session pooling, which is faster than a new connection per call; (4) testability — you can mock ApiClient in unit tests without any network calls. Direct requests.get() calls scatter the base URL everywhere and make authentication repetitive.",
+    explainVi: "Một wrapper class cho bạn bốn thứ: (1) tập trung hóa base URL — thay đổi URL ở một chỗ, không phải 50 file test; (2) tự động tiêm auth header — đặt token một lần khi khởi tạo, mọi request mang nó; (3) tái sử dụng kết nối TCP qua session pooling, nhanh hơn kết nối mới mỗi lần gọi; (4) khả năng test — bạn có thể mock ApiClient trong unit test mà không cần bất kỳ network call nào. Các lời gọi requests.get() trực tiếp rải rác base URL khắp nơi và làm xác thực trở nên lặp đi lặp lại."
+  },
+  {
+    q: "What does `pytest.ini`'s `testpaths = tests` setting do?",
+    qVi: "Cài đặt `testpaths = tests` trong `pytest.ini` có tác dụng gì?",
+    choices: [
+      "It sets the working directory for all test processes",
+      "It tells pytest to look for test files only inside the `tests/` directory, preventing accidental test discovery in .venv/ or other folders",
+      "It imports the tests module automatically before each test run",
+      "It configures the path where Allure reports are saved"
+    ],
+    choicesVi: [
+      "Nó đặt thư mục làm việc cho tất cả tiến trình test",
+      "Nó cho pytest biết chỉ tìm file test trong thư mục `tests/`, ngăn khám phá test ngẫu nhiên trong .venv/ hoặc các thư mục khác",
+      "Nó import module tests tự động trước mỗi lần chạy test",
+      "Nó cấu hình đường dẫn lưu báo cáo Allure"
+    ],
+    answer: 1,
+    explain: "Without testpaths, pytest searches the entire directory tree from the current directory. This can accidentally discover and try to run Python files in .venv/ (your virtual environment), node_modules/, or build/ directories — which causes confusing errors. Setting testpaths = tests tells pytest exactly where to look, making test discovery fast and deterministic.",
+    explainVi: "Không có testpaths, pytest tìm kiếm toàn bộ cây thư mục từ thư mục hiện tại. Điều này có thể vô tình khám phá và cố gắng chạy các file Python trong .venv/ (môi trường ảo của bạn), node_modules/, hoặc thư mục build/ — gây ra lỗi khó hiểu. Đặt testpaths = tests cho pytest biết chính xác nơi cần tìm, làm cho test discovery nhanh và xác định."
+  },
+  {
+    q: "Why does `requirements.txt` use pinned versions (e.g., `pytest==8.3.2`) instead of unpinned (e.g., `pytest`)? ",
+    qVi: "Tại sao `requirements.txt` dùng phiên bản được ghim (ví dụ: `pytest==8.3.2`) thay vì không ghim (ví dụ: `pytest`)?",
+    choices: [
+      "Pinned versions install faster because pip skips the version resolution step",
+      "Unpinned versions are not supported by GitHub Actions",
+      "Pinned versions ensure deterministic environments — everyone installs the exact same library versions, preventing 'works on my machine' failures from version drift",
+      "pytest requires exact version pinning to enable its caching mechanism"
+    ],
+    choicesVi: [
+      "Phiên bản được ghim cài đặt nhanh hơn vì pip bỏ qua bước giải quyết phiên bản",
+      "Phiên bản không được ghim không được GitHub Actions hỗ trợ",
+      "Phiên bản được ghim đảm bảo môi trường xác định — mọi người cài đặt cùng phiên bản thư viện chính xác, ngăn chặn lỗi 'hoạt động trên máy của tôi' do version drift",
+      "pytest yêu cầu ghim phiên bản chính xác để kích hoạt cơ chế cache của nó"
+    ],
+    answer: 2,
+    explain: "Without pinned versions, `pip install -r requirements.txt` installs the latest available versions at the time of installation. When a library releases a new version with breaking changes or different behavior, your CI passes but your teammate's local run fails — or vice versa. Pinned versions guarantee that every environment (local, CI, colleague's machine) installs the exact same dependency tree you tested with.",
+    explainVi: "Không có phiên bản được ghim, `pip install -r requirements.txt` cài đặt các phiên bản mới nhất có sẵn tại thời điểm cài đặt. Khi thư viện phát hành phiên bản mới với thay đổi phá vỡ tương thích hoặc hành vi khác, CI của bạn vượt qua nhưng máy local của đồng nghiệp thất bại — hoặc ngược lại. Phiên bản được ghim đảm bảo mọi môi trường (local, CI, máy đồng nghiệp) cài đặt chính xác cùng dependency tree bạn đã test."
+  },
+  {
+    q: "In the `conftest.py` fixture, why does `auth_api` call `assert resp.status_code == 200` during fixture setup rather than inside a test?",
+    qVi: "Trong fixture `conftest.py`, tại sao `auth_api` gọi `assert resp.status_code == 200` trong quá trình setup fixture thay vì bên trong test?",
+    choices: [
+      "Assertions in fixtures run faster than assertions in tests",
+      "It is a pytest requirement that all network calls in fixtures must be asserted",
+      "If login fails, the assertion causes a fixture setup error — making the failure reason immediately visible as 'ERROR during setup' rather than a confusing failure inside a test body",
+      "The assertion prevents the token from expiring during the test session"
+    ],
+    choicesVi: [
+      "Assertion trong fixture chạy nhanh hơn assertion trong test",
+      "Đây là yêu cầu của pytest rằng tất cả network call trong fixture phải được assert",
+      "Nếu đăng nhập thất bại, assertion gây ra lỗi setup fixture — làm cho lý do thất bại hiển thị ngay lập tức là 'ERROR during setup' thay vì lỗi khó hiểu bên trong phần thân test",
+      "Assertion ngăn token hết hạn trong phiên test"
+    ],
+    answer: 2,
+    explain: "If the login call fails and you don't assert in the fixture, every test that uses `auth_api` would fail with a confusing error like `KeyError: 'token'` or `AttributeError: NoneType`. The failure message would point to a line inside a test file, not to the actual cause (login failed). Asserting in the fixture causes pytest to report 'ERROR during setup of auth_api' with the HTTP status and response body — making the root cause immediately actionable.",
+    explainVi: "Nếu lần gọi đăng nhập thất bại và bạn không assert trong fixture, mọi test dùng `auth_api` sẽ thất bại với lỗi khó hiểu như `KeyError: 'token'` hoặc `AttributeError: NoneType`. Thông báo lỗi sẽ chỉ vào một dòng bên trong file test, không phải nguyên nhân thực sự (đăng nhập thất bại). Assert trong fixture khiến pytest báo cáo 'ERROR during setup of auth_api' với HTTP status và response body — làm cho nguyên nhân gốc rễ có thể hành động ngay."
+  },
+  {
+    q: "ReqRes.in's POST /users endpoint returns 201 but does not actually store the new user. What does this mean for test design?",
+    qVi: "Endpoint POST /users của ReqRes.in trả về 201 nhưng thực sự không lưu user mới. Điều này có nghĩa gì cho thiết kế test?",
+    choices: [
+      "You cannot test the create endpoint because it doesn't work correctly",
+      "Tests are stateless — you can verify the response contract (status code, response fields) without needing cleanup, and the same test can run repeatedly without data pollution",
+      "You must mock the POST endpoint to test creation accurately",
+      "You need to add a cleanup fixture that deletes the created user after each test"
+    ],
+    choicesVi: [
+      "Bạn không thể test endpoint create vì nó không hoạt động đúng",
+      "Các test không có trạng thái — bạn có thể xác minh response contract (status code, response fields) mà không cần dọn dẹp, và cùng test có thể chạy lặp lại mà không có ô nhiễm dữ liệu",
+      "Bạn phải mock endpoint POST để test việc tạo chính xác",
+      "Bạn cần thêm fixture dọn dẹp xóa user đã tạo sau mỗi test"
+    ],
+    answer: 1,
+    explain: "ReqRes.in simulates persistence — it returns a realistic 201 response with an id and createdAt timestamp, but the data isn't stored. For testing purposes, this is fine: you're validating the API contract (does it return 201? does the response include the expected fields?), not the persistence layer. The side effect is that tests are inherently stateless — no cleanup fixtures needed, no test isolation concerns, and the suite can run on CI indefinitely without data accumulation.",
+    explainVi: "ReqRes.in mô phỏng persistence — nó trả về response 201 thực tế với id và timestamp createdAt, nhưng dữ liệu không được lưu trữ. Đối với mục đích kiểm thử, điều này ổn: bạn đang xác thực API contract (nó có trả về 201 không? response có bao gồm các field mong đợi không?), không phải persistence layer. Tác dụng phụ là các test vốn không có trạng thái — không cần fixture dọn dẹp, không có vấn đề cô lập test, và bộ test có thể chạy trên CI vô thời hạn mà không tích lũy dữ liệu."
+  },
+  {
+    q: "What is the purpose of JSON Schema validation in API tests, beyond checking the HTTP status code?",
+    qVi: "Mục đích của xác thực JSON Schema trong API test là gì, ngoài việc kiểm tra HTTP status code?",
+    choices: [
+      "Schema validation is faster than status code checks and replaces them",
+      "Schema validation catches contract violations that status code checks miss — such as a field being renamed, a type changing from string to integer, or a required field being removed",
+      "JSON Schema validation is required by the HTTP standard for all REST APIs",
+      "Schema validation checks whether the API server is running correctly"
+    ],
+    choicesVi: [
+      "Xác thực schema nhanh hơn kiểm tra status code và thay thế chúng",
+      "Xác thực schema bắt các vi phạm contract mà kiểm tra status code bỏ lỡ — như một field bị đổi tên, kiểu thay đổi từ string sang integer, hoặc field bắt buộc bị xóa",
+      "Xác thực JSON Schema được yêu cầu bởi tiêu chuẩn HTTP cho tất cả REST API",
+      "Xác thực schema kiểm tra liệu API server có đang chạy đúng không"
+    ],
+    answer: 1,
+    explain: "Status code checks (assert response.status_code == 200) only verify that the server responded without an error. They say nothing about the response shape. Schema validation catches breaking contract changes: a developer renames `first_name` to `firstName`, changes `id` from integer to string, or removes the `avatar` field. Without schema validation, your tests would pass after these changes even though the consumers of that API would break. This is why schema validation is a separate, mandatory layer.",
+    explainVi: "Kiểm tra status code (assert response.status_code == 200) chỉ xác minh rằng server đã phản hồi mà không có lỗi. Chúng không nói gì về hình dạng response. Xác thực schema bắt các thay đổi contract phá vỡ: developer đổi tên `first_name` thành `firstName`, thay đổi `id` từ integer sang string, hoặc xóa field `avatar`. Không có xác thực schema, test của bạn sẽ vượt qua sau những thay đổi này ngay cả khi người tiêu dùng API đó sẽ bị phá vỡ. Đây là lý do xác thực schema là một lớp riêng biệt, bắt buộc."
+  },
+  {
+    q: "Why do `api/__init__.py` and `tests/__init__.py` files need to exist, even if they are empty?",
+    qVi: "Tại sao các file `api/__init__.py` và `tests/__init__.py` cần tồn tại, ngay cả khi chúng rỗng?",
+    choices: [
+      "pytest requires __init__.py files to discover test files",
+      "They mark the directories as Python packages, enabling `from api.client import ApiClient` to work as an absolute import",
+      "They contain the fixture definitions that conftest.py uses",
+      "They prevent Python from caching the directory as a namespace package"
+    ],
+    choicesVi: [
+      "pytest yêu cầu file __init__.py để khám phá file test",
+      "Chúng đánh dấu các thư mục là Python package, cho phép `from api.client import ApiClient` hoạt động như absolute import",
+      "Chúng chứa định nghĩa fixture mà conftest.py sử dụng",
+      "Chúng ngăn Python cache thư mục như namespace package"
+    ],
+    answer: 1,
+    explain: "A directory becomes a Python package when it contains __init__.py. Without it, `from api.client import ApiClient` fails with ModuleNotFoundError because Python doesn't recognize `api/` as an importable package. The files can be completely empty — their presence alone is what registers the directory as a package with Python's import system.",
+    explainVi: "Một thư mục trở thành Python package khi nó chứa __init__.py. Không có nó, `from api.client import ApiClient` thất bại với ModuleNotFoundError vì Python không nhận ra `api/` là package có thể import. Các file có thể hoàn toàn rỗng — sự hiện diện của chúng thôi là đủ để đăng ký thư mục như package với hệ thống import của Python."
+  },
+  {
+    q: "What is the correct pytest fixture scope order from narrowest to widest?",
+    qVi: "Thứ tự scope fixture pytest đúng từ hẹp nhất đến rộng nhất là gì?",
+    choices: [
+      "session → module → class → function",
+      "function → class → module → session",
+      "test → function → class → session",
+      "unit → integration → e2e → session"
+    ],
+    choicesVi: [
+      "session → module → class → function",
+      "function → class → module → session",
+      "test → function → class → session",
+      "unit → integration → e2e → session"
+    ],
+    answer: 1,
+    explain: "function (default) = created/destroyed per test function — the most expensive for shared state. class = once per test class. module = once per test file. session = once for the entire test run — cheapest for shared state. The general rule: use the widest scope that is still correct for the data. An auth token is safe to share across the whole session (session scope). A created resource that one test might modify should not be shared (function scope).",
+    explainVi: "function (mặc định) = được tạo/hủy cho mỗi hàm test — tốn kém nhất cho trạng thái chia sẻ. class = một lần mỗi class test. module = một lần mỗi file test. session = một lần cho toàn bộ lần chạy test — rẻ nhất cho trạng thái chia sẻ. Quy tắc chung: dùng scope rộng nhất vẫn còn đúng cho dữ liệu. Token xác thực an toàn để chia sẻ trong toàn bộ session (session scope). Tài nguyên đã tạo mà một test có thể sửa đổi không nên được chia sẻ (function scope)."
   }
 ]} />
 

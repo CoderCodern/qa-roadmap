@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Gift, Trophy, X, CheckCircle2, AlertTriangle, Mail } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { SHOP_PRODUCTS, PHASE_REWARD_PRODUCTS } from '@/data/shopProducts'
 import { useProgressStore } from '@/lib/store'
 import { PHASES } from '@/data/roadmap'
 import { sendAwardEmail } from '@/lib/sendAwardEmail'
+import { redeemPride } from '@/lib/redeemPride'
 import { cn } from '@/lib/utils'
 
 interface PhaseRewardModalProps {
@@ -19,6 +21,7 @@ type Step = 'gift' | 'confirm-decline' | 'success'
 const PHASE_ICONS = ['🌱', '🐍', '🎭', '🔌', '🏆']
 
 export function PhaseRewardModal({ phaseId, onClose }: PhaseRewardModalProps) {
+  const { data: session } = useSession()
   const { claimPhaseReward, declinePhaseReward, language } = useProgressStore()
   const [step, setStep] = useState<Step>('gift')
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -43,6 +46,16 @@ export function PhaseRewardModal({ phaseId, onClose }: PhaseRewardModalProps) {
       productNameVi: product.nameVi,
       price: product.price,
       points: 0,
+      type: 'phase',
+      phaseId,
+      userEmail: session?.user?.email ?? undefined,
+    })
+    redeemPride({
+      productId,
+      productName: product.name,
+      productNameVi: product.nameVi,
+      price: product.price,
+      pointsSpent: 0,
       type: 'phase',
       phaseId,
     })

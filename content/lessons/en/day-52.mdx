@@ -9,203 +9,947 @@ tags: ["capstone", "test-plan", "documentation"]
 ## Intro
 
 <En>
-Automation is not everything. Before writing a single test, a professional QA engineer writes a test plan — a document that defines scope, strategy, resources, and risk. In interviews and on teams, the ability to write a clear test plan is what demonstrates senior-level thinking. Today you write a test plan for your capstone project.
+Automation is not everything. Before writing a single test, a professional QA engineer writes a test plan — a document that defines scope, strategy, resources, and risk. A test plan is not bureaucracy for its own sake. It is the engineering artifact that makes three things possible: it aligns stakeholders on what success looks like before work starts, it prevents scope creep during development, and it makes the question "are we done?" answerable with objective criteria rather than gut feel. In interviews and on teams, the ability to write a clear test plan is what demonstrates senior-level thinking. Today you write a test plan for your capstone project.
 </En>
 <Vi>
-Tự động hoá không phải là tất cả. Trước khi viết một test nào, kỹ sư QA chuyên nghiệp viết kế hoạch test — tài liệu định nghĩa phạm vi, chiến lược, tài nguyên và rủi ro. Trong phỏng vấn và trong nhóm, khả năng viết kế hoạch test rõ ràng là điều thể hiện tư duy ở cấp độ senior. Hôm nay bạn viết kế hoạch test cho capstone project của mình.
+Tự động hoá không phải là tất cả. Trước khi viết một test nào, kỹ sư QA chuyên nghiệp viết kế hoạch test — tài liệu định nghĩa phạm vi, chiến lược, tài nguyên và rủi ro. Kế hoạch test không phải là thủ tục hành chính vô nghĩa. Đó là tài liệu kỹ thuật giúp ba điều có thể thực hiện được: căn chỉnh các bên liên quan về thành công trông như thế nào trước khi công việc bắt đầu, ngăn chặn phình to phạm vi trong quá trình phát triển và làm cho câu hỏi "chúng ta hoàn thành chưa?" có thể trả lời được bằng tiêu chí khách quan thay vì cảm tính. Trong phỏng vấn và trong nhóm, khả năng viết kế hoạch test rõ ràng là điều thể hiện tư duy ở cấp độ senior. Hôm nay bạn viết kế hoạch test cho capstone project của mình.
 </Vi>
 
 ## Concept
 
 <En>
-**A professional test plan contains:**
+**Why test plans exist — the engineering reasoning**
 
-**1. Objective**
-What are we testing and why? What constitutes success?
+Without a test plan, testing is undefined work. You don't know when to start, when to stop, or what counts as success. Teams without test plans tend to hit these failure modes:
 
-**2. Scope**
-- In scope: what features/endpoints/flows are covered
-- Out of scope: what is explicitly not tested (and why)
+- **Scope creep**: a developer says "can you also test the payment module?" halfway through — with no plan, there is no documented reason to say no.
+- **Premature sign-off**: testing ends because time ran out, not because quality was demonstrated — the plan's exit criteria prevent this.
+- **Rework**: QA discovers the test environment was never set up, or credentials were never provisioned — entry criteria catch this before work starts.
+- **Hidden risk**: no one explicitly asked "what happens if the third-party SMS service is unavailable during testing?" — the risk section forces this conversation.
 
-**3. Test approach / strategy**
-- Test levels: unit, integration, E2E
-- Test types: functional, negative, regression, performance
-- Tools: pytest, Playwright, requests, Allure
-- Data strategy: how test data is created and cleaned up
+A test plan is a contract. It tells the team what you will test, how you will test it, and what "done" means.
 
-**4. Test environment**
-- What environment will tests run against (staging, production)?
-- What access/credentials are needed?
-- What external dependencies exist (third-party APIs, email service)?
+---
 
-**5. Entry and exit criteria**
-- Entry: what must be true before testing starts (build is green, environment is ready)
-- Exit: what must be true before testing is considered complete (≥80% coverage, 0 critical bugs open)
+**Section 1 — Objective**
 
-**6. Risk and mitigation**
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| API schema changes break tests | Medium | High | Pin API version; add schema monitoring |
-| Test data collisions in shared environment | High | Medium | Use unique IDs (uuid) per test run |
+The objective answers: *what are we testing and what does success look like?*
 
-**7. Deliverables**
-- Automated test suite
-- Allure reports
-- CI pipeline configuration
-- This test plan document
+A weak objective: "Test the login feature."
 
-**8. Roles**
-Who writes tests? Who reviews them? Who owns the CI pipeline?
+A strong objective: "Verify that the login endpoint correctly authenticates valid credentials, rejects invalid credentials with appropriate HTTP status codes, and enforces rate limiting after 5 failed attempts — providing automated regression coverage that runs on every CI push."
+
+The difference is specificity. A vague objective cannot fail or succeed — it floats. A specific objective lets you look at your test results and say definitively "we achieved this" or "we did not."
+
+---
+
+**Section 2 — Scope: the engineering judgment section**
+
+Scope is where you make explicit decisions about what to include and exclude. The out-of-scope list is more important than it looks — it is where you document trade-offs and risk acceptance decisions.
+
+- **In scope**: endpoints, user flows, data scenarios, environments, and failure modes your tests will cover.
+- **Out of scope**: what you are explicitly *not* testing — and critically, *why not*.
+
+Examples of defensible out-of-scope decisions:
+- "Load testing — out of scope because we have no production traffic baseline and no staging environment capable of receiving realistic load."
+- "Database-level testing — out of scope because we have no direct DB access; covered by integration tests in the backend team's scope."
+
+Unstated out-of-scope items become implied commitments. If you don't say "load testing is out of scope," stakeholders may assume you covered it.
+
+---
+
+**Section 3 — Test approach / strategy**
+
+This section documents *how* you will test. It covers:
+
+- **Test levels**: unit (isolated logic), integration (service-to-service), E2E (full user journey)
+- **Test types**: functional (does it work?), negative (does it fail correctly?), regression (does the old stuff still work?), schema (does the response match the contract?)
+- **Tools**: pytest + requests for API, Playwright for UI, jsonschema for schema validation, Allure for reporting
+- **Data strategy**: how test data is created, isolated, and cleaned up. This matters because shared mutable test data causes intermittent failures.
+
+For ReqRes.in: test data is simulated (the API doesn't persist writes), so cleanup is a non-issue. For a real app with a database, you'd document how each test seeds and teardowns its own data.
+
+---
+
+**Section 4 — Test environment**
+
+This section prevents the most common reason testing is delayed: "the environment wasn't ready." It documents:
+
+- Which environment tests run against (staging, production, local mock)
+- What credentials and access are required (API keys, user accounts, VPN access)
+- What external dependencies exist (third-party APIs, email services, SMS gateways)
+- What tool versions are required (Python 3.11+, Node 20+)
+
+Entry criteria (next section) depend directly on the environment section — you can't check "API is reachable" without knowing which API URL to check.
+
+---
+
+**Section 5 — Entry and exit criteria: making "done" objective**
+
+This is the most consequential section, and the one most often skipped on junior teams.
+
+**Entry criteria** define the preconditions that must be true before testing begins. Without them, testing starts prematurely and wastes time on environment problems:
+- All dependencies installed and verified
+- Target environment is up and reachable
+- Test data seeded (if required)
+- Credentials provisioned
+
+**Exit criteria** define what "done" means for testing. Without them, testing either ends arbitrarily ("we ran out of time") or never ends ("there might be more bugs"). Clear, measurable exit criteria make sign-off an objective decision:
+
+Weak exit criteria (avoid): "All tests are passing and quality looks good."
+
+Strong exit criteria (use these patterns):
+- All planned test cases executed
+- 0 open Critical or High severity defects
+- CI pipeline green for 3 consecutive runs
+- Allure report generated and reviewed by the team
+- Test coverage ≥ 80% of in-scope endpoints
+
+The distinction matters: "quality looks good" is a feeling. "0 Critical bugs open and CI green" is a fact.
+
+---
+
+**Section 6 — Risk and mitigation: quantifying the unknown**
+
+Risk analysis forces you to think adversarially about your own plan. The discipline is to assess each risk on two axes: **likelihood** (how probable?) and **impact** (how bad if it happens?). Priority = likelihood × impact.
+
+| Risk | Likelihood | Impact | Score | Mitigation |
+|------|-----------|--------|-------|------------|
+| Target API has downtime during CI run | Medium | High | 6 | Mark as external-dependency flake; run with retry |
+| API response schema changes without notice | Low | High | 4 | Pin schema files in version control; alert on schema drift |
+| Test data collisions when tests run in parallel | High | Medium | 6 | Use unique IDs (uuid4) per run; avoid shared mutable state |
+| Credentials expire mid-sprint | Low | Medium | 2 | Store in CI secrets; document rotation schedule |
+
+Listing risks is not pessimism — it is proof that you thought through failure modes before they happened. In a team setting, this section often triggers important conversations ("oh, we don't have a staging environment yet").
+
+---
+
+**Section 7 — Deliverables**
+
+An explicit list of what the testing effort will produce:
+- Automated test suite (the code in `/tests/`)
+- Allure HTML report
+- GitHub Actions CI configuration
+- This test plan document itself
+
+Deliverables tell stakeholders what they will actually receive at the end of testing — not just "tests were run."
+
+---
+
+**Section 8 — Roles and responsibilities**
+
+For a solo capstone, this is simple. On a real team it prevents the most common accountability gap — "I thought someone else was doing that":
+
+| Role | Responsibility |
+|------|---------------|
+| QA Engineer | Test design, automation, Allure report |
+| Developer | Code review of test code, bug fixes |
+| DevOps / QA | CI pipeline configuration and maintenance |
+| QA Lead | Test plan sign-off, exit criteria approval |
 </En>
 <Vi>
-**Kế hoạch test chuyên nghiệp chứa:**
+**Tại sao kế hoạch test tồn tại — lý luận kỹ thuật**
 
-**1. Mục tiêu**
-Chúng ta đang kiểm thử gì và tại sao? Điều gì cấu thành thành công?
+Không có kế hoạch test, việc kiểm thử là công việc không xác định. Bạn không biết khi nào bắt đầu, khi nào dừng, hay điều gì được tính là thành công. Các nhóm không có kế hoạch test thường gặp những thất bại này:
 
-**2. Phạm vi**
-- Trong phạm vi: tính năng/endpoint/luồng nào được bao phủ
-- Ngoài phạm vi: điều gì rõ ràng không được kiểm thử (và tại sao)
+- **Phình to phạm vi**: developer nói "bạn cũng có thể test module thanh toán không?" giữa chừng — không có kế hoạch, không có lý do được ghi lại để từ chối.
+- **Ký nghiệm thu sớm**: kiểm thử kết thúc vì hết thời gian, không phải vì chất lượng được chứng minh — tiêu chí thoát của kế hoạch ngăn điều này.
+- **Làm lại**: QA phát hiện môi trường test chưa bao giờ được thiết lập, hoặc credential chưa bao giờ được cấp — tiêu chí vào bắt được điều này trước khi công việc bắt đầu.
+- **Rủi ro ẩn**: không ai hỏi rõ ràng "điều gì xảy ra nếu dịch vụ SMS bên thứ ba không khả dụng trong quá trình kiểm thử?" — phần rủi ro buộc cuộc trò chuyện này xảy ra.
 
-**3. Phương pháp test / chiến lược**
-- Cấp độ test: unit, integration, E2E
-- Loại test: chức năng, tiêu cực, hồi quy, hiệu suất
-- Công cụ: pytest, Playwright, requests, Allure
+Kế hoạch test là hợp đồng. Nó cho nhóm biết bạn sẽ test gì, cách test như thế nào và "xong" có nghĩa là gì.
 
-**4. Môi trường test**
-- Test sẽ chạy trên môi trường nào?
-- Cần quyền truy cập/credential gì?
+---
 
-**5. Tiêu chí vào và ra**
-- Vào: điều gì phải đúng trước khi bắt đầu test
-- Ra: điều gì phải đúng trước khi test được coi là hoàn thành
+**Mục 1 — Mục tiêu**
 
-**6. Rủi ro và giảm thiểu**
-| Rủi ro | Khả năng | Tác động | Giảm thiểu |
-|------|-----------|--------|------------|
-| Thay đổi schema API phá vỡ test | Trung bình | Cao | Ghim phiên bản API |
-| Xung đột dữ liệu test | Cao | Trung bình | Dùng ID duy nhất (uuid) |
+Mục tiêu trả lời: *chúng ta đang kiểm thử gì và thành công trông như thế nào?*
 
-**7. Các sản phẩm giao nộp**
-- Bộ test tự động
-- Báo cáo Allure
-- Cấu hình CI pipeline
+Mục tiêu yếu: "Kiểm thử tính năng đăng nhập."
+
+Mục tiêu mạnh: "Xác minh endpoint đăng nhập xác thực chính xác credential hợp lệ, từ chối credential không hợp lệ với HTTP status code phù hợp và thực thi giới hạn tốc độ sau 5 lần thất bại — cung cấp bao phủ kiểm thử hồi quy tự động chạy trên mỗi CI push."
+
+Sự khác biệt là tính cụ thể. Mục tiêu mơ hồ không thể thất bại hay thành công — nó lơ lửng. Mục tiêu cụ thể cho phép bạn nhìn vào kết quả test và nói dứt khoát "chúng ta đã đạt được điều này" hay "chúng ta chưa đạt."
+
+---
+
+**Mục 2 — Phạm vi: mục đánh giá kỹ thuật**
+
+Phạm vi là nơi bạn đưa ra quyết định rõ ràng về những gì cần bao gồm và loại trừ. Danh sách ngoài phạm vi quan trọng hơn vẻ ngoài — đây là nơi bạn ghi lại các đánh đổi và quyết định chấp nhận rủi ro.
+
+- **Trong phạm vi**: endpoint, luồng người dùng, kịch bản dữ liệu, môi trường và trường hợp lỗi mà test của bạn sẽ bao phủ.
+- **Ngoài phạm vi**: những gì bạn *không* kiểm thử một cách rõ ràng — và quan trọng hơn, *tại sao không*.
+
+Ví dụ về quyết định ngoài phạm vi có thể biện hộ:
+- "Kiểm thử tải — ngoài phạm vi vì chúng ta không có baseline lưu lượng production và không có môi trường staging có thể nhận tải thực tế."
+- "Kiểm thử cấp độ database — ngoài phạm vi vì chúng ta không có quyền truy cập DB trực tiếp; được bao phủ bởi integration test trong phạm vi của nhóm backend."
+
+Các mục ngoài phạm vi không được nêu ra trở thành cam kết ngầm. Nếu bạn không nói "kiểm thử tải ngoài phạm vi," các bên liên quan có thể cho rằng bạn đã bao phủ nó.
+
+---
+
+**Mục 3 — Phương pháp / chiến lược test**
+
+Mục này ghi lại *cách* bạn sẽ test. Bao gồm:
+
+- **Cấp độ test**: unit (logic độc lập), integration (service-to-service), E2E (hành trình người dùng đầy đủ)
+- **Loại test**: chức năng (có hoạt động không?), tiêu cực (có thất bại đúng cách không?), hồi quy (những thứ cũ có vẫn hoạt động không?), schema (response có khớp với contract không?)
+- **Công cụ**: pytest + requests cho API, Playwright cho UI, jsonschema cho xác thực schema, Allure cho báo cáo
+- **Chiến lược dữ liệu**: cách dữ liệu test được tạo, cô lập và dọn dẹp. Điều này quan trọng vì dữ liệu test có thể thay đổi được chia sẻ gây ra lỗi ngẫu nhiên.
+
+---
+
+**Mục 5 — Tiêu chí vào và ra: làm cho "xong" trở nên khách quan**
+
+**Tiêu chí vào** xác định các điều kiện tiên quyết phải đúng trước khi kiểm thử bắt đầu. Không có chúng, kiểm thử bắt đầu quá sớm và lãng phí thời gian vào vấn đề môi trường.
+
+**Tiêu chí ra** xác định "xong" có nghĩa là gì đối với kiểm thử. Không có chúng, kiểm thử kết thúc tùy tiện ("hết thời gian") hoặc không bao giờ kết thúc ("có thể còn bug").
+
+Tiêu chí ra yếu (tránh): "Tất cả test đang vượt qua và chất lượng trông ổn."
+
+Tiêu chí ra mạnh (dùng các mẫu này):
+- Tất cả test case theo kế hoạch đã được thực thi
+- 0 lỗi Critical hoặc High đang mở
+- CI pipeline xanh 3 lần liên tiếp
+- Báo cáo Allure được tạo và xem xét bởi nhóm
+
+---
+
+**Mục 6 — Rủi ro và giảm thiểu: định lượng điều chưa biết**
+
+Phân tích rủi ro buộc bạn phải suy nghĩ đối nghịch về kế hoạch của chính mình. Kỷ luật là đánh giá mỗi rủi ro trên hai trục: **khả năng** (xác suất bao nhiêu?) và **tác động** (tệ đến mức nào nếu xảy ra?). Mức ưu tiên = khả năng × tác động.
+
+| Rủi ro | Khả năng | Tác động | Điểm | Giảm thiểu |
+|------|-----------|--------|-------|------------|
+| API mục tiêu có downtime trong CI | Trung bình | Cao | 6 | Đánh dấu là flake phụ thuộc bên ngoài; chạy với retry |
+| Schema response API thay đổi không báo trước | Thấp | Cao | 4 | Ghim file schema trong version control; cảnh báo khi schema drift |
+| Xung đột dữ liệu test khi chạy song song | Cao | Trung bình | 6 | Dùng ID duy nhất (uuid4) mỗi lần chạy |
+| Credential hết hạn giữa sprint | Thấp | Trung bình | 2 | Lưu trong CI secrets; ghi lại lịch xoay vòng |
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — The full test plan template**
+
+</En>
+<Vi>
+
+**Phần 1 — Template kế hoạch test đầy đủ**
+
+</Vi>
+
 ```markdown
-# Test Plan: JSONPlaceholder API Suite
+# Test Plan: ReqRes.in API Suite
+
+**Version:** 1.0
+**Date:** 2024-01-15
+**Author:** QA Engineer
+
+---
 
 ## 1. Objective
 
-Verify that the JSONPlaceholder REST API behaves correctly for CRUD operations
-on Posts, Users, and Comments resources. Provide automated regression coverage
-that runs on every code change via CI.
+Verify that the ReqRes.in REST API correctly handles user management operations
+(list, retrieve, create, update, delete) and authentication flows. Provide
+automated regression coverage that runs on every CI push and blocks merges
+when tests fail.
+
+Success looks like: all planned test cases passing, 0 open Critical/High bugs,
+and a green CI pipeline.
+
+---
 
 ## 2. Scope
 
-**In scope:**
-- GET, POST, PUT, PATCH, DELETE for /posts
-- GET for /users and /users/{id}
-- GET for /posts/{id}/comments
-- Schema validation for all GET responses
-- Negative cases: 404, invalid IDs, missing required fields
-- Performance: response time under 3 seconds
+### In scope
+- GET /users (list with pagination)
+- GET /users/{id} (retrieve single user — valid and invalid ID)
+- POST /users (create user)
+- PUT /users/{id} (full update)
+- PATCH /users/{id} (partial update)
+- DELETE /users/{id}
+- POST /login (valid credentials, invalid credentials, missing fields)
+- POST /register (valid, missing password, missing email)
+- Schema validation on all successful GET responses
+- Response time assertion (< 3 seconds per request)
 
-**Out of scope:**
-- Authentication (JSONPlaceholder has no real auth)
-- Rate limiting (public test API has no meaningful limits)
-- Database-level testing (no access to backing store)
-- Load/stress testing
+### Out of scope
+- WebSocket or real-time features — ReqRes.in has none
+- Database-level testing — no direct DB access; ReqRes.in is a public mock
+- Load / stress testing — no production baseline; out of scope for capstone
+- UI testing — ReqRes.in has no testable UI
+- Rate limit testing — public API has no meaningful enforced rate limits
+
+---
 
 ## 3. Test Approach
 
-| Layer | Tools | Coverage goal |
-|-------|-------|---------------|
-| API integration | pytest + requests | 90% endpoint coverage |
-| Schema | jsonschema | 100% of GET responses |
-| Negative | pytest + parametrize | 5+ negative cases per endpoint |
-| Reporting | Allure | All test runs |
+| Layer | Tools | Goal |
+|-------|-------|------|
+| API integration | pytest + requests | 100% of in-scope endpoints |
+| Schema validation | jsonschema | All successful GET responses |
+| Negative cases | pytest + parametrize | ≥ 3 negative cases per endpoint |
+| Reporting | Allure | Every test run |
 | CI | GitHub Actions | Every push to main |
 
-**Data strategy:** All test data uses JSONPlaceholder's simulated persistence.
-Tests are stateless — each run can repeat indefinitely.
+**Data strategy:** ReqRes.in simulates persistence — POST/PUT/PATCH/DELETE
+appear to succeed but data is not actually stored. Tests are stateless and
+require no cleanup. Each test run can repeat indefinitely without pollution.
 
-## 4. Environment
+---
 
-- Target: https://jsonplaceholder.typicode.com (public, no auth)
-- Python: 3.11+
-- No credentials required
-- No external dependencies
+## 4. Test Environment
+
+| Item | Value |
+|------|-------|
+| Target | https://reqres.in/api |
+| Python | 3.11+ |
+| Key dependencies | pytest, requests, jsonschema, allure-pytest |
+| Credentials | POST /login: `eve.holt@reqres.in` / `cityslicka` |
+| External dependencies | ReqRes.in public API (internet required) |
+| CI environment | GitHub Actions ubuntu-latest |
+
+---
 
 ## 5. Entry / Exit Criteria
 
-**Entry (before starting):**
-- [ ] All dependencies installed (`pip install -r requirements.txt`)
-- [ ] JSONPlaceholder API reachable (`curl https://jsonplaceholder.typicode.com/posts/1`)
+### Entry criteria (must be true before testing starts)
+- [ ] Python 3.11+ installed and virtual environment activated
+- [ ] All dependencies installed: `pip install -r requirements.txt`
+- [ ] ReqRes.in API is reachable: `curl https://reqres.in/api/users/1` returns 200
+- [ ] `pytest tests/ -v` runs without import errors (even if tests fail)
 
-**Exit (definition of done):**
-- [ ] All planned tests passing
+### Exit criteria (must be true before testing is complete)
+- [ ] All planned test cases executed (no skips without documented reason)
 - [ ] 0 open Critical or High severity defects
+- [ ] CI pipeline green for the last 3 consecutive runs on main
 - [ ] Allure report generated and reviewed
-- [ ] CI pipeline green
+- [ ] Test plan reviewed by at least one other person
+
+---
 
 ## 6. Risks
 
-| Risk | Mitigation |
-|------|-----------|
-| Public API downtime | Tests marked as external-dependency; expected flake in CI |
-| Schema changes | Schema files version-controlled; CI alerts on schema drift |
+| Risk | Likelihood | Impact | Score | Mitigation |
+|------|-----------|--------|-------|------------|
+| ReqRes.in downtime during CI run | Medium | High | 6 | Retry once on failure; mark as external flake |
+| API response schema changes | Low | High | 4 | Schema files in version control; CI alerts on drift |
+| Python version mismatch in CI | Low | Medium | 2 | Pin Python version in workflow with `python-version: "3.11"` |
+| Test parallelism causing ordering issues | Low | Medium | 2 | Keep tests independent; no shared mutable state |
+
+---
 
 ## 7. Deliverables
 
-- `/tests/` — automated test suite
-- `/allure-results/` — raw Allure results
-- `.github/workflows/api-tests.yml` — CI configuration
-- This document
+| Deliverable | Location |
+|-------------|----------|
+| Automated test suite | `/tests/` |
+| Schema files | `/schemas/` |
+| Allure raw results | `/allure-results/` |
+| CI configuration | `.github/workflows/api-tests.yml` |
+| This test plan | `TEST_PLAN.md` |
 
-## 8. Team
+---
 
-| Role | Owner |
-|------|-------|
-| Test design & automation | QA Engineer |
-| Code review | Senior QA / Dev |
-| CI maintenance | QA Engineer / DevOps |
+## 8. Roles
+
+| Role | Responsibility |
+|------|---------------|
+| QA Engineer (you) | Test design, automation, Allure report, CI config |
+| Reviewer | Test plan review, code review of test suite |
+```
+
+<En>
+
+**Part 2 — Risk matrix: scoring risks by likelihood × impact**
+
+</En>
+<Vi>
+
+**Phần 2 — Ma trận rủi ro: chấm điểm rủi ro theo khả năng × tác động**
+
+</Vi>
+
+```markdown
+## Risk Scoring Reference
+
+Use this scale when filling in the risk section of your test plan.
+
+### Likelihood scale
+| Score | Label | Meaning |
+|-------|-------|---------|
+| 1 | Low | Unlikely to happen in normal conditions |
+| 2 | Medium | Could happen — has happened on similar projects |
+| 3 | High | Expected to happen at some point during the project |
+
+### Impact scale
+| Score | Label | Meaning |
+|-------|-------|---------|
+| 1 | Low | Minor inconvenience — easily worked around |
+| 2 | Medium | Blocks one person or delays one sprint |
+| 3 | High | Blocks the entire team or delays release |
+
+### Risk priority matrix (Likelihood × Impact)
+|            | Low Impact (1) | Medium Impact (2) | High Impact (3) |
+|------------|---------------|-------------------|-----------------|
+| **Low (1)**    | 1 — Monitor   | 2 — Monitor       | 3 — Plan        |
+| **Medium (2)** | 2 — Monitor   | 4 — Plan          | 6 — Mitigate    |
+| **High (3)**   | 3 — Plan      | 6 — Mitigate      | 9 — Avoid       |
+
+Action guide:
+- Score 1–2: Monitor — low priority, document and check periodically
+- Score 3–4: Plan — have a response ready; no immediate action needed
+- Score 6: Mitigate — act now; put mitigation in place before testing starts
+- Score 9: Avoid — redesign to eliminate the risk entirely
+
+### Example risks for a ReqRes.in capstone
+
+| Risk | L | I | Score | Action |
+|------|---|---|-------|--------|
+| Public API downtime (ReqRes.in is not SLA-guaranteed) | 2 | 3 | 6 | Mitigate: add retry; mark CI failures as expected flake |
+| Test data collision (parallel test runs) | 1 | 2 | 2 | Monitor: ReqRes.in doesn't actually persist writes, so no real risk |
+| Credentials hardcoded accidentally in code | 1 | 3 | 3 | Plan: use environment variables; add pre-commit secret scan |
+| CI runner runs wrong Python version | 1 | 2 | 2 | Monitor: pin `python-version` in workflow YAML |
+```
+
+<En>
+
+**Part 3 — Entry and exit criteria: good vs bad examples**
+
+</En>
+<Vi>
+
+**Phần 3 — Tiêu chí vào và ra: ví dụ tốt và xấu**
+
+</Vi>
+
+```markdown
+## Entry Criteria Examples
+
+### Bad entry criteria (too vague)
+- "The application is ready for testing"
+- "Developers say the feature is complete"
+- "The environment is set up"
+
+Why these fail: they can't be objectively checked. "Ready for testing" means
+something different to a developer ("it compiles") and a QA engineer
+("all acceptance criteria met, no known blocking bugs, environment verified").
+
+### Good entry criteria (verifiable and specific)
+- [ ] All dependencies installed: `pip install -r requirements.txt` exits 0
+- [ ] API reachable: `curl https://reqres.in/api/users/1` returns HTTP 200
+- [ ] Test suite imports without error: `python -m pytest --collect-only` shows tests
+- [ ] Authentication works: POST /login with test credentials returns a token
+- [ ] CI pipeline exists and is wired to the main branch
+
+Each item above can be checked by running a command — there is no ambiguity.
+
+---
+
+## Exit Criteria Examples
+
+### Bad exit criteria (too vague)
+- "All tests pass"
+- "Quality is acceptable"
+- "Testing is complete"
+
+Why these fail: "all tests pass" is trivially met by deleting failing tests.
+"Quality is acceptable" is not measurable. "Testing is complete" is circular.
+
+### Good exit criteria (measurable and time-bound)
+- [ ] All test cases in the test plan executed (no untested items without documented waiver)
+- [ ] 0 open P1 (Critical) defects
+- [ ] 0 open P2 (High) defects unmitigated
+- [ ] CI pipeline: 3 consecutive green runs on the main branch
+- [ ] Allure report generated, reviewed, and linked in the PR description
+- [ ] Test coverage: ≥ 80% of in-scope endpoints have at least one positive
+      and one negative test case
+
+Notice the difference: each criterion above produces a binary yes/no answer
+from observable evidence. There is no room for "well, sort of done."
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Write a test plan for your capstone project using the template above — fill in every section with specific, concrete details relevant to your project
-- [ ] Review your test plan against the 8 sections and identify which section took the most thought — this is usually where the real risks are
-- [ ] Share your test plan with a teammate or post it in a QA community for feedback — test plans are meant to be reviewed
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Write your capstone test plan",
+    code: `# TEST_PLAN.md — Your Capstone Test Plan
+# Fill in every section with specific, concrete details for YOUR project.
+# Replace all [TODO] markers before submitting.
+
+# Test Plan: [Your App Name Here]
+
+**Version:** 1.0
+**Date:** [today's date]
+**Author:** [your name]
+
+---
+
+## 1. Objective
+
+# TODO (EN): Describe exactly what you are testing and what success looks like.
+# Answer: what features/endpoints will be covered? What does "done" mean?
+# TODO (VI): Mô tả chính xác bạn đang kiểm thử gì và thành công trông như thế nào.
+# Trả lời: tính năng/endpoint nào sẽ được bao phủ? "Xong" có nghĩa là gì?
+
+[Your objective here — 2-4 sentences, specific and measurable]
+
+---
+
+## 2. Scope
+
+### In scope
+# TODO (EN): List every endpoint or flow you will test. Be specific — use URLs.
+# TODO (VI): Liệt kê mọi endpoint hoặc luồng bạn sẽ test. Hãy cụ thể — dùng URL.
+- GET /[your endpoint]
+- POST /[your endpoint]
+- [add more as needed]
+
+### Out of scope
+# TODO (EN): List what you are NOT testing AND explain why for each item.
+# TODO (VI): Liệt kê những gì bạn KHÔNG test VÀ giải thích tại sao cho mỗi mục.
+- [Feature X] — out of scope because [reason]
+- [Feature Y] — out of scope because [reason]
+
+---
+
+## 3. Test Approach
+
+| Layer | Tools | Goal |
+|-------|-------|------|
+| API integration | pytest + requests | [your coverage goal] |
+| Schema validation | jsonschema | [which responses] |
+| Negative cases | pytest + parametrize | [how many per endpoint] |
+| Reporting | Allure | [frequency] |
+| CI | GitHub Actions | [trigger condition] |
+
+**Data strategy:**
+# TODO (EN): How is test data created? Does it need cleanup? How is isolation ensured?
+# TODO (VI): Dữ liệu test được tạo thế nào? Có cần dọn dẹp không? Cô lập được đảm bảo thế nào?
+[Your data strategy here]
+
+---
+
+## 4. Test Environment
+
+| Item | Value |
+|------|-------|
+| Target URL | https://[your target API] |
+| Python version | 3.11+ |
+| Key dependencies | pytest, requests, jsonschema, allure-pytest |
+| Credentials needed | [list any credentials, or "none required"] |
+| External dependencies | [list third-party APIs or services] |
+
+---
+
+## 5. Entry / Exit Criteria
+
+### Entry criteria
+# TODO (EN): List specific, checkable conditions. Each item should be verifiable
+# with a command or a factual check — no vague statements like "environment is ready."
+# TODO (VI): Liệt kê các điều kiện cụ thể, có thể kiểm tra. Mỗi mục nên có thể
+# xác minh bằng một lệnh hoặc kiểm tra thực tế.
+- [ ] [specific checkable condition 1]
+- [ ] [specific checkable condition 2]
+- [ ] [specific checkable condition 3]
+
+### Exit criteria
+# TODO (EN): List measurable conditions that define "done." Each must produce
+# a binary yes/no answer — no "looks good" or "mostly passing."
+# TODO (VI): Liệt kê các điều kiện có thể đo được định nghĩa "xong."
+# Mỗi điều kiện phải tạo ra câu trả lời có/không — không có "trông ổn" hay "gần xong."
+- [ ] All [N] planned test cases executed
+- [ ] 0 open Critical or High severity defects
+- [ ] CI pipeline green for [N] consecutive runs
+- [ ] Allure report generated and reviewed
+
+---
+
+## 6. Risks
+
+| Risk | Likelihood (L/M/H) | Impact (L/M/H) | Score | Mitigation |
+|------|-------------------|----------------|-------|------------|
+# TODO (EN): List at least 3 real risks for your specific project.
+# For each risk: what is the likelihood? What is the impact? What will you do about it?
+# TODO (VI): Liệt kê ít nhất 3 rủi ro thực sự cho dự án cụ thể của bạn.
+| [Risk 1] | [L/M/H] | [L/M/H] | [1-9] | [what you will do] |
+| [Risk 2] | [L/M/H] | [L/M/H] | [1-9] | [what you will do] |
+| [Risk 3] | [L/M/H] | [L/M/H] | [1-9] | [what you will do] |
+
+---
+
+## 7. Deliverables
+
+| Deliverable | Location |
+|-------------|----------|
+| Automated test suite | /tests/ |
+| Schema files | /schemas/ |
+| Allure results | /allure-results/ |
+| CI configuration | .github/workflows/ |
+| This test plan | TEST_PLAN.md |
+
+---
+
+## 8. Roles
+
+| Role | Owner |
+|------|-------|
+| Test design and automation | [your name] |
+| Code review | [reviewer name or "self-review"] |
+| CI maintenance | [your name] |`
+  },
+  {
+    title: "Exercise 2 — Evaluate exit criteria: good or bad?",
+    code: `# evaluate_criteria.py
+# For each exit criterion below, decide: is it STRONG or WEAK?
+# STRONG = binary yes/no, observable, measurable, specific
+# WEAK   = vague, subjective, not independently verifiable
+#
+# After evaluating each one, rewrite every WEAK criterion as a STRONG one.
+
+criteria = [
+    # TODO (EN): Evaluate each criterion as STRONG or WEAK, then explain why.
+    # TODO (VI): Đánh giá mỗi tiêu chí là MẠNH hay YẾU, rồi giải thích tại sao.
+
+    {
+        "criterion": "All tests are passing",
+        "verdict": "???",    # STRONG or WEAK
+        "reason": "???",     # why?
+        "rewrite": "???",    # if WEAK: write the strong version; if STRONG: "N/A"
+    },
+    {
+        "criterion": "Quality looks acceptable to the team",
+        "verdict": "???",
+        "reason": "???",
+        "rewrite": "???",
+    },
+    {
+        "criterion": "0 open P1 (Critical) defects and CI green for 3 consecutive runs",
+        "verdict": "???",
+        "reason": "???",
+        "rewrite": "???",
+    },
+    {
+        "criterion": "Testing is mostly complete",
+        "verdict": "???",
+        "reason": "???",
+        "rewrite": "???",
+    },
+    {
+        "criterion": "Allure report generated and reviewed by at least one other engineer",
+        "verdict": "???",
+        "reason": "???",
+        "rewrite": "???",
+    },
+    {
+        "criterion": "The developers say it's ready",
+        "verdict": "???",
+        "reason": "???",
+        "rewrite": "???",
+    },
+]
+
+# Print your evaluations:
+for item in criteria:
+    print(f"Criterion : {item['criterion']}")
+    print(f"Verdict   : {item['verdict']}")
+    print(f"Reason    : {item['reason']}")
+    if item['verdict'] == "WEAK":
+        print(f"Rewrite   : {item['rewrite']}")
+    print("---")`
+  },
+  {
+    title: "Exercise 3 — Build a risk matrix for your capstone",
+    code: `# risk_matrix.py
+# Build a risk register for your capstone project using the L × I scoring model.
+# Fill in the [TODO] values for each risk with your real project context.
+# Then identify which risks score 6+ and decide on mitigations.
+
+# Scoring scale:
+# Likelihood: Low=1, Medium=2, High=3
+# Impact:     Low=1, Medium=2, High=3
+# Score = Likelihood × Impact
+# Action: 1-2=Monitor, 3-4=Plan, 6=Mitigate, 9=Avoid
+
+risks = [
+    # TODO (EN): Fill in realistic risks for YOUR target application.
+    # TODO (VI): Điền các rủi ro thực tế cho ứng dụng MỤC TIÊU của bạn.
+    {
+        "risk": "Target API has unplanned downtime during CI run",
+        "likelihood": 2,   # Medium — it's a public API with no SLA
+        "impact": 3,       # High — CI fails and blocks the pipeline
+        "mitigation": "TODO: what will you do to reduce this risk?",
+    },
+    {
+        "risk": "API response schema changes without notice",
+        "likelihood": 1,   # Low
+        "impact": 3,       # High — all schema tests would break
+        "mitigation": "TODO: fill in your mitigation strategy",
+    },
+    {
+        "risk": "TODO: add a risk specific to your project",
+        "likelihood": 0,   # TODO: set to 1, 2, or 3
+        "impact": 0,       # TODO: set to 1, 2, or 3
+        "mitigation": "TODO: fill in your mitigation strategy",
+    },
+    {
+        "risk": "TODO: add another risk specific to your project",
+        "likelihood": 0,
+        "impact": 0,
+        "mitigation": "TODO: fill in your mitigation strategy",
+    },
+]
+
+ACTION_MAP = {
+    range(1, 3): "Monitor",
+    range(3, 5): "Plan",
+    range(5, 7): "Mitigate NOW",
+    range(7, 10): "Avoid / Redesign",
+}
+
+def get_action(score: int) -> str:
+    for score_range, action in ACTION_MAP.items():
+        if score in score_range:
+            return action
+    return "Unknown"
+
+print(f"{'Risk':<50} {'L':>3} {'I':>3} {'Score':>6} {'Action':<20}")
+print("-" * 90)
+
+for r in risks:
+    score = r["likelihood"] * r["impact"]
+    action = get_action(score)
+    flag = " ⚠" if score >= 6 else ""
+    print(f"{r['risk'][:50]:<50} {r['likelihood']:>3} {r['impact']:>3} {score:>6} {action:<20}{flag}")
+
+print()
+high_risks = [r for r in risks if r["likelihood"] * r["impact"] >= 6]
+if high_risks:
+    print("High-priority risks requiring immediate mitigation:")
+    for r in high_risks:
+        print(f"  - {r['risk']}")
+        print(f"    Mitigation: {r['mitigation']}")`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Write your complete test plan — fill in every section with specifics for your capstone project. No placeholder text allowed.
+- [ ] Exercise 2: Evaluate all 6 exit criteria as STRONG or WEAK and rewrite every WEAK one into a strong, measurable criterion.
+- [ ] Exercise 3: Fill in your risk register with at least 4 risks (including 2 specific to your project), score them, and write a mitigation for every risk that scores 6 or higher.
+- [ ] Review your completed test plan against the 8 sections — identify which section was hardest to fill in. That section reveals where your real uncertainty is.
+
+> Note: Exercise 1 produces a markdown document (`TEST_PLAN.md`). Exercises 2 and 3 are Python scripts you run locally with `python risk_matrix.py` and `python evaluate_criteria.py`. No external packages needed for exercises 2 and 3.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài 1: Viết kế hoạch test đầy đủ của bạn — điền vào mọi mục với chi tiết cụ thể cho capstone project của bạn. Không được dùng placeholder.
+- [ ] Bài 2: Đánh giá tất cả 6 tiêu chí thoát là MẠNH hay YẾU và viết lại mỗi tiêu chí YẾU thành tiêu chí mạnh, có thể đo lường.
+- [ ] Bài 3: Điền vào risk register của bạn với ít nhất 4 rủi ro (bao gồm 2 rủi ro cụ thể cho dự án của bạn), chấm điểm chúng và viết biện pháp giảm thiểu cho mọi rủi ro có điểm từ 6 trở lên.
+- [ ] Xem xét kế hoạch test đã hoàn thành của bạn so với 8 mục — xác định mục nào khó điền nhất. Mục đó tiết lộ nơi có sự không chắc chắn thực sự của bạn.
+
+> Lưu ý: Bài 1 tạo ra tài liệu markdown (`TEST_PLAN.md`). Bài 2 và 3 là script Python bạn chạy cục bộ với `python risk_matrix.py` và `python evaluate_criteria.py`. Không cần package ngoài cho bài 2 và 3.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What is the purpose of 'exit criteria' in a test plan?",
+    q: "What is the primary purpose of 'exit criteria' in a test plan?",
+    qVi: "Mục đích chính của 'tiêu chí thoát' trong kế hoạch test là gì?",
     choices: [
-      "To define when the product can be shipped",
-      "To define the conditions that must be met before testing is considered complete — preventing premature sign-off",
-      "To list tests that are not in scope",
-      "To describe the deployment process"
+      "To define when the product can be shipped to customers",
+      "To define the conditions that must be met before testing is considered complete — making the 'done' decision objective rather than subjective",
+      "To list tests that are excluded from scope",
+      "To describe the deployment and release process"
+    ],
+    choicesVi: [
+      "Để xác định khi nào sản phẩm có thể giao cho khách hàng",
+      "Để xác định các điều kiện phải được đáp ứng trước khi kiểm thử được coi là hoàn thành — làm cho quyết định 'xong' trở nên khách quan thay vì chủ quan",
+      "Để liệt kê các test bị loại khỏi phạm vi",
+      "Để mô tả quá trình triển khai và phát hành"
     ],
     answer: 1,
-    explain: "Exit criteria define what 'done' means for testing. Without them, testing can end arbitrarily ('we ran out of time') or never ('there might be more bugs'). Clear criteria like '0 open Critical bugs and CI green' make the decision objective."
+    explain: "Exit criteria define what 'done' means for testing in objective, measurable terms. Without them, testing ends arbitrarily ('we ran out of time') or never ends ('there might be more bugs'). Clear criteria like '0 open Critical bugs and CI green for 3 consecutive runs' make sign-off a factual decision, not a judgment call.",
+    explainVi: "Tiêu chí thoát xác định 'xong' có nghĩa là gì đối với kiểm thử theo các điều khoản khách quan, có thể đo lường. Không có chúng, kiểm thử kết thúc tùy tiện ('hết thời gian') hoặc không bao giờ kết thúc ('có thể còn bug'). Tiêu chí rõ ràng như '0 lỗi Critical đang mở và CI xanh 3 lần liên tiếp' biến việc ký nghiệm thu thành quyết định thực tế, không phải phán xét."
   },
   {
     q: "Why should a test plan explicitly list what is OUT of scope?",
+    qVi: "Tại sao kế hoạch test phải liệt kê rõ ràng những gì NGOÀI phạm vi?",
     choices: [
-      "To reduce the total amount of testing done",
-      "To set clear expectations — stakeholders know what is not being tested and can make informed risk decisions",
-      "Out-of-scope items are automatically tested by the CI pipeline",
-      "It's a legal requirement"
+      "To legally protect the QA engineer from blame",
+      "To reduce the total amount of testing done on the project",
+      "To set clear expectations — stakeholders know what is not covered and can make informed decisions about risk acceptance",
+      "Out-of-scope items are automatically tested by the CI pipeline"
+    ],
+    choicesVi: [
+      "Để bảo vệ kỹ sư QA về mặt pháp lý khỏi bị đổ lỗi",
+      "Để giảm tổng lượng kiểm thử được thực hiện trên dự án",
+      "Để đặt ra kỳ vọng rõ ràng — các bên liên quan biết điều gì không được bao phủ và có thể đưa ra quyết định sáng suốt về chấp nhận rủi ro",
+      "Các mục ngoài phạm vi được tự động kiểm thử bởi CI pipeline"
+    ],
+    answer: 2,
+    explain: "Explicitly stating out-of-scope areas prevents scope creep and manages expectations. If load testing is out of scope, stakeholders know they need separate performance testing — they can make an informed risk decision. Items that are not explicitly excluded become implied commitments, which leads to disputes about what 'done' means when testing finishes.",
+    explainVi: "Nêu rõ các khu vực ngoài phạm vi ngăn chặn phình to phạm vi và quản lý kỳ vọng. Nếu kiểm thử tải ngoài phạm vi, các bên liên quan biết họ cần kiểm thử hiệu suất riêng — họ có thể đưa ra quyết định rủi ro sáng suốt. Các mục không được loại trừ rõ ràng trở thành cam kết ngầm, dẫn đến tranh chấp về 'xong' có nghĩa là gì khi kiểm thử kết thúc."
+  },
+  {
+    q: "In risk analysis, what does a score of Likelihood=High(3) × Impact=High(3) = 9 indicate?",
+    qVi: "Trong phân tích rủi ro, điểm Khả năng=Cao(3) × Tác động=Cao(3) = 9 cho biết điều gì?",
+    choices: [
+      "The risk should be monitored but requires no immediate action",
+      "The risk should have a mitigation plan ready but is low priority",
+      "The risk is severe enough that you should redesign to eliminate it entirely rather than just mitigate it",
+      "The risk can be accepted as-is because high-impact risks are normal"
+    ],
+    choicesVi: [
+      "Rủi ro nên được theo dõi nhưng không cần hành động ngay",
+      "Rủi ro nên có kế hoạch giảm thiểu sẵn sàng nhưng ưu tiên thấp",
+      "Rủi ro đủ nghiêm trọng để bạn nên thiết kế lại để loại bỏ hoàn toàn thay vì chỉ giảm thiểu",
+      "Rủi ro có thể được chấp nhận vì rủi ro tác động cao là bình thường"
+    ],
+    answer: 2,
+    explain: "A score of 9 (3×3) means the risk is both highly likely AND would cause severe damage if it occurs. The correct action is 'Avoid' — redesign the approach to eliminate the risk entirely. Simply mitigating a 9-score risk is insufficient; if it's that likely and that impactful, the plan itself needs to change.",
+    explainVi: "Điểm 9 (3×3) có nghĩa là rủi ro vừa rất có khả năng xảy ra VÀ sẽ gây ra thiệt hại nghiêm trọng nếu xảy ra. Hành động đúng là 'Tránh' — thiết kế lại phương pháp để loại bỏ hoàn toàn rủi ro. Chỉ giảm thiểu rủi ro điểm 9 là không đủ; nếu nó có khả năng đó và tác động đó, bản thân kế hoạch cần thay đổi."
+  },
+  {
+    q: "Which of these is the strongest exit criterion for a capstone project?",
+    qVi: "Tiêu chí thoát nào sau đây mạnh nhất cho capstone project?",
+    choices: [
+      "All tests are passing and the team is satisfied with quality",
+      "Testing is mostly complete with only minor issues remaining",
+      "0 open Critical defects, CI green for 3 consecutive runs, and Allure report reviewed",
+      "The QA engineer feels confident about shipping"
+    ],
+    choicesVi: [
+      "Tất cả test đang vượt qua và nhóm hài lòng với chất lượng",
+      "Kiểm thử gần hoàn thành với chỉ còn vấn đề nhỏ",
+      "0 lỗi Critical đang mở, CI xanh 3 lần liên tiếp, và báo cáo Allure đã được xem xét",
+      "Kỹ sư QA cảm thấy tự tin về việc giao hàng"
+    ],
+    answer: 2,
+    explain: "Option C is strong because all three conditions are independently verifiable with objective evidence: defect count (from a bug tracker), CI status (from GitHub Actions logs), and report review (from a meeting note or PR comment). Options A, B, and D rely on subjective judgment — 'satisfied,' 'mostly,' and 'feels confident' cannot be measured.",
+    explainVi: "Lựa chọn C mạnh vì cả ba điều kiện đều có thể được xác minh độc lập với bằng chứng khách quan: số lỗi (từ bug tracker), trạng thái CI (từ log GitHub Actions), và xem xét báo cáo (từ ghi chú cuộc họp hoặc bình luận PR). Lựa chọn A, B và D dựa trên phán xét chủ quan — 'hài lòng,' 'gần,' và 'cảm thấy tự tin' không thể đo lường."
+  },
+  {
+    q: "What does the 'data strategy' section of the test approach describe?",
+    qVi: "Phần 'chiến lược dữ liệu' của phương pháp test mô tả điều gì?",
+    choices: [
+      "Which database technology the application uses",
+      "How test data is created, isolated between tests, and cleaned up after each test run",
+      "The schema of the API response payloads",
+      "How the CI pipeline stores test artifacts"
+    ],
+    choicesVi: [
+      "Công nghệ cơ sở dữ liệu nào ứng dụng sử dụng",
+      "Cách dữ liệu test được tạo, cô lập giữa các test và dọn dẹp sau mỗi lần chạy test",
+      "Schema của API response payload",
+      "Cách CI pipeline lưu trữ test artifact"
     ],
     answer: 1,
-    explain: "Explicitly stating out-of-scope areas prevents scope creep and manages expectations. If load testing is out of scope, stakeholders know they need separate performance testing. Ambiguous scope leads to disagreements about what 'done' means."
+    explain: "The data strategy documents how test data is created (seeded, generated, or simulated), how tests are isolated from each other's data (to prevent ordering dependencies), and what cleanup happens after each test run. For ReqRes.in, this is trivial — the API simulates writes without persisting them. For a real database-backed API, poor data strategy is the #1 cause of intermittent test failures.",
+    explainVi: "Chiến lược dữ liệu ghi lại cách dữ liệu test được tạo (seeded, generated, hoặc simulated), cách các test được cô lập khỏi dữ liệu của nhau (để ngăn phụ thuộc thứ tự), và dọn dẹp gì xảy ra sau mỗi lần chạy test. Với ReqRes.in, điều này đơn giản — API mô phỏng writes mà không lưu chúng. Với API được hỗ trợ bởi database thực, chiến lược dữ liệu kém là nguyên nhân số 1 gây ra lỗi test ngẫu nhiên."
+  },
+  {
+    q: "What is the key difference between 'entry criteria' and 'exit criteria'?",
+    qVi: "Sự khác biệt chính giữa 'tiêu chí vào' và 'tiêu chí ra' là gì?",
+    choices: [
+      "Entry criteria are written by developers; exit criteria are written by QA",
+      "Entry criteria define when testing can START; exit criteria define when testing is DONE",
+      "Entry criteria describe the test environment; exit criteria describe the test approach",
+      "Entry criteria apply to unit tests; exit criteria apply to E2E tests"
+    ],
+    choicesVi: [
+      "Tiêu chí vào được viết bởi developer; tiêu chí ra được viết bởi QA",
+      "Tiêu chí vào xác định khi nào kiểm thử có thể BẮT ĐẦU; tiêu chí ra xác định khi nào kiểm thử XONG",
+      "Tiêu chí vào mô tả môi trường test; tiêu chí ra mô tả phương pháp test",
+      "Tiêu chí vào áp dụng cho unit test; tiêu chí ra áp dụng cho E2E test"
+    ],
+    answer: 1,
+    explain: "Entry criteria are prerequisites — conditions that must be true before testing begins (environment ready, dependencies installed, credentials provisioned). Exit criteria are completion conditions — measurable evidence that testing has achieved its goals. Both exist to prevent the two most common QA failure modes: starting too early on a broken environment, and stopping too early before quality is demonstrated.",
+    explainVi: "Tiêu chí vào là điều kiện tiên quyết — các điều kiện phải đúng trước khi kiểm thử bắt đầu (môi trường sẵn sàng, dependency đã cài, credential đã cấp). Tiêu chí ra là điều kiện hoàn thành — bằng chứng có thể đo lường rằng kiểm thử đã đạt được mục tiêu. Cả hai tồn tại để ngăn chặn hai thất bại QA phổ biến nhất: bắt đầu quá sớm trên môi trường bị hỏng, và dừng quá sớm trước khi chất lượng được chứng minh."
+  },
+  {
+    q: "A stakeholder asks you mid-sprint to also test a payment integration that was not in the original plan. What is the correct response?",
+    qVi: "Một bên liên quan yêu cầu bạn giữa sprint cũng test tích hợp thanh toán không có trong kế hoạch ban đầu. Phản hồi đúng là gì?",
+    choices: [
+      "Always accept the request — stakeholders are the customer",
+      "Refuse all new scope additions without exception",
+      "Use the test plan's scope section to anchor the conversation, then formally evaluate whether to add it as a scope change with updated timeline and resources",
+      "Test it informally without updating the plan"
+    ],
+    choicesVi: [
+      "Luôn chấp nhận yêu cầu — các bên liên quan là khách hàng",
+      "Từ chối tất cả bổ sung phạm vi mới mà không có ngoại lệ",
+      "Dùng mục phạm vi của kế hoạch test để neo đậu cuộc trò chuyện, rồi đánh giá chính thức xem có nên thêm nó như thay đổi phạm vi với timeline và tài nguyên được cập nhật hay không",
+      "Test nó không chính thức mà không cập nhật kế hoạch"
+    ],
+    answer: 2,
+    explain: "The test plan's scope section exists precisely for this situation — it's the documented agreement that anchors scope conversations. The professional response is not 'yes' or 'no' but 'here is what we agreed to test; adding payment integration means either extending the timeline or removing something else from scope — which do you prefer?' This is what senior QA engineers do: make trade-offs visible rather than absorbing unlimited work silently.",
+    explainVi: "Mục phạm vi của kế hoạch test tồn tại chính xác cho tình huống này — đó là thỏa thuận được ghi lại neo đậu các cuộc trò chuyện phạm vi. Phản hồi chuyên nghiệp không phải 'có' hay 'không' mà là 'đây là những gì chúng ta đã đồng ý test; thêm tích hợp thanh toán có nghĩa là kéo dài timeline hoặc loại bỏ thứ khác khỏi phạm vi — bạn thích cái nào?' Đây là điều kỹ sư QA cấp cao làm: làm cho các đánh đổi hiển thị thay vì âm thầm hấp thụ công việc không giới hạn."
+  },
+  {
+    q: "Which component of the test plan is MOST useful for preventing the team from being surprised by problems that occur during testing?",
+    qVi: "Thành phần nào của kế hoạch test HỮU ÍCH NHẤT để ngăn nhóm bị bất ngờ bởi các vấn đề xảy ra trong quá trình kiểm thử?",
+    choices: [
+      "The objective section",
+      "The deliverables section",
+      "The roles section",
+      "The risk and mitigation section"
+    ],
+    choicesVi: [
+      "Mục mục tiêu",
+      "Mục các sản phẩm giao nộp",
+      "Mục vai trò",
+      "Mục rủi ro và giảm thiểu"
+    ],
+    answer: 3,
+    explain: "The risk section is where you proactively identify what could go wrong before it happens. Each risk that appears in the register has already been thought through — the team has a planned response rather than reacting in panic. Risks that are NOT in the register are the ones that blindside teams. Writing thorough risk analysis is the primary thing that distinguishes a senior QA engineer's test plan from a junior one.",
+    explainVi: "Mục rủi ro là nơi bạn chủ động xác định những gì có thể xảy ra sai trước khi nó xảy ra. Mỗi rủi ro xuất hiện trong register đã được suy nghĩ kỹ — nhóm có phản ứng đã được lên kế hoạch thay vì phản ứng hoảng loạn. Rủi ro KHÔNG có trong register là những thứ khiến nhóm bị bất ngờ. Viết phân tích rủi ro kỹ lưỡng là điều chính phân biệt kế hoạch test của kỹ sư QA cấp cao với kế hoạch của người mới."
+  },
+  {
+    q: "Why should the out-of-scope section include a reason for each exclusion, not just a list of items?",
+    qVi: "Tại sao mục ngoài phạm vi phải bao gồm lý do cho mỗi loại trừ, không chỉ là danh sách các mục?",
+    choices: [
+      "It makes the document longer and more impressive",
+      "Regulators require reasons for all scope decisions",
+      "Without reasons, excluded items look like oversights rather than deliberate decisions — stakeholders cannot evaluate whether the trade-off is acceptable",
+      "It helps the CI pipeline know which tests to skip"
+    ],
+    choicesVi: [
+      "Nó làm cho tài liệu dài hơn và ấn tượng hơn",
+      "Các cơ quan quản lý yêu cầu lý do cho tất cả quyết định phạm vi",
+      "Không có lý do, các mục bị loại trừ trông như sơ suất thay vì quyết định có chủ ý — các bên liên quan không thể đánh giá liệu đánh đổi có chấp nhận được không",
+      "Nó giúp CI pipeline biết test nào cần bỏ qua"
+    ],
+    answer: 2,
+    explain: "A reason transforms an exclusion from a gap into a documented trade-off. 'Load testing — out of scope' looks like you forgot. 'Load testing — out of scope because we have no production traffic baseline and no staging environment capable of receiving realistic load' shows deliberate engineering judgment. Stakeholders can then decide whether they accept that trade-off or want to invest in addressing it.",
+    explainVi: "Một lý do biến loại trừ từ khoảng trống thành đánh đổi được ghi lại. 'Kiểm thử tải — ngoài phạm vi' trông như bạn quên. 'Kiểm thử tải — ngoài phạm vi vì chúng ta không có baseline lưu lượng production và không có môi trường staging có thể nhận tải thực tế' thể hiện phán xét kỹ thuật có chủ ý. Các bên liên quan sau đó có thể quyết định liệu họ chấp nhận đánh đổi đó hay muốn đầu tư để giải quyết nó."
+  },
+  {
+    q: "What is the purpose of entry criteria in a test plan?",
+    qVi: "Mục đích của tiêu chí vào trong kế hoạch test là gì?",
+    choices: [
+      "To define the skills required of the QA engineer",
+      "To list all the features the application must have before launch",
+      "To define verifiable preconditions that must be true before testing starts — preventing wasted effort on a broken environment",
+      "To describe how tests will be prioritized and ordered"
+    ],
+    choicesVi: [
+      "Để xác định kỹ năng cần thiết của kỹ sư QA",
+      "Để liệt kê tất cả tính năng ứng dụng phải có trước khi ra mắt",
+      "Để xác định các điều kiện tiên quyết có thể xác minh phải đúng trước khi kiểm thử bắt đầu — ngăn lãng phí công sức trên môi trường bị hỏng",
+      "Để mô tả cách các test sẽ được ưu tiên và sắp xếp thứ tự"
+    ],
+    answer: 2,
+    explain: "Entry criteria prevent the most common reason testing gets stuck: the environment was not ready. 'QA is blocked — staging is down' or 'QA is blocked — credentials were never provisioned' are recurring complaints on teams without explicit entry criteria. Each entry criterion should be checkable with a single command or a factual observation — if you need subjective judgment to check it, it's not a good entry criterion.",
+    explainVi: "Tiêu chí vào ngăn chặn lý do phổ biến nhất khiến kiểm thử bị kẹt: môi trường chưa sẵn sàng. 'QA bị chặn — staging bị sập' hay 'QA bị chặn — credential chưa bao giờ được cấp' là khiếu nại thường xuyên trên các nhóm không có tiêu chí vào rõ ràng. Mỗi tiêu chí vào phải có thể kiểm tra bằng một lệnh duy nhất hoặc quan sát thực tế — nếu bạn cần phán xét chủ quan để kiểm tra nó, đó không phải là tiêu chí vào tốt."
   }
 ]} />
 

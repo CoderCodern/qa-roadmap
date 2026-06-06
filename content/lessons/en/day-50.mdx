@@ -9,231 +9,867 @@ tags: ["capstone", "architecture"]
 ## Intro
 
 <En>
-Phase 5 is the capstone — you design and build a complete, professional test framework that integrates everything from the previous four phases. Today you design the framework structure: the folder layout, the layers of abstraction, and the conventions that will make the codebase maintainable as it grows. Good framework design is what separates a collection of test files from a professional test suite.
+Phase 5 is the capstone — you design and build a complete, professional test framework that integrates everything from the previous four phases. Today you design the framework structure: the folder layout, the layers of abstraction, and the conventions that will make the codebase maintainable as it grows. Good framework design is what separates a collection of test files from a professional test suite. The difference is not how many tests you have — it is how well those tests can survive change.
 </En>
 <Vi>
-Phase 5 là capstone — bạn thiết kế và xây dựng một framework test hoàn chỉnh, chuyên nghiệp tích hợp mọi thứ từ bốn phase trước. Hôm nay bạn thiết kế cấu trúc framework: bố cục thư mục, các lớp trừu tượng và các quy ước làm cho codebase có thể bảo trì khi nó phát triển. Thiết kế framework tốt là điều phân biệt một tập hợp file test với một bộ test chuyên nghiệp.
+Phase 5 là capstone — bạn thiết kế và xây dựng một framework test hoàn chỉnh, chuyên nghiệp tích hợp mọi thứ từ bốn phase trước. Hôm nay bạn thiết kế cấu trúc framework: bố cục thư mục, các lớp trừu tượng và các quy ước làm cho codebase có thể bảo trì khi nó phát triển. Thiết kế framework tốt là điều phân biệt một tập hợp file test với một bộ test chuyên nghiệp. Sự khác biệt không phải là bạn có bao nhiêu test — mà là những test đó có thể tồn tại qua thay đổi tốt như thế nào.
 </Vi>
 
 ## Concept
 
 <En>
-**Professional test framework structure:**
+
+**The full framework folder layout:**
+
 ```
 capstone-framework/
 ├── .github/workflows/tests.yml
 ├── api/
 │   ├── __init__.py
-│   ├── client.py          # requests.Session wrapper
+│   ├── client.py              # requests.Session wrapper — base URL, default headers, auth
 │   └── endpoints/
 │       ├── __init__.py
-│       ├── posts.py       # endpoint-specific methods
+│       ├── posts.py           # thin methods: get, list, create, update, delete
 │       └── users.py
 ├── pages/
 │   ├── __init__.py
-│   ├── base_page.py
+│   ├── base_page.py           # shared Playwright helpers: wait, navigate, screenshot
 │   ├── login_page.py
-│   └── dashboard_page.py
+│   └── inventory_page.py
 ├── schemas/
-│   ├── post.json
+│   ├── post.json              # JSON Schema for response validation
 │   └── user.json
 ├── fixtures/
-│   └── users.json         # static test data
+│   └── users.json             # static seed data for parametrize or setup
 ├── tests/
 │   ├── __init__.py
-│   ├── conftest.py
+│   ├── conftest.py            # session/function-scoped fixtures for the entire suite
 │   ├── api/
+│   │   ├── conftest.py        # API-specific fixtures (authenticated session, base_url)
 │   │   ├── test_posts.py
 │   │   └── test_users.py
 │   └── ui/
+│       ├── conftest.py        # UI-specific fixtures (browser, page object instances)
 │       ├── test_login.py
-│       └── test_dashboard.py
+│       └── test_inventory.py
 ├── utils/
 │   ├── __init__.py
-│   ├── assertions.py      # custom assertion helpers
-│   └── data_factory.py    # test data generators
+│   ├── assertions.py          # custom assertion helpers — wrap assert with richer messages
+│   └── data_factory.py        # programmatic test data — no hardcoded strings in tests
 ├── pytest.ini
 ├── pyproject.toml
 └── README.md
 ```
 
-**Design layers:**
-1. **Utils** — pure functions: data generation, custom assertions, schema loading
-2. **API/Pages** — thin wrappers around requests/Playwright: no assertions, no test logic
-3. **Tests** — assertions + business logic: calls API/pages, asserts outcomes
-4. **Conftest** — shared fixtures: session management, test data setup
+**Why layering matters — the dependency graph:**
 
-**Key conventions:**
-- Test files only import from `api/`, `pages/`, and `utils/` — never from other test files
-- API clients never import from `pages/` or `utils/` (or vice versa)
-- Fixtures handle setup/teardown — test functions focus on assertions
-- Parametrize at the test layer — not inside API clients
+The four layers form a strict one-way dependency chain:
+
+```
+utils  ←  api / pages  ←  tests
+                ↑
+           conftest.py
+```
+
+- `utils` has no imports from any project module — it is pure Python.
+- `api` and `pages` import from `utils` but never from `tests`.
+- `tests` import from `api`, `pages`, and `utils`. Never from each other.
+- `conftest.py` sits at each level and wires fixtures — test functions receive objects, not construction code.
+
+**Why does this direction prevent pain?**
+
+When layers only depend downward, you can rewrite any layer without touching the ones above it. If the ReqRes API changes its auth header, you fix `api/client.py` and every test automatically gets the fix. If you hardcoded the auth header in 30 test functions instead, you would edit 30 files — and miss one.
+
+Circular imports are the most common mistake in growing frameworks. If `api/client.py` imports from `utils/assertions.py` AND `utils/assertions.py` tries to import something from `api/`, Python raises `ImportError: cannot import name` at collection time — before any test runs. The solution is always: move shared code down to the layer that nothing depends on.
+
+**Why data factories beat hardcoded test data:**
+
+Hardcoded email addresses like `"testuser@example.com"` cause false failures. If you ran the test yesterday and the user was created in the database, today's test fails because the email already exists — not because your code is broken. A factory generates a unique value per run (`uuid4` suffix), so tests are independent and can run in parallel. When a field becomes required (e.g., the API now requires a `phone` field), you update the factory once and every test that calls `make_test_user()` is fixed automatically.
+
+**Why `utils/assertions.py` matters:**
+
+Standard `assert response.status_code == 200` prints `AssertionError` with no context. A wrapper prints `"Expected status 200, got 422. Body: {'detail': 'email already registered'}"`. The response body is the signal you need to understand the failure — without it you add a `print()` statement, re-run the test, and read the terminal output manually. Good failure messages eliminate that loop.
+
+**Key conventions — summarised:**
+
+1. Test files only import from `api/`, `pages/`, and `utils/` — never from other test files.
+2. API clients and page objects never import from each other.
+3. Fixtures handle all setup and teardown — test functions only call and assert.
+4. `pytest.mark.parametrize` lives at the test layer, not inside API clients.
+5. Every fixture that creates data in an external system must clean it up in a `yield` fixture teardown.
+
 </En>
 <Vi>
-**Cấu trúc framework test chuyên nghiệp:**
+
+**Bố cục thư mục framework đầy đủ:**
+
 ```
 capstone-framework/
 ├── .github/workflows/tests.yml
 ├── api/
-│   ├── client.py
+│   ├── __init__.py
+│   ├── client.py              # wrapper requests.Session — base URL, header mặc định, auth
 │   └── endpoints/
-│       ├── posts.py
+│       ├── __init__.py
+│       ├── posts.py           # method mỏng: get, list, create, update, delete
 │       └── users.py
 ├── pages/
-│   ├── base_page.py
-│   └── login_page.py
+│   ├── __init__.py
+│   ├── base_page.py           # helper Playwright dùng chung: wait, navigate, screenshot
+│   ├── login_page.py
+│   └── inventory_page.py
 ├── schemas/
-│   ├── post.json
+│   ├── post.json              # JSON Schema để validate response
 │   └── user.json
+├── fixtures/
+│   └── users.json             # dữ liệu seed tĩnh cho parametrize hoặc setup
 ├── tests/
-│   ├── conftest.py
+│   ├── __init__.py
+│   ├── conftest.py            # fixture scope session/function cho toàn bộ suite
 │   ├── api/
-│   │   └── test_posts.py
+│   │   ├── conftest.py        # fixture API cụ thể (session đã xác thực, base_url)
+│   │   ├── test_posts.py
+│   │   └── test_users.py
 │   └── ui/
-│       └── test_login.py
+│       ├── conftest.py        # fixture UI cụ thể (browser, page object instances)
+│       ├── test_login.py
+│       └── test_inventory.py
 ├── utils/
-│   ├── assertions.py
-│   └── data_factory.py
-└── pytest.ini
+│   ├── __init__.py
+│   ├── assertions.py          # helper assertion tùy chỉnh — bọc assert với thông báo phong phú hơn
+│   └── data_factory.py        # dữ liệu test lập trình — không có chuỗi hardcode trong test
+├── pytest.ini
+├── pyproject.toml
+└── README.md
 ```
 
-**Các lớp thiết kế:**
-1. **Utils** — hàm thuần: tạo dữ liệu, assertion tùy chỉnh, tải schema
-2. **API/Pages** — wrapper mỏng: không có assertion, không có logic test
-3. **Tests** — assertion + logic nghiệp vụ
-4. **Conftest** — fixture dùng chung
+**Tại sao phân lớp quan trọng — đồ thị phụ thuộc:**
 
-**Quy ước quan trọng:**
-- File test chỉ import từ `api/`, `pages/` và `utils/`
-- API client không bao giờ import từ `pages/`
-- Fixture xử lý setup/teardown — hàm test tập trung vào assertion
+Bốn lớp tạo thành chuỗi phụ thuộc một chiều nghiêm ngặt:
+
+```
+utils  ←  api / pages  ←  tests
+                ↑
+           conftest.py
+```
+
+- `utils` không import từ module dự án nào — nó là Python thuần túy.
+- `api` và `pages` import từ `utils` nhưng không bao giờ từ `tests`.
+- `tests` import từ `api`, `pages` và `utils`. Không bao giờ từ nhau.
+- `conftest.py` nằm ở mỗi cấp và kết nối các fixture.
+
+**Tại sao hướng này ngăn ngừa vấn đề?**
+
+Khi các lớp chỉ phụ thuộc xuống dưới, bạn có thể viết lại bất kỳ lớp nào mà không cần chạm vào các lớp phía trên. Nếu API ReqRes thay đổi header xác thực, bạn sửa `api/client.py` và mọi test tự động nhận được bản sửa lỗi. Import vòng tròn là lỗi phổ biến nhất trong framework đang phát triển — Python sẽ báo `ImportError` ngay khi thu thập test, trước khi bất kỳ test nào chạy.
+
+**Tại sao data factory tốt hơn dữ liệu hardcode:**
+
+Email hardcode như `"testuser@example.com"` gây ra lỗi giả. Nếu bạn chạy test hôm qua và người dùng đã được tạo trong cơ sở dữ liệu, test hôm nay thất bại vì email đã tồn tại — không phải vì code của bạn bị lỗi. Factory tạo ra giá trị duy nhất mỗi lần chạy (hậu tố `uuid4`), vì vậy các test độc lập và có thể chạy song song.
+
+**Tại sao `utils/assertions.py` quan trọng:**
+
+`assert response.status_code == 200` tiêu chuẩn in `AssertionError` không có ngữ cảnh. Wrapper in `"Expected status 200, got 422. Body: {'detail': 'email already registered'}"`. Nội dung response là tín hiệu bạn cần để hiểu lỗi — không có nó bạn thêm `print()`, chạy lại test và đọc đầu ra terminal thủ công.
+
+**Quy ước quan trọng — tóm tắt:**
+
+1. File test chỉ import từ `api/`, `pages/` và `utils/` — không bao giờ từ file test khác.
+2. API client và page object không bao giờ import từ nhau.
+3. Fixture xử lý toàn bộ setup và teardown — hàm test chỉ gọi và assert.
+4. `pytest.mark.parametrize` nằm ở lớp test, không phải bên trong API client.
+5. Mọi fixture tạo dữ liệu trong hệ thống bên ngoài phải dọn sạch trong teardown `yield`.
+
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — utils/assertions.py: Custom assertion helpers with rich failure messages**
+
+</En>
+<Vi>
+
+**Phần 1 — utils/assertions.py: Helper assertion tùy chỉnh với thông báo lỗi phong phú**
+
+</Vi>
+
 ```python
-# utils/assertions.py — reusable assertion helpers
+# utils/assertions.py
 from jsonschema import validate, ValidationError
 import requests
 from typing import Any
 
+
 def assert_status(response: requests.Response, expected: int) -> None:
+    """Assert HTTP status code with a descriptive failure message."""
     assert response.status_code == expected, (
-        f"Expected status {expected}, got {response.status_code}. "
-        f"Body: {response.text[:200]}"
+        f"Expected status {expected}, got {response.status_code}.\n"
+        f"URL: {response.request.method} {response.url}\n"
+        f"Body: {response.text[:300]}"
     )
 
+
 def assert_schema(data: Any, schema: dict, label: str = "") -> None:
+    """Validate a dict/list against a JSON Schema, raising AssertionError with path info."""
     try:
         validate(instance=data, schema=schema)
     except ValidationError as e:
+        path = " -> ".join(str(p) for p in e.absolute_path) or "(root)"
         raise AssertionError(
-            f"Schema validation failed{f' for {label}' if label else ''}: {e.message}"
+            f"Schema validation failed{f' for {label}' if label else ''}.\n"
+            f"Path: {path}\n"
+            f"Message: {e.message}"
         ) from e
 
-def assert_response_ok(response: requests.Response, schema: dict | None = None) -> dict:
+
+def assert_response_ok(
+    response: requests.Response,
+    schema: dict | None = None,
+    label: str = "",
+) -> dict:
+    """Assert 200 status, parse JSON, optionally validate schema. Returns parsed body."""
     assert_status(response, 200)
     data = response.json()
     if schema:
-        assert_schema(data, schema)
+        assert_schema(data, schema, label=label or response.url)
     return data
 
+
+def assert_field_equals(data: dict, field: str, expected: Any) -> None:
+    """Assert a field value in a response dict with a clear message."""
+    assert field in data, f"Field '{field}' not found in response. Keys: {list(data.keys())}"
+    actual = data[field]
+    assert actual == expected, (
+        f"Expected data['{field}'] == {expected!r}, got {actual!r}"
+    )
+
+
 def assert_no_sensitive_data(response: requests.Response) -> None:
+    """Assert no credentials or stack traces leak in error responses (status >= 400)."""
+    if response.status_code < 400:
+        return
     text = response.text.lower()
-    sensitive_patterns = ["password", "secret", "token", "stack trace", "syntax error"]
-    for pattern in sensitive_patterns:
-        assert pattern not in text or response.status_code < 400, \
-            f"Possible sensitive data leak in error response: '{pattern}' found"
+    forbidden = ["password", "secret", "token", "stack trace", "traceback", "syntax error"]
+    for keyword in forbidden:
+        assert keyword not in text, (
+            f"Possible sensitive data leak: '{keyword}' found in {response.status_code} response.\n"
+            f"Body snippet: {response.text[:200]}"
+        )
 ```
 
+<En>
+
+**Part 2 — utils/data_factory.py: Programmatic test data with guaranteed uniqueness**
+
+</En>
+<Vi>
+
+**Phần 2 — utils/data_factory.py: Dữ liệu test lập trình với tính duy nhất được đảm bảo**
+
+</Vi>
+
 ```python
-# utils/data_factory.py — test data generators
+# utils/data_factory.py
 import uuid
 import time
 from dataclasses import dataclass, field
 
+
 @dataclass
 class UserData:
+    """Immutable value object representing a user for test input."""
     email: str
     password: str
     role: str = "viewer"
     name: str = ""
 
     def to_dict(self) -> dict:
-        return {"email": self.email, "password": self.password,
-                "role": self.role, "name": self.name}
+        return {
+            "email": self.email,
+            "password": self.password,
+            "role": self.role,
+            "name": self.name,
+        }
+
+
+@dataclass
+class PostPayload:
+    """Immutable value object representing a post body for test input."""
+    title: str
+    body: str
+    user_id: int
+
+    def to_dict(self) -> dict:
+        return {"title": self.title, "body": self.body, "userId": self.user_id}
+
+
+def _uid() -> str:
+    """Return 8-char hex unique suffix."""
+    return uuid.uuid4().hex[:8]
+
 
 def make_unique_email(prefix: str = "test") -> str:
-    return f"{prefix}+{uuid.uuid4().hex[:8]}@example.com"
+    """Return an email guaranteed unique per process run."""
+    return f"{prefix}+{_uid()}@example.com"
+
 
 def make_test_user(role: str = "viewer") -> UserData:
+    """
+    Create a UserData with a unique email.
+
+    Why unique? If the API enforces unique emails and you run tests twice,
+    the second run fails with 409 Conflict — not because your code broke,
+    but because hardcoded data collides. uuid4 suffix eliminates that class
+    of false failure entirely.
+    """
     return UserData(
         email=make_unique_email(role),
         password="TestPass123!",
         role=role,
-        name=f"Test {role.capitalize()} User",
+        name=f"Test {role.capitalize()} {_uid()}",
     )
 
-def make_post_payload(title: str | None = None, user_id: int = 1) -> dict:
-    title = title or f"Test Post {int(time.time())}"
-    return {"title": title, "body": "Automated test post body", "userId": user_id}
+
+def make_post_payload(
+    title: str | None = None,
+    user_id: int = 1,
+    body: str | None = None,
+) -> PostPayload:
+    """
+    Build a PostPayload with a timestamp-based title if not provided.
+
+    Timestamps keep test data readable in the API logs: you can grep
+    for the exact second a test ran and find the created resource.
+    """
+    return PostPayload(
+        title=title or f"Test Post {int(time.time())} {_uid()}",
+        body=body or "Automated test post. Safe to delete.",
+        user_id=user_id,
+    )
 ```
 
+<En>
+
+**Part 3 — api/client.py and api/endpoints/posts.py: Thin wrappers with no assertion logic**
+
+</En>
+<Vi>
+
+**Phần 3 — api/client.py và api/endpoints/posts.py: Wrapper mỏng không có logic assertion**
+
+</Vi>
+
 ```python
-# api/endpoints/posts.py
+# api/client.py
 import requests
-from utils.assertions import assert_status
+
+
+class ApiClient:
+    """
+    A thin wrapper around requests.Session.
+
+    Why a wrapper and not bare requests.get()?
+    - The base URL and default headers are configured once here.
+    - Switching from reqres.in to a staging URL means changing one constant.
+    - The session reuses TCP connections, which speeds up large test runs.
+    - You can add auth headers (Bearer token, API key) to __init__ without
+      touching any test file.
+    """
+
+    def __init__(self, base_url: str = "https://reqres.in/api") -> None:
+        self._base_url = base_url.rstrip("/")
+        self._session = requests.Session()
+        self._session.headers.update({"Content-Type": "application/json"})
+
+    def get(self, path: str, **kwargs) -> requests.Response:
+        return self._session.get(f"{self._base_url}{path}", **kwargs)
+
+    def post(self, path: str, **kwargs) -> requests.Response:
+        return self._session.post(f"{self._base_url}{path}", **kwargs)
+
+    def put(self, path: str, **kwargs) -> requests.Response:
+        return self._session.put(f"{self._base_url}{path}", **kwargs)
+
+    def patch(self, path: str, **kwargs) -> requests.Response:
+        return self._session.patch(f"{self._base_url}{path}", **kwargs)
+
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        return self._session.delete(f"{self._base_url}{path}", **kwargs)
+
+    def close(self) -> None:
+        self._session.close()
+
+
+# api/endpoints/posts.py
+from api.client import ApiClient
+import requests
+
 
 class PostsEndpoint:
-    def __init__(self, session: requests.Session, base_url: str) -> None:
-        self._session = session
-        self._base_url = base_url
+    """
+    Endpoint wrapper for /posts resources.
+
+    This class has NO assertions and NO test logic. It only:
+    1. Knows the URL pattern for each operation.
+    2. Forwards the raw requests.Response to the caller.
+
+    Tests decide whether a 404 is a failure or an expected outcome.
+    The endpoint class must never make that decision.
+    """
+
+    def __init__(self, client: ApiClient) -> None:
+        self._client = client
 
     def get(self, post_id: int) -> requests.Response:
-        return self._session.get(f"{self._base_url}/posts/{post_id}")
+        return self._client.get(f"/posts/{post_id}")
 
     def list(self, **params) -> requests.Response:
-        return self._session.get(f"{self._base_url}/posts", params=params)
+        return self._client.get("/posts", params=params)
 
     def create(self, payload: dict) -> requests.Response:
-        return self._session.post(f"{self._base_url}/posts", json=payload)
+        return self._client.post("/posts", json=payload)
+
+    def update(self, post_id: int, payload: dict) -> requests.Response:
+        return self._client.put(f"/posts/{post_id}", json=payload)
 
     def delete(self, post_id: int) -> requests.Response:
-        return self._session.delete(f"{self._base_url}/posts/{post_id}")
+        return self._client.delete(f"/posts/{post_id}")
+```
+
+<En>
+
+**Part 4 — tests/conftest.py and a full test using all layers together**
+
+</En>
+<Vi>
+
+**Phần 4 — tests/conftest.py và một test đầy đủ sử dụng tất cả các lớp cùng nhau**
+
+</Vi>
+
+```python
+# tests/conftest.py
+import pytest
+from api.client import ApiClient
+from api.endpoints.posts import PostsEndpoint
+
+
+@pytest.fixture(scope="session")
+def api_client() -> ApiClient:
+    """
+    Session-scoped client: one TCP connection pool for the entire test run.
+
+    scope="session" means this fixture is created once and shared across all
+    tests in the run. For a client with no stored state this is safe and
+    much faster than creating a new connection per test.
+    """
+    client = ApiClient()
+    yield client
+    client.close()
+
+
+@pytest.fixture
+def posts(api_client: ApiClient) -> PostsEndpoint:
+    """Function-scoped: each test gets a fresh PostsEndpoint referencing the shared session."""
+    return PostsEndpoint(client=api_client)
+
+
+# tests/api/test_posts.py
+import pytest
+from utils.assertions import assert_status, assert_schema, assert_field_equals
+from utils.data_factory import make_post_payload
+from api.endpoints.posts import PostsEndpoint
+
+POST_SCHEMA = {
+    "type": "object",
+    "required": ["id", "userId", "title", "body"],
+    "properties": {
+        "id":     {"type": "integer"},
+        "userId": {"type": "integer"},
+        "title":  {"type": "string"},
+        "body":   {"type": "string"},
+    },
+}
+
+
+def test_get_existing_post_returns_200(posts: PostsEndpoint) -> None:
+    response = posts.get(1)
+    assert_status(response, 200)
+    assert_schema(response.json(), POST_SCHEMA, label="GET /posts/1")
+
+
+def test_create_post_returns_201_with_id(posts: PostsEndpoint) -> None:
+    payload = make_post_payload(title="Framework Design Test").to_dict()
+    response = posts.create(payload)
+    assert_status(response, 201)
+    data = response.json()
+    assert "id" in data, f"Expected 'id' in response, got: {data}"
+    assert_field_equals(data, "title", payload["title"])
+
+
+def test_delete_post_returns_200(posts: PostsEndpoint) -> None:
+    response = posts.delete(1)
+    assert_status(response, 200)
+
+
+@pytest.mark.parametrize("post_id", [99998, 99999])
+def test_get_nonexistent_post_returns_404(posts: PostsEndpoint, post_id: int) -> None:
+    response = posts.get(post_id)
+    assert_status(response, 404)
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Set up the capstone framework directory structure, implement `utils/assertions.py` and `utils/data_factory.py` — write a test that uses `make_test_user()`, `assert_status()`, and `assert_schema()` together
-- [ ] Implement `api/endpoints/posts.py` and write a simple test that creates a post using `make_post_payload()`, then verifies the creation with `assert_response_ok()`
-- [ ] Draw a dependency diagram showing which layers can import from which — verify your diagram has no circular dependencies
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Build the utils layer and write a test that uses all helpers",
+    code: `# utils/assertions.py + utils/data_factory.py scaffold
+# Run: pip install requests jsonschema pytest
+# Then: pytest test_exercise1.py -v
+
+import requests
+from jsonschema import validate, ValidationError
+import uuid, time
+from dataclasses import dataclass
+
+
+# --- assertions.py ---
+
+def assert_status(response, expected):
+    # TODO (EN): implement with a message showing method, URL, status, and body snippet
+    # TODO (VI): triển khai với thông báo hiển thị method, URL, status và đoạn body
+    pass
+
+
+def assert_schema(data, schema, label=""):
+    # TODO (EN): call jsonschema.validate; on ValidationError raise AssertionError with path
+    # TODO (VI): gọi jsonschema.validate; khi ValidationError raise AssertionError với path
+    pass
+
+
+# --- data_factory.py ---
+
+@dataclass
+class PostPayload:
+    title: str
+    body: str
+    user_id: int
+    def to_dict(self): return {"title": self.title, "body": self.body, "userId": self.user_id}
+
+
+def make_post_payload(title=None, user_id=1):
+    # TODO (EN): return PostPayload with a unique title (use uuid4 or timestamp)
+    # TODO (VI): trả về PostPayload với title duy nhất (dùng uuid4 hoặc timestamp)
+    pass
+
+
+# --- test using both ---
+
+BASE_URL = "https://reqres.in/api"
+POST_SCHEMA = {
+    "type": "object",
+    "required": ["id", "userId", "title", "body"],
+    "properties": {
+        "id":     {"type": "integer"},
+        "userId": {"type": "integer"},
+        "title":  {"type": "string"},
+        "body":   {"type": "string"},
+    },
+}
+
+def test_create_and_validate_post():
+    payload = make_post_payload().to_dict()
+    response = requests.post(f"{BASE_URL}/posts", json=payload)
+    assert_status(response, 201)
+    assert_schema(response.json(), POST_SCHEMA, label="POST /posts")
+    print("PASS: post created and schema validated")`
+  },
+  {
+    title: "Exercise 2 — Implement the PostsEndpoint class with no assertion logic",
+    code: `# api/endpoints/posts_exercise.py scaffold
+# Run: pip install requests pytest
+# Then: pytest test_exercise2.py -v
+
+import requests
+
+
+class ApiClient:
+    def __init__(self, base_url="https://reqres.in/api"):
+        self._base_url = base_url.rstrip("/")
+        self._session = requests.Session()
+        self._session.headers.update({"Content-Type": "application/json"})
+
+    def get(self, path, **kw): return self._session.get(f"{self._base_url}{path}", **kw)
+    def post(self, path, **kw): return self._session.post(f"{self._base_url}{path}", **kw)
+    def put(self, path, **kw): return self._session.put(f"{self._base_url}{path}", **kw)
+    def delete(self, path, **kw): return self._session.delete(f"{self._base_url}{path}", **kw)
+
+
+class PostsEndpoint:
+    def __init__(self, client: ApiClient):
+        self._client = client
+
+    def get(self, post_id: int) -> requests.Response:
+        # TODO (EN): call self._client.get with the correct path
+        # TODO (VI): gọi self._client.get với path đúng
+        pass
+
+    def list(self, **params) -> requests.Response:
+        # TODO (EN): call self._client.get("/posts") with params forwarded
+        # TODO (VI): gọi self._client.get("/posts") với params được chuyển tiếp
+        pass
+
+    def create(self, payload: dict) -> requests.Response:
+        # TODO (EN): call self._client.post with json=payload
+        # TODO (VI): gọi self._client.post với json=payload
+        pass
+
+    def delete(self, post_id: int) -> requests.Response:
+        # TODO (EN): call self._client.delete with the correct path
+        # TODO (VI): gọi self._client.delete với path đúng
+        pass
+
+
+# Tests
+def test_get_post():
+    client = ApiClient()
+    posts = PostsEndpoint(client)
+    r = posts.get(1)
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}. Body: {r.text[:200]}"
+
+def test_create_post():
+    client = ApiClient()
+    posts = PostsEndpoint(client)
+    r = posts.create({"title": "Exercise Post", "body": "test", "userId": 1})
+    assert r.status_code == 201, f"Expected 201, got {r.status_code}. Body: {r.text[:200]}"
+
+def test_delete_post():
+    client = ApiClient()
+    posts = PostsEndpoint(client)
+    r = posts.delete(1)
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}. Body: {r.text[:200]}"
+
+def test_list_posts_with_filter():
+    client = ApiClient()
+    posts = PostsEndpoint(client)
+    r = posts.list(userId=1)
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list), "Expected a list"
+    assert all(p["userId"] == 1 for p in data), "Expected only userId=1 posts"`
+  },
+  {
+    title: "Exercise 3 — Wire everything with conftest.py fixtures and verify the dependency graph",
+    code: `# conftest.py + full test scaffold
+# Run: pip install requests jsonschema pytest
+# Layout: put conftest.py and test_exercise3.py in the same folder
+# Then: pytest test_exercise3.py -v
+
+# conftest.py — write this in a separate file
+CONFTEST_CONTENT = '''
+import pytest
+import requests
+
+class ApiClient:
+    def __init__(self, base_url="https://reqres.in/api"):
+        self._base_url = base_url.rstrip("/")
+        self._session = requests.Session()
+        self._session.headers.update({"Content-Type": "application/json"})
+    def get(self, path, **kw): return self._session.get(f"{self._base_url}{path}", **kw)
+    def post(self, path, **kw): return self._session.post(f"{self._base_url}{path}", **kw)
+    def delete(self, path, **kw): return self._session.delete(f"{self._base_url}{path}", **kw)
+    def close(self): self._session.close()
+
+@pytest.fixture(scope="session")
+def api_client():
+    # TODO (EN): yield an ApiClient, then call client.close() in teardown
+    # TODO (VI): yield một ApiClient, sau đó gọi client.close() trong teardown
+    pass
+
+@pytest.fixture
+def posts_ep(api_client):
+    # TODO (EN): return a PostsEndpoint wrapping api_client
+    # TODO (VI): trả về PostsEndpoint bọc api_client
+    pass
+'''
+
+# test_exercise3.py — this is what you write
+import uuid
+
+def make_unique_title():
+    return f"Exercise3 Post {uuid.uuid4().hex[:6]}"
+
+def test_create_then_delete_uses_fixtures(posts_ep):
+    # TODO (EN): create a post using posts_ep.create(), assert 201
+    # TODO (EN): then delete post_id from response, assert 200
+    # TODO (VI): tạo post bằng posts_ep.create(), assert 201
+    # TODO (VI): rồi xóa post_id từ response, assert 200
+    pass
+
+def test_parametrize_uses_fixture(posts_ep):
+    # TODO (EN): get posts 1, 2, 3 in a loop; assert each returns 200
+    # TODO (VI): lấy post 1, 2, 3 trong vòng lặp; assert mỗi cái trả về 200
+    for post_id in [1, 2, 3]:
+        pass`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Implement `assert_status`, `assert_schema`, and `make_post_payload` — run the test to verify your helpers work together
+- [ ] Exercise 2: Fill in all four methods of `PostsEndpoint` — run all four test functions and confirm they pass
+- [ ] Exercise 3: Write `conftest.py` with a session-scoped `api_client` fixture and a function-scoped `posts_ep` fixture — then implement the two tests
+
+> Note: Run this locally in a Python environment with `pip install requests jsonschema pytest`. The target API is `https://reqres.in/api` — a public test API that accepts any request and returns simulated responses.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài tập 1: Triển khai `assert_status`, `assert_schema` và `make_post_payload` — chạy test để xác minh các helper của bạn hoạt động cùng nhau
+- [ ] Bài tập 2: Điền vào cả bốn method của `PostsEndpoint` — chạy cả bốn hàm test và xác nhận chúng pass
+- [ ] Bài tập 3: Viết `conftest.py` với fixture `api_client` scope session và fixture `posts_ep` scope function — sau đó triển khai hai test
+
+> Lưu ý: Chạy code này cục bộ với môi trường Python có `pip install requests jsonschema pytest`. API mục tiêu là `https://reqres.in/api` — một API test công khai chấp nhận mọi request và trả về response giả.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "Why should test files never import from other test files?",
+    qVi: "Tại sao file test không bao giờ nên import từ file test khác?",
     choices: [
-      "pytest forbids cross-test imports",
+      "pytest forbids cross-test imports at the collection stage",
       "It creates coupling — if one test file changes, all importing test files break. Shared code belongs in utils/ or conftest.py",
-      "It would cause duplicate test discovery",
-      "Python doesn't support relative imports in test directories"
+      "It would cause duplicate test discovery and run tests twice",
+      "Python does not support relative imports in test directories"
+    ],
+    choicesVi: [
+      "pytest cấm import chéo giữa các test ở giai đoạn thu thập",
+      "Nó tạo ra sự kết hợp — nếu một file test thay đổi, tất cả file test import từ nó sẽ bị lỗi. Code dùng chung thuộc về utils/ hoặc conftest.py",
+      "Nó sẽ gây ra phát hiện test trùng lặp và chạy test hai lần",
+      "Python không hỗ trợ relative import trong thư mục test"
     ],
     answer: 1,
-    explain: "Shared logic between tests belongs in fixtures (conftest.py) or utility modules (utils/). Importing from test files creates hidden coupling — a refactor in test_posts.py should never break test_users.py."
+    explain: "Shared logic between tests belongs in fixtures (conftest.py) or utility modules (utils/). Importing from test files creates hidden coupling — a refactor in test_posts.py should never break test_users.py. If two tests need the same helper, extract it to utils/.",
+    explainVi: "Logic dùng chung giữa các test thuộc về fixture (conftest.py) hoặc module tiện ích (utils/). Import từ file test tạo ra sự kết hợp ẩn — tái cấu trúc test_posts.py không bao giờ được phá vỡ test_users.py. Nếu hai test cần cùng một helper, hãy trích xuất nó sang utils/."
   },
   {
-    q: "What is the purpose of the `utils/data_factory.py` module?",
+    q: "What is the primary purpose of utils/data_factory.py?",
+    qVi: "Mục đích chính của utils/data_factory.py là gì?",
     choices: [
-      "To store the test database connection string",
-      "To centralise test data creation — generating unique, valid test inputs from one place rather than hardcoding data in every test",
-      "To generate HTML test reports",
-      "To mock API responses"
+      "To store the test database connection string and credentials",
+      "To centralise test data creation — generating unique, valid test inputs from one place rather than hardcoding values in every test",
+      "To generate HTML test reports from raw pytest output",
+      "To mock API responses and intercept HTTP requests"
+    ],
+    choicesVi: [
+      "Để lưu trữ chuỗi kết nối cơ sở dữ liệu test và thông tin xác thực",
+      "Để tập trung hóa việc tạo dữ liệu test — tạo ra input test duy nhất, hợp lệ từ một nơi thay vì hardcode giá trị trong mỗi test",
+      "Để tạo báo cáo test HTML từ đầu ra pytest thô",
+      "Để mock API response và chặn HTTP request"
     ],
     answer: 1,
-    explain: "A data factory creates test data programmatically. This ensures uniqueness (avoiding conflicts from repeated runs), consistency (all tests use valid data by default), and DRY-ness (changing a user's required fields means updating the factory, not every test)."
+    explain: "A data factory creates test data programmatically. This ensures uniqueness (avoiding conflicts from repeated runs), consistency (all tests use valid data by default), and DRY-ness (changing a required field means updating the factory once, not editing every test).",
+    explainVi: "Data factory tạo ra dữ liệu test lập trình. Điều này đảm bảo tính duy nhất (tránh xung đột từ các lần chạy lặp lại), tính nhất quán (tất cả test sử dụng dữ liệu hợp lệ theo mặc định) và DRY (thay đổi trường bắt buộc nghĩa là cập nhật factory một lần, không phải sửa mọi test)."
+  },
+  {
+    q: "Why does the API client layer (api/client.py) contain no assertions?",
+    qVi: "Tại sao lớp API client (api/client.py) không chứa assertion?",
+    choices: [
+      "Because assertions slow down HTTP requests significantly",
+      "Because the client is a shared object and whether a response is an error depends on the test scenario — a 404 might be the expected outcome in a negative test",
+      "Because pytest cannot catch assertion errors inside non-test functions",
+      "Because assertions must use the assert keyword which is only allowed in test files"
+    ],
+    choicesVi: [
+      "Vì assertion làm chậm HTTP request đáng kể",
+      "Vì client là đối tượng dùng chung và việc response có phải là lỗi hay không phụ thuộc vào kịch bản test — 404 có thể là kết quả mong đợi trong test âm",
+      "Vì pytest không thể bắt assertion error bên trong hàm không phải test",
+      "Vì assertion phải dùng từ khóa assert chỉ được phép trong file test"
+    ],
+    answer: 1,
+    explain: "The API client's only job is to send requests and return responses. Whether a 404 is a failure (wrong user ID) or a success (verifying that a deleted resource is gone) is a test-level concern. Embedding assertions in the client makes it impossible to write negative tests without special-casing the client.",
+    explainVi: "Công việc duy nhất của API client là gửi request và trả về response. Việc 404 là lỗi (user ID sai) hay thành công (xác minh rằng resource đã xóa đã biến mất) là mối quan tâm ở cấp test. Nhúng assertion vào client làm cho việc viết test âm trở nên bất khả thi mà không cần special-case client."
+  },
+  {
+    q: "What does scope='session' on a pytest fixture mean?",
+    qVi: "scope='session' trên pytest fixture có nghĩa là gì?",
+    choices: [
+      "The fixture runs once per test function",
+      "The fixture is created once for the entire test run and shared across all tests — reducing setup overhead for expensive resources like HTTP sessions or browser instances",
+      "The fixture is only available in the file where it is defined",
+      "The fixture stores its value in a session cookie"
+    ],
+    choicesVi: [
+      "Fixture chạy một lần cho mỗi hàm test",
+      "Fixture được tạo một lần cho toàn bộ lần chạy test và được chia sẻ trên tất cả test — giảm chi phí setup cho tài nguyên tốn kém như HTTP session hoặc browser instance",
+      "Fixture chỉ có sẵn trong file nơi nó được định nghĩa",
+      "Fixture lưu trữ giá trị của nó trong session cookie"
+    ],
+    answer: 1,
+    explain: "scope='session' creates the fixture once and shares it for the entire pytest run. For an ApiClient (which holds a requests.Session), this means one TCP connection pool for all tests — dramatically faster than creating a new session per test. Use session scope for resources that are expensive to create and safe to share.",
+    explainVi: "scope='session' tạo fixture một lần và chia sẻ cho toàn bộ lần chạy pytest. Đối với ApiClient (giữ requests.Session), điều này có nghĩa là một pool kết nối TCP cho tất cả test — nhanh hơn đáng kể so với tạo session mới cho mỗi test. Dùng session scope cho tài nguyên tốn kém để tạo và an toàn để chia sẻ."
+  },
+  {
+    q: "What happens when a circular import exists between two modules, for example api/client.py imports from utils/assertions.py and utils/assertions.py imports from api/client.py?",
+    qVi: "Điều gì xảy ra khi có import vòng tròn giữa hai module, ví dụ api/client.py import từ utils/assertions.py và utils/assertions.py import từ api/client.py?",
+    choices: [
+      "Python silently ignores one of the imports and uses the other",
+      "Python raises ImportError at collection time — before any test runs — making the entire test suite uncollectable",
+      "pytest automatically detects circular imports and breaks the cycle",
+      "The tests run but produce incorrect results due to uninitialized modules"
+    ],
+    choicesVi: [
+      "Python âm thầm bỏ qua một trong các import và sử dụng cái còn lại",
+      "Python raise ImportError lúc thu thập — trước khi bất kỳ test nào chạy — làm cho toàn bộ test suite không thể thu thập",
+      "pytest tự động phát hiện import vòng tròn và phá vỡ chu kỳ",
+      "Các test chạy nhưng tạo ra kết quả không đúng do các module chưa được khởi tạo"
+    ],
+    answer: 1,
+    explain: "Python raises ImportError during module loading when it detects a circular dependency. Since pytest collects tests by importing modules, a circular import prevents the entire suite from running — you see zero test results, only an import error. The fix is always to move shared code to a lower layer that neither module depends on.",
+    explainVi: "Python raise ImportError trong quá trình tải module khi phát hiện phụ thuộc vòng tròn. Vì pytest thu thập test bằng cách import module, import vòng tròn ngăn toàn bộ suite chạy — bạn thấy không có kết quả test nào, chỉ có import error. Cách sửa luôn là di chuyển code dùng chung xuống lớp thấp hơn mà cả hai module đều không phụ thuộc vào."
+  },
+  {
+    q: "Which of the following is the correct way to handle test data cleanup for a resource created via API in a pytest fixture?",
+    qVi: "Cách nào sau đây là đúng để xử lý việc dọn dẹp dữ liệu test cho resource được tạo qua API trong pytest fixture?",
+    choices: [
+      "Add a teardown function that runs before the test to delete leftover data from previous runs",
+      "Use a yield fixture: create the resource before yield, delete it after yield in teardown",
+      "Use pytest.mark.cleanup to mark which tests should delete their own data",
+      "Store the resource ID in a global variable and delete it in a separate cleanup test"
+    ],
+    choicesVi: [
+      "Thêm hàm teardown chạy trước test để xóa dữ liệu thừa từ lần chạy trước",
+      "Dùng yield fixture: tạo resource trước yield, xóa nó sau yield trong teardown",
+      "Dùng pytest.mark.cleanup để đánh dấu test nào sẽ tự xóa dữ liệu của chúng",
+      "Lưu trữ ID resource trong biến toàn cục và xóa nó trong test dọn dẹp riêng"
+    ],
+    answer: 1,
+    explain: "yield fixtures are the pytest-idiomatic pattern for setup/teardown. Everything before yield is setup; everything after yield is teardown, guaranteed to run even if the test fails. Global variables and cleanup tests are fragile — if the test suite is interrupted, they never execute and leave orphaned data.",
+    explainVi: "yield fixture là pattern idiom của pytest cho setup/teardown. Mọi thứ trước yield là setup; mọi thứ sau yield là teardown, được đảm bảo chạy ngay cả khi test thất bại. Biến toàn cục và test dọn dẹp là dễ vỡ — nếu test suite bị gián đoạn, chúng không bao giờ thực thi và để lại dữ liệu mồ côi."
+  },
+  {
+    q: "Where should pytest.mark.parametrize be placed in a layered framework?",
+    qVi: "pytest.mark.parametrize nên được đặt ở đâu trong framework phân lớp?",
+    choices: [
+      "Inside the API client class methods, iterating over a list of test cases",
+      "At the test layer — on the test function itself — because parametrize is a test concern, not a transport concern",
+      "In conftest.py fixtures, so all tests automatically receive multiple parameter sets",
+      "In data_factory.py, as a decorator on the factory function"
+    ],
+    choicesVi: [
+      "Bên trong các method của API client class, lặp qua danh sách các test case",
+      "Ở lớp test — trên hàm test — vì parametrize là mối quan tâm test, không phải mối quan tâm vận chuyển",
+      "Trong fixture conftest.py, để tất cả test tự động nhận nhiều bộ tham số",
+      "Trong data_factory.py, như decorator trên hàm factory"
+    ],
+    answer: 1,
+    explain: "parametrize belongs at the test layer because it controls how many times a test runs and with what inputs — a decision about test coverage, not about how to send HTTP requests. If you move it into the API client, the client gains knowledge about test logic and can no longer be reused across contexts.",
+    explainVi: "parametrize thuộc về lớp test vì nó kiểm soát số lần test chạy và với input nào — một quyết định về phạm vi test, không phải về cách gửi HTTP request. Nếu bạn di chuyển nó vào API client, client có kiến thức về logic test và không còn có thể được tái sử dụng trên nhiều ngữ cảnh."
   }
 ]} />
 

@@ -28,18 +28,84 @@ Bạn đã hoàn thành 56 ngày tự động hoá QA. Bây giờ bạn biết c
 | 4 — API Testing | 6–7 | HTTP, pytest + requests, JSON Schema, mocking, negative testing |
 | 5 — Capstone | 8 | Integrated framework, Allure, test plan, CI pipeline |
 
-**Making your capstone portfolio-ready:**
+---
 
-1. **Public GitHub repository** — clean history, no secrets committed
-2. **README** — what is tested, prerequisites, `pip install -r requirements.txt`, `pytest tests/ -v`, CI badge
-3. **CI badge** — paste the GitHub Actions badge URL in your README so recruiters see green instantly
-4. **Allure report screenshot** — include a screenshot of a passing Allure report in the README
-5. **Test plan document** — attach `TEST_PLAN.md` so readers see your thinking process, not just the code
+**Why a green CI badge matters more than a code coverage number**
+
+Recruiters and hiring managers spend 30–60 seconds on a GitHub repository before deciding whether to read further. A green CI badge — the little shield that says `passing` — communicates something that a coverage percentage cannot: the project actually runs. Coverage numbers only show how much code tests exercise; they say nothing about whether the tests are meaningful, whether the environment is reproducible, or whether a fresh clone on a different machine produces the same result.
+
+A green badge proves all of those things at once. It means your dependencies are pinned, your environment is reproducible, your tests are not silently skipped, and someone (the CI runner) has independently verified the project since your last commit. That is a trust signal. Code coverage of 85% with no CI is much weaker evidence than 70% coverage with a badge that has been green for every commit for six months.
+
+This is why setting up GitHub Actions on day one of a new project — before writing a single test — is a professional habit worth building. An always-green CI history is a record of your engineering discipline.
+
+---
+
+**How to make a QA portfolio stand out**
+
+Most self-taught QA portfolios test the same handful of apps (Pet Store API, a todo list, or a signup form) with the same happy-path flows. A portfolio that stands out does three things differently:
+
+1. **Tests a real, interesting target.** ReqRes.in (which you used in this course) is a solid training API, but for a portfolio project, pick something that has both an API and a UI — an open-source app you can run locally, or a public API with enough depth (authentication, pagination, error states, rate limiting) to write 20+ meaningful test cases.
+
+2. **Covers negative and edge cases explicitly.** A generic test suite asserts that `POST /users` with valid data returns 201. A standout portfolio also asserts that it returns 422 when required fields are missing, 400 when the email format is invalid, and (for authenticated endpoints) 401 when the token is absent. Negative test coverage tells a reviewer that you understand how systems fail, not just how they work when everything is correct.
+
+3. **Shows test plan thinking.** Attach a `TEST_PLAN.md` that describes your risk assessment: what you tested, why, what you left out and why, and what the riskiest areas are. A hiring manager who reads your test plan learns more about your thinking than they can from reading fifty test files. Test code shows you can automate; a test plan shows you can think like a QA engineer.
+
+---
+
+**What "senior QA engineer" actually means in practice**
+
+The word "senior" in QA is not about knowing more tools. It is about a shift from executing tests to predicting risk. A junior QA engineer asks "did this feature work as specified?". A senior QA engineer asks "given how this system is built, where is the most likely place for something to break, and how would we know before a user reports it?".
+
+In practice this means:
+
+- **Reading code, not just testing it.** A senior QA reads the implementation of a feature to understand what assumptions the developer made. Those assumptions are where bugs hide.
+- **Attending planning meetings, not just reviewing tickets.** The earlier in the SDLC a QA engineer identifies a risk, the cheaper it is to address. A bug caught in a planning discussion costs minutes. The same bug caught in production costs hours of engineer time, user trust, and possibly revenue.
+- **Communicating in business terms.** A senior QA does not say "we have 12 failing tests". They say "the payment flow has a known failure case when a user's session expires at checkout — this affects approximately 2% of transactions based on session analytics". That framing gets attention and action.
+- **Treating the test framework as a product.** The framework has users (the engineering team). It needs documentation, onboarding, and maintenance. A senior QA designs it so that adding a new test for a new endpoint takes five minutes, not fifty.
+
+---
+
+**How to prepare for ISTQB Foundation Level (CTFL)**
+
+ISTQB CTFL is the most widely recognised entry-level QA certification globally. Most employers list it as "preferred" or "an advantage" for QA roles. After completing this course, you are already familiar with most of the content — you have been practising it for 56 days.
+
+Key topic areas in the CTFL syllabus (2023 version):
+
+| Chapter | Weight | What you already know |
+|---------|--------|-----------------------|
+| Fundamentals of testing | ~26% | Testing objectives, test pyramid, bug lifecycle |
+| Testing throughout the SDLC | ~17% | V-model, Agile testing, shift-left |
+| Static testing | ~12% | Reviews, walkthroughs (lighter in this course) |
+| Test analysis and design | ~25% | Equivalence partitioning, boundary value analysis, decision tables |
+| Managing the test activities | ~10% | Test planning, test estimation, risk-based testing |
+| Test tools | ~10% | Tool classification, selection criteria |
+
+**Recommended study timeline after this course:** 4–6 weeks. Spend the first two weeks reading the official CTFL syllabus (free PDF from istqb.org). Spend weeks three and four working through sample exam questions — the ISTQB website publishes official sample papers. Spend the final two weeks taking timed mock exams and reviewing weak areas. The exam is 40 multiple-choice questions in 60 minutes, with a passing score of 65%.
+
+---
+
+**What comes next after this course**
+
+This course covered the core automation stack. These are the natural next areas to explore, in rough priority order for a QA automation career:
+
+| Next topic | Why it matters | Where to start |
+|------------|---------------|----------------|
+| Performance testing (Locust) | Proves the system handles real load, not just functional correctness | locust.io docs |
+| Contract testing (Pact) | Catches API contract breaks between microservices before integration | docs.pact.io |
+| Security testing basics | OWASP Top 10 awareness, basic fuzz testing, auth boundary testing | owasp.org |
+| Observability & monitoring | Understanding logs, metrics, and traces helps QA write better tests | Grafana/Prometheus tutorials |
+| API design review | QA engineers who can review API design catch issues before code is written | Google API Design Guide |
+
+Do not try to learn all of these at once. Pick one, build a small project that uses it, and add it to your portfolio. Breadth without depth does not help in interviews.
+
+---
 
 **Certification path:**
 
-- **ISTQB Foundation Level (CTFL)** — the most widely recognised entry-level QA certification globally. Validates test design, bug reporting, and SDLC knowledge. Study time: 4–8 weeks after this course.
+- **ISTQB Foundation Level (CTFL)** — the most widely recognised entry-level QA certification globally. Validates test design, bug reporting, and SDLC knowledge. Study time: 4–6 weeks after this course.
 - **ISTQB Test Automation Engineer (CT-TAE)** — advanced certification for automation specialists. Covers framework design, tool selection, and CI/CD integration. Recommended after 6–12 months of hands-on automation work.
+
+---
 
 **QA career paths:**
 
@@ -49,13 +115,6 @@ Bạn đã hoàn thành 56 ngày tự động hoá QA. Bây giờ bạn biết c
 | QA Automation Engineer | pytest, Playwright, API | Senior QA / QA Lead |
 | QA Lead | Strategy, mentoring | QA Manager / Test Architect |
 | SDET | Test infrastructure, CI | DevOps / Platform Engineering |
-
-**What makes a senior QA engineer:**
-- Writes tests that prevent regressions, not just tests that pass
-- Understands the system well enough to predict where bugs hide
-- Treats the test framework as a product — designs for maintainability
-- Communicates risk in business terms, not just pass/fail counts
-- Advocates for quality in planning meetings, not only after code is written
 </En>
 <Vi>
 **Những gì bạn đã xây dựng trong 56 ngày:**
@@ -68,9 +127,74 @@ Bạn đã hoàn thành 56 ngày tự động hoá QA. Bây giờ bạn biết c
 | 4 — API Testing | 6–7 | HTTP, pytest + requests, JSON Schema, mocking, test tiêu cực |
 | 5 — Capstone | 8 | Framework tích hợp, Allure, kế hoạch test, CI pipeline |
 
+---
+
+**Tại sao badge CI xanh quan trọng hơn số code coverage**
+
+Nhà tuyển dụng và người quản lý tuyển dụng chỉ dành 30–60 giây xem một repository GitHub trước khi quyết định có đọc tiếp không. Badge CI xanh — cái huy hiệu nhỏ ghi `passing` — truyền đạt điều mà phần trăm coverage không thể: dự án thực sự chạy được. Số coverage chỉ cho thấy code test thực thi bao nhiêu; chúng không nói gì về việc test có ý nghĩa không, môi trường có thể tái tạo không, hoặc clone mới trên máy khác có cho kết quả tương tự không.
+
+Badge xanh chứng minh tất cả những điều đó cùng một lúc. Nó có nghĩa là dependencies của bạn được ghim phiên bản, môi trường có thể tái tạo, test không bị bỏ qua âm thầm, và ai đó (CI runner) đã kiểm tra độc lập dự án từ commit cuối cùng của bạn. Đó là tín hiệu tin tưởng.
+
+---
+
+**Cách làm portfolio QA nổi bật**
+
+Hầu hết portfolio QA tự học đều test cùng một vài app (Pet Store API, todo list, form đăng ký) với cùng những flow happy-path. Portfolio nổi bật làm ba điều khác biệt:
+
+1. **Test target thực và thú vị.** Chọn thứ gì đó có cả API lẫn UI với đủ chiều sâu để viết 20+ test case có ý nghĩa.
+2. **Bao phủ rõ ràng các trường hợp tiêu cực và edge case.** Test cover tiêu cực cho thấy bạn hiểu hệ thống thất bại như thế nào, không chỉ khi mọi thứ đúng.
+3. **Thể hiện tư duy test plan.** Đính kèm `TEST_PLAN.md` mô tả đánh giá rủi ro: bạn test gì, tại sao, bỏ qua gì và lý do, đâu là vùng rủi ro nhất.
+
+---
+
+**"Kỹ sư QA cấp senior" thực sự có nghĩa gì trong thực tế**
+
+Từ "senior" trong QA không phải về việc biết nhiều tool hơn. Đó là sự chuyển dịch từ thực thi test sang dự đoán rủi ro. Kỹ sư QA junior hỏi "tính năng này có hoạt động đúng spec không?". Kỹ sư QA senior hỏi "với cách hệ thống này được xây dựng, đâu là nơi có khả năng xảy ra lỗi nhất, và chúng ta sẽ biết trước khi người dùng báo cáo không?".
+
+Trong thực tế điều này có nghĩa là:
+- Đọc code, không chỉ test nó
+- Tham dự các cuộc họp lập kế hoạch, không chỉ review ticket
+- Giao tiếp theo ngôn ngữ kinh doanh
+- Coi framework test như một sản phẩm
+
+---
+
+**Cách chuẩn bị cho ISTQB Foundation Level (CTFL)**
+
+CTFL là chứng chỉ QA cấp cơ bản được công nhận rộng rãi nhất toàn cầu. Sau khoá học này, bạn đã quen với hầu hết nội dung.
+
+**Timeline học tập được khuyến nghị sau khoá học này:** 4–6 tuần. Hai tuần đầu đọc syllabus CTFL chính thức (PDF miễn phí từ istqb.org). Tuần 3–4 làm câu hỏi thi mẫu. Hai tuần cuối thi thử có tính giờ.
+
+---
+
+**Bước tiếp theo sau khoá học này:**
+
+| Chủ đề tiếp theo | Tại sao quan trọng | Bắt đầu ở đâu |
+|------------|---------------|----------------|
+| Performance testing (Locust) | Chứng minh hệ thống xử lý được tải thực | locust.io docs |
+| Contract testing (Pact) | Phát hiện lỗi contract API giữa microservices | docs.pact.io |
+| Security testing cơ bản | Nhận thức OWASP Top 10, kiểm tra ranh giới auth | owasp.org |
+| Observability & monitoring | Hiểu logs, metrics, traces giúp viết test tốt hơn | Grafana/Prometheus |
+| API design review | QA có thể review thiết kế API sẽ phát hiện vấn đề trước khi code được viết | Google API Design Guide |
+
+---
+
 **Con đường chứng chỉ:**
-- **ISTQB Foundation Level (CTFL)** — chứng chỉ QA cấp cơ bản được công nhận rộng rãi nhất trên toàn cầu.
-- **ISTQB Test Automation Engineer (CT-TAE)** — chứng chỉ nâng cao cho chuyên gia tự động hoá.
+- **ISTQB Foundation Level (CTFL)** — chứng chỉ QA cấp cơ bản được công nhận rộng rãi nhất trên toàn cầu. Thời gian học: 4–6 tuần sau khoá học này.
+- **ISTQB Test Automation Engineer (CT-TAE)** — chứng chỉ nâng cao cho chuyên gia tự động hoá. Khuyến nghị sau 6–12 tháng làm việc thực tế về automation.
+
+---
+
+**Lộ trình sự nghiệp QA:**
+
+| Vai trò | Trọng tâm | Bước tiếp theo điển hình |
+|------|-------|-------------------|
+| QA Engineer (Manual) | Test case, exploratory | QA Automation Engineer |
+| QA Automation Engineer | pytest, Playwright, API | Senior QA / QA Lead |
+| QA Lead | Chiến lược, mentoring | QA Manager / Test Architect |
+| SDET | Hạ tầng test, CI | DevOps / Platform Engineering |
+
+---
 
 **Điều làm nên kỹ sư QA cấp senior:**
 - Viết test ngăn ngừa hồi quy, không chỉ test vượt qua
@@ -82,32 +206,56 @@ Bạn đã hoàn thành 56 ngày tự động hoá QA. Bây giờ bạn biết c
 
 ## Code / Demo
 
-```markdown
-# README.md template for your capstone project
+<En>
 
-## Capstone QA Framework
+**Part 1 — Portfolio README template**
 
-Automated test suite for [Target App Name] covering API and UI flows.
+</En>
+<Vi>
+
+**Phần 1 — Template README cho portfolio**
+
+</Vi>
+
+````markdown
+# [Your Capstone Framework Name]
+
+> Automated test suite for [Target App Name] covering API and UI flows.
+
+[![Tests](https://github.com/YOUR_USERNAME/capstone-framework/actions/workflows/tests.yml/badge.svg)](https://github.com/YOUR_USERNAME/capstone-framework/actions/workflows/tests.yml)
 
 ## What is tested
 
 **API (ReqRes.in):**
 - User CRUD: list, get by ID, create, update, delete
-- Authentication: login, register, invalid credentials
-- Pagination: page 1 and 2
+- Authentication: login (valid), login (missing password), register
+- Pagination: page 1 and 2, per-page count
+- Negative cases: 404 for unknown ID, 400 for invalid payload
 
 **UI (Sauce Demo):**
-- Login: valid credentials, wrong password
-- Cart: add item, verify cart count
+- Login: valid credentials, wrong password (error message shown)
+- Cart: add item, verify cart badge count updates
+- Checkout: complete purchase flow end-to-end
+
+## Test coverage summary
+
+| Layer | Tests | Passing | Notes |
+|-------|-------|---------|-------|
+| API | 18 | 18 | All CRUD + auth + negative |
+| UI  | 6  | 6  | Login, cart, checkout |
+| Integration | 2 | 2 | API setup → UI verify |
 
 ## Prerequisites
 
 - Python 3.11+
+- pip (comes with Python)
 - Google Chrome (for UI tests)
 
 ## Installation
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/capstone-framework.git
+cd capstone-framework
 python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -131,56 +279,521 @@ pytest tests/ --alluredir=allure-results
 allure serve allure-results
 ```
 
-## CI Status
+## Project structure
 
-![API Tests](https://github.com/YOUR_USER/capstone-framework/actions/workflows/tests.yml/badge.svg)
+```
+capstone-framework/
+├── api/
+│   └── client.py          # ApiClient wrapper
+├── pages/
+│   ├── login_page.py      # LoginPage POM
+│   └── inventory_page.py  # InventoryPage POM
+├── tests/
+│   ├── api/               # pytest API tests
+│   ├── ui/                # pytest UI tests
+│   └── integration/       # API-setup + UI-verify tests
+├── utils/
+│   └── assertions.py      # assert_status, assert_schema helpers
+├── conftest.py            # shared fixtures
+├── pytest.ini             # markers and Allure config
+├── requirements.txt
+├── TEST_PLAN.md
+└── RETROSPECTIVE.md
 ```
 
-```python
-# Final self-assessment: run this to see your full coverage
-# From the project root:
-# pytest tests/ -v --tb=short --alluredir=allure-results
-#
-# Then verify:
-# - All API tests green
-# - All UI tests green
-# - Allure report generated
-# - Behaviours tab shows epic → feature → story hierarchy
-# - Categories tab shows 0 test defects
+## Allure report
+
+![Allure overview](docs/allure-screenshot.png)
+
+_Screenshot taken after running the full suite on CI._
+
+## CI Status
+
+Automated on GitHub Actions — runs on every push and pull request to `main`.
+
+[![Tests](https://github.com/YOUR_USERNAME/capstone-framework/actions/workflows/tests.yml/badge.svg)](https://github.com/YOUR_USERNAME/capstone-framework/actions/workflows/tests.yml)
+````
+
+<En>
+Here is what your CI badge and Allure report overview will look like once your framework is running:
+
+![CI badge — tests passing](/lessons/day-56/ci-badge.svg)
+
+![Allure report overview](/lessons/day-56/allure-overview.svg)
+</En>
+<Vi>
+Đây là hình ảnh badge CI và tổng quan báo cáo Allure sau khi framework của bạn chạy thành công:
+
+![CI badge — tests passing](/lessons/day-56/ci-badge.svg)
+
+![Tổng quan báo cáo Allure](/lessons/day-56/allure-overview.svg)
+</Vi>
+
+<En>
+
+**Part 2 — Skills self-assessment checklist (all 5 phases)**
+
+</En>
+<Vi>
+
+**Phần 2 — Checklist tự đánh giá kỹ năng (cả 5 phase)**
+
+</Vi>
+
+```markdown
+# QA Automation Self-Assessment — 56 Days
+
+Rate each skill: ✅ Confident | 🟡 Partial | ❌ Need more practice
+
+## Phase 1 — Testing Fundamentals
+
+- [ ] ✅/🟡/❌  Explain the test pyramid and when to use each layer
+- [ ] ✅/🟡/❌  Write a well-structured test case (preconditions, steps, expected result)
+- [ ] ✅/🟡/❌  File a bug report with severity, priority, and reproduction steps
+- [ ] ✅/🟡/❌  Apply equivalence partitioning and boundary value analysis
+- [ ] ✅/🟡/❌  Explain the SDLC and where QA fits in each phase
+- [ ] ✅/🟡/❌  Describe the difference between verification and validation
+
+## Phase 2 — Python for QA
+
+- [ ] ✅/🟡/❌  Use variables, data types, and type annotations
+- [ ] ✅/🟡/❌  Write functions with parameters, defaults, and return types
+- [ ] ✅/🟡/❌  Use list comprehensions and dict manipulation
+- [ ] ✅/🟡/❌  Apply OOP: create a class, use __init__, inherit from a base class
+- [ ] ✅/🟡/❌  Handle exceptions with try/except/finally
+- [ ] ✅/🟡/❌  Read and write JSON files
+
+## Phase 3 — Playwright Browser Automation
+
+- [ ] ✅/🟡/❌  Launch a browser, navigate to a URL, take a screenshot
+- [ ] ✅/🟡/❌  Select elements by role, text, placeholder, test-id
+- [ ] ✅/🟡/❌  Fill a form, submit it, and assert on the result page
+- [ ] ✅/🟡/❌  Implement the Page Object Model with a base page class
+- [ ] ✅/🟡/❌  Use pytest fixtures to manage browser lifecycle (scope=session/function)
+- [ ] ✅/🟡/❌  Run tests in headless mode in GitHub Actions CI
+
+## Phase 4 — API Testing
+
+- [ ] ✅/🟡/❌  Explain HTTP verbs, status codes, and headers
+- [ ] ✅/🟡/❌  Send GET, POST, PUT, PATCH, DELETE requests with requests library
+- [ ] ✅/🟡/❌  Validate JSON response body against a JSON Schema
+- [ ] ✅/🟡/❌  Write parametrized tests with pytest.mark.parametrize
+- [ ] ✅/🟡/❌  Mock an external API dependency with responses library
+- [ ] ✅/🟡/❌  Write negative tests: 404, 400, 401, 422 cases
+- [ ] ✅/🟡/❌  Decorate tests with @allure.epic / .feature / .story / .step
+
+## Phase 5 — Capstone Framework
+
+- [ ] ✅/🟡/❌  Design a two-layer framework: API client + Page Objects
+- [ ] ✅/🟡/❌  Centralise shared logic in conftest.py fixtures
+- [ ] ✅/🟡/❌  Generate and interpret an Allure report (Behaviours, Categories, Timeline)
+- [ ] ✅/🟡/❌  Write a test plan with scope, risk assessment, and exit criteria
+- [ ] ✅/🟡/❌  Write an integration test (API setup → UI verify → API teardown)
+- [ ] ✅/🟡/❌  Ship a complete CI pipeline with separate API and UI jobs
+- [ ] ✅/🟡/❌  Prepare a portfolio-ready GitHub repository with CI badge and README
+
+## Summary
+
+Skills where I am confident: ___
+Skills I need to practise more: ___
+One thing I will do this week to improve a weak area: ___
+```
+
+<En>
+
+**Part 3 — Retrospective template (RETROSPECTIVE.md)**
+
+</En>
+<Vi>
+
+**Phần 3 — Template hồi cố (RETROSPECTIVE.md)**
+
+</Vi>
+
+```markdown
+# Capstone Retrospective
+
+_Written after completing the 56-day QA automation course._
+
+---
+
+## What I built
+
+Describe your capstone in 2–3 sentences. What does it test, what technology does it use, and what is the most interesting thing about it?
+
+> Example: "I built an automated test framework for ReqRes.in and Sauce Demo covering 26 tests across API, UI, and integration layers. The most interesting part was designing the fixture hierarchy so that API tests share one session-scoped client and UI tests get a fresh browser per test class."
+
+---
+
+## The hardest thing to test
+
+Describe one specific scenario that was more difficult to test than you expected. What made it hard? How did you solve it (or what would you do differently)?
+
+> Prompts:
+> - Was it a timing issue in a UI test?
+> - A test that required specific state you could not easily create?
+> - An API behaviour that was inconsistent or underdocumented?
+
+---
+
+## What I would improve with more time
+
+List 2–3 concrete improvements you would make to your framework if you had another week:
+
+- [ ] Improvement 1: ___
+- [ ] Improvement 2: ___
+- [ ] Improvement 3: ___
+
+> Think about: retry logic for flaky UI tests, data-driven test inputs from CSV/JSON, Allure history trend across runs, parallel test execution, contract testing for the API layer.
+
+---
+
+## The skill I want to develop further
+
+Name one skill from this course that you want to take deeper, and describe what your next concrete step is:
+
+Skill: ___
+Next step: ___
+
+> Example: "I want to go deeper on Playwright — specifically testing multi-tab flows and file uploads. My next step is to read the Playwright docs on BrowserContext and write two tests that cover those scenarios."
+
+---
+
+## What surprised me
+
+What was the most surprising thing you learned in 56 days? Could be a technical insight, a mindset shift, or something about how testing relates to software engineering more broadly.
+
+---
+
+## Three things I am proud of
+
+1. ___
+2. ___
+3. ___
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Push your completed capstone to a public GitHub repository with a clean README, CI badge, and no secrets in the commit history
-- [ ] Run `pytest tests/ -v --alluredir=allure-results && allure generate allure-results -o allure-report --clean` and take a screenshot of the Allure overview page — add it to your README
-- [ ] Write a 3-sentence reflection in your `TEST_PLAN.md` (or a new `RETROSPECTIVE.md`): what was the hardest thing to test, what would you improve if you had more time, and what skill from this course do you want to develop further
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Portfolio README",
+    code: `# [Your Capstone Framework Name]
+
+> Automated test suite for [Target App Name] covering API and UI flows.
+
+[![Tests](https://github.com/YOUR_USERNAME/capstone-framework/actions/workflows/tests.yml/badge.svg)](https://github.com/YOUR_USERNAME/capstone-framework/actions/workflows/tests.yml)
+
+## What is tested
+
+**API (ReqRes.in):**
+- TODO: list your API test coverage here (CRUD, auth, negative cases)
+
+**UI (Sauce Demo):**
+- TODO: list your UI flow coverage here
+
+## Prerequisites
+- Python 3.11+
+- pip install -r requirements.txt
+- playwright install chromium
+
+## Running tests
+
+\`\`\`bash
+# All tests
+pytest tests/ -v
+
+# API only
+pytest tests/api/ -v
+
+# With Allure report
+pytest tests/ --alluredir=allure-results
+allure serve allure-results
+\`\`\`
+
+## CI Status
+![Tests](https://github.com/YOUR_USERNAME/capstone-framework/actions/workflows/tests.yml/badge.svg)`
+  },
+  {
+    title: "Exercise 2 — Self-assessment checklist",
+    code: `# My 56-Day Skills Self-Assessment
+
+## Phase 1 — Testing Fundamentals
+- [ ] Explain the test pyramid (unit / integration / E2E)
+- [ ] Write a well-structured test case
+- [ ] File a bug report with severity and reproduction steps
+- [ ] Apply equivalence partitioning and boundary value analysis
+
+## Phase 2 — Python for QA
+- [ ] Write functions with parameters, defaults, and type annotations
+- [ ] Use OOP: create a class, use __init__, inherit from a base class
+- [ ] Handle exceptions with try/except/finally
+- [ ] Read and write JSON files
+
+## Phase 3 — Playwright Browser Automation
+- [ ] Implement the Page Object Model with a base page class
+- [ ] Use pytest fixtures to manage browser lifecycle
+- [ ] Run tests in headless mode in GitHub Actions CI
+
+## Phase 4 — API Testing
+- [ ] Send GET, POST, PUT, PATCH, DELETE with requests
+- [ ] Validate JSON body against a JSON Schema
+- [ ] Write negative tests: 404, 400, 401, 422 cases
+- [ ] Mock an external dependency with responses library
+
+## Phase 5 — Capstone Framework
+- [ ] Design a two-layer framework: API client + Page Objects
+- [ ] Generate and interpret an Allure report
+- [ ] Write a test plan with scope, risk, and exit criteria
+- [ ] Ship CI with separate API and UI jobs
+- [ ] Prepare a portfolio-ready README with CI badge
+
+## My reflection
+Skills I am most confident in: TODO
+Skills I need more practice with: TODO
+My next concrete step: TODO`
+  },
+  {
+    title: "Exercise 3 — Retrospective",
+    code: `# Capstone Retrospective
+
+## What I built
+TODO: describe your capstone in 2-3 sentences.
+What does it test, what technology, what is most interesting?
+
+## The hardest thing to test
+TODO: describe one specific scenario that was harder than expected.
+What made it hard? How did you solve it?
+
+## What I would improve with more time
+- [ ] TODO: Improvement 1
+- [ ] TODO: Improvement 2
+- [ ] TODO: Improvement 3
+
+## The skill I want to develop further
+Skill: TODO
+Next step: TODO
+
+## What surprised me
+TODO: one technical insight or mindset shift from the 56 days
+
+## Three things I am proud of
+1. TODO
+2. TODO
+3. TODO`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Replace all `YOUR_USERNAME` and `TODO` placeholders in Exercise 1 with your real GitHub username and your actual test coverage list
+- [ ] Complete Exercise 2 honestly — check off only the skills you can demonstrate right now, not the ones you plan to learn
+- [ ] Write Exercise 3 in full sentences, not bullet fragments — this is a document a future employer might read
+- [ ] Push all three files (`README.md`, a self-assessment doc, `RETROSPECTIVE.md`) to your public capstone repository
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Thay tất cả placeholder `YOUR_USERNAME` và `TODO` trong Bài 1 bằng tên GitHub thật và danh sách coverage thực tế của bạn
+- [ ] Hoàn thành Bài 2 một cách trung thực — chỉ đánh dấu kỹ năng bạn có thể demo ngay bây giờ
+- [ ] Viết Bài 3 bằng câu đầy đủ, không phải bullet ngắn — đây là tài liệu nhà tuyển dụng có thể đọc
+- [ ] Push cả ba file (`README.md`, file tự đánh giá, `RETROSPECTIVE.md`) lên repository capstone public của bạn
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
     q: "A recruiter has 30 seconds to look at your QA portfolio project. What is the single most important thing to have?",
+    qVi: "Nhà tuyển dụng có 30 giây để xem dự án portfolio QA của bạn. Điều quan trọng nhất cần có là gì?",
     choices: [
       "100% code coverage",
       "A green CI badge and a README that explains what is tested and how to run it in under 60 seconds",
       "At least 100 test cases",
       "A perfectly structured Allure report"
     ],
+    choicesVi: [
+      "100% code coverage",
+      "Badge CI xanh và README giải thích cái gì được test và cách chạy trong dưới 60 giây",
+      "Ít nhất 100 test case",
+      "Báo cáo Allure có cấu trúc hoàn hảo"
+    ],
     answer: 1,
-    explain: "Recruiters look for evidence that the project works and that you can communicate clearly. A green CI badge signals the code runs. A README that explains the target, prerequisites, and run command in under 60 seconds signals communication skill. Coverage numbers and test counts are secondary to those two signals."
+    explain: "A green CI badge proves the project is reproducible and actually runs on a clean machine — that is a trust signal no coverage percentage can provide. The README communicates your thinking to a non-technical reviewer. Coverage numbers and test counts are secondary evidence once those two trust signals are present.",
+    explainVi: "Badge CI xanh chứng minh dự án có thể tái tạo và thực sự chạy trên máy sạch — đó là tín hiệu tin tưởng mà không phần trăm coverage nào có thể cung cấp. README truyền đạt tư duy của bạn cho reviewer không kỹ thuật. Số coverage và số lượng test là bằng chứng thứ cấp khi hai tín hiệu tin tưởng đó đã có."
   },
   {
     q: "What is the most important quality difference between a junior and senior QA engineer?",
+    qVi: "Sự khác biệt chất lượng quan trọng nhất giữa kỹ sư QA junior và senior là gì?",
     choices: [
       "Senior engineers write more tests",
       "Senior engineers use more advanced tools",
       "Senior engineers understand the system well enough to predict where bugs hide — they test risk, not just happy paths",
       "Senior engineers know ISTQB certification material"
     ],
+    choicesVi: [
+      "Kỹ sư senior viết nhiều test hơn",
+      "Kỹ sư senior dùng các tool nâng cao hơn",
+      "Kỹ sư senior hiểu hệ thống đủ để dự đoán nơi lỗi ẩn náu — họ test rủi ro, không chỉ happy path",
+      "Kỹ sư senior biết tài liệu chứng chỉ ISTQB"
+    ],
     answer: 2,
-    explain: "Volume of tests is not seniority. Tool knowledge is table stakes. The distinguishing quality is system understanding — a senior QA asks 'what could go wrong here?' based on architectural knowledge, not just 'did the form submit?'. That understanding comes from reading code, attending design discussions, and accumulating experience with how systems fail."
+    explain: "Volume of tests is not seniority. Tool knowledge is table stakes. The distinguishing quality is system understanding — a senior QA asks 'what could go wrong here?' based on architectural knowledge, not just 'did the form submit?'. That understanding comes from reading code, attending design discussions, and accumulating experience with how systems fail.",
+    explainVi: "Số lượng test không phải là seniority. Kiến thức về tool là điều cơ bản. Chất lượng phân biệt là hiểu biết hệ thống — một QA senior hỏi 'điều gì có thể sai ở đây?' dựa trên kiến thức kiến trúc, không chỉ 'form có submit không?'. Sự hiểu biết đó đến từ việc đọc code, tham gia các cuộc thảo luận thiết kế và tích lũy kinh nghiệm về cách hệ thống thất bại."
+  },
+  {
+    q: "In the test pyramid, which layer should have the most tests and why?",
+    qVi: "Trong tháp test, tầng nào nên có nhiều test nhất và tại sao?",
+    choices: [
+      "E2E tests — they cover the most user flows",
+      "Integration tests — they catch the most bugs",
+      "Unit tests — they are fastest to run, cheapest to maintain, and give the most precise failure location",
+      "API tests — they are faster than UI but cover more than unit tests"
+    ],
+    choicesVi: [
+      "E2E tests — chúng bao phủ nhiều user flow nhất",
+      "Integration tests — chúng phát hiện nhiều bug nhất",
+      "Unit tests — chúng chạy nhanh nhất, rẻ nhất để bảo trì và cho vị trí lỗi chính xác nhất",
+      "API tests — chúng nhanh hơn UI nhưng bao phủ nhiều hơn unit tests"
+    ],
+    answer: 2,
+    explain: "Unit tests sit at the base of the pyramid because they are milliseconds to run (thousands can run in seconds), they pinpoint the exact function that broke, and they are cheap to maintain since they test logic in isolation. E2E tests are valuable but slow, brittle, and expensive — so the pyramid says: many unit, fewer integration, fewest E2E.",
+    explainVi: "Unit tests nằm ở đáy tháp vì chúng chạy trong mili giây (hàng nghìn có thể chạy trong vài giây), chúng xác định chính xác hàm nào bị lỗi, và rẻ để bảo trì vì test logic trong cô lập. E2E tests có giá trị nhưng chậm, dễ vỡ và tốn kém — nên tháp nói: nhiều unit, ít integration hơn, ít E2E nhất."
+  },
+  {
+    q: "What is the Page Object Model (POM) and what problem does it solve?",
+    qVi: "Page Object Model (POM) là gì và nó giải quyết vấn đề gì?",
+    choices: [
+      "A database pattern for storing test results",
+      "A class-per-page design that centralises selectors and actions so test files contain only assertions — not raw locator strings",
+      "A way to run tests in parallel across multiple pages",
+      "A JSON format for describing page structure to Playwright"
+    ],
+    choicesVi: [
+      "Pattern database để lưu kết quả test",
+      "Thiết kế một class cho mỗi trang, tập trung selector và hành động để file test chỉ chứa assertion — không phải chuỗi locator thô",
+      "Cách chạy test song song trên nhiều trang",
+      "Format JSON để mô tả cấu trúc trang cho Playwright"
+    ],
+    answer: 1,
+    explain: "POM solves the maintenance problem: when a selector changes (e.g. a button gets a new class or ID), you update one place in the page object instead of every test file that references that element. It also makes test files readable — test_checkout.py says 'fill shipping form, submit, assert confirmation' rather than 'find element by CSS, type text, click element by XPath'.",
+    explainVi: "POM giải quyết vấn đề bảo trì: khi một selector thay đổi (ví dụ button có class hoặc ID mới), bạn chỉ cập nhật một nơi trong page object thay vì mọi file test tham chiếu đến phần tử đó. Nó cũng làm file test dễ đọc — test_checkout.py nói 'điền form shipping, submit, assert xác nhận' thay vì 'tìm phần tử bằng CSS, nhập text, click phần tử bằng XPath'."
+  },
+  {
+    q: "Why should you validate an API response against a JSON Schema in addition to checking the status code?",
+    qVi: "Tại sao nên validate response API với JSON Schema ngoài việc kiểm tra status code?",
+    choices: [
+      "JSON Schema validation is required by the HTTP specification",
+      "Status code only confirms the server responded — Schema validation confirms the response body has the correct structure and field types, catching contract breaks that a 200 status would hide",
+      "It makes tests run faster by skipping additional assertions",
+      "JSON Schema validation replaces the need to check individual fields"
+    ],
+    choicesVi: [
+      "Validation JSON Schema là bắt buộc theo HTTP specification",
+      "Status code chỉ xác nhận server đã phản hồi — Schema validation xác nhận body response có cấu trúc và kiểu trường đúng, phát hiện lỗi contract mà status 200 sẽ che giấu",
+      "Nó làm test chạy nhanh hơn bằng cách bỏ qua các assertion thêm",
+      "Validation JSON Schema thay thế nhu cầu kiểm tra từng trường riêng lẻ"
+    ],
+    answer: 1,
+    explain: "A backend can return HTTP 200 with a body that has renamed a field (e.g. 'firstName' became 'first_name'), removed a required field, or changed a type (string became integer). All of those break consumers. JSON Schema validation catches the contract break immediately — the status code alone would not.",
+    explainVi: "Backend có thể trả về HTTP 200 với body đã đổi tên trường (ví dụ 'firstName' thành 'first_name'), xóa trường bắt buộc hoặc thay đổi kiểu (string thành integer). Tất cả những điều đó sẽ làm vỡ consumer. Validation JSON Schema phát hiện lỗi contract ngay lập tức — status code một mình sẽ không làm được điều đó."
+  },
+  {
+    q: "What is the purpose of a pytest fixture with `scope='session'` versus `scope='function'`?",
+    qVi: "Mục đích của pytest fixture với `scope='session'` so với `scope='function'` là gì?",
+    choices: [
+      "session scope runs the fixture once per test file; function scope runs it once per class",
+      "session scope creates the fixture once for the entire test run and shares it; function scope creates and tears it down for every individual test",
+      "session scope is only for API tests; function scope is only for UI tests",
+      "There is no functional difference — scope only affects how fixtures are named"
+    ],
+    choicesVi: [
+      "session scope chạy fixture một lần mỗi file test; function scope chạy một lần mỗi class",
+      "session scope tạo fixture một lần cho toàn bộ test run và chia sẻ nó; function scope tạo và teardown cho mỗi test riêng lẻ",
+      "session scope chỉ dành cho API test; function scope chỉ dành cho UI test",
+      "Không có sự khác biệt chức năng — scope chỉ ảnh hưởng đến cách đặt tên fixture"
+    ],
+    answer: 1,
+    explain: "An API client with session scope opens one HTTP session for all tests — fast and appropriate because HTTP sessions are stateless. A browser with function scope gives each test a clean, isolated browser state — necessary because UI tests mutate page state (login, add to cart) and isolation prevents tests from interfering with each other.",
+    explainVi: "API client với session scope mở một HTTP session cho tất cả test — nhanh và phù hợp vì HTTP session là stateless. Browser với function scope cung cấp cho mỗi test trạng thái browser sạch, cô lập — cần thiết vì UI test thay đổi trạng thái trang (login, thêm vào giỏ hàng) và cô lập ngăn test can thiệp lẫn nhau."
+  },
+  {
+    q: "In Allure reports, what does the `@allure.severity(allure.severity_level.CRITICAL)` decorator communicate?",
+    qVi: "Trong Allure reports, decorator `@allure.severity(allure.severity_level.CRITICAL)` truyền đạt điều gì?",
+    choices: [
+      "The test will run first in the test suite",
+      "If this test fails, the associated feature is completely broken — it is a business-critical risk",
+      "The test requires a special browser configuration",
+      "The test will retry automatically on failure"
+    ],
+    choicesVi: [
+      "Test sẽ chạy đầu tiên trong test suite",
+      "Nếu test này thất bại, tính năng liên quan bị hỏng hoàn toàn — đó là rủi ro quan trọng cho doanh nghiệp",
+      "Test yêu cầu cấu hình trình duyệt đặc biệt",
+      "Test sẽ tự động retry khi thất bại"
+    ],
+    answer: 1,
+    explain: "Severity metadata exists to help triage. When 50 tests fail in CI, the team needs to know which failures block a release (CRITICAL/BLOCKER) versus which are minor regressions (MINOR/TRIVIAL). Allure displays severity in its report so stakeholders — not just engineers — can make risk decisions from the report without reading test code.",
+    explainVi: "Metadata severity tồn tại để hỗ trợ phân loại. Khi 50 test thất bại trong CI, team cần biết lỗi nào chặn release (CRITICAL/BLOCKER) so với lỗi hồi quy nhỏ (MINOR/TRIVIAL). Allure hiển thị severity trong báo cáo để stakeholder — không chỉ kỹ sư — có thể đưa ra quyết định rủi ro từ báo cáo mà không cần đọc test code."
+  },
+  {
+    q: "What is the primary benefit of the integration test pattern: API setup → UI verify → API teardown?",
+    qVi: "Lợi ích chính của pattern test tích hợp: API setup → UI verify → API teardown là gì?",
+    choices: [
+      "It is the only way to test applications that require authentication",
+      "It uses the API for fast, reliable state creation and teardown while still verifying the UI renders data correctly — avoiding slow, brittle UI-driven setup",
+      "It reduces test code by combining API and UI tests into one file",
+      "GitHub Actions requires this pattern for parallel test jobs"
+    ],
+    choicesVi: [
+      "Đây là cách duy nhất để test ứng dụng yêu cầu xác thực",
+      "Nó dùng API để tạo và dọn dẹp state nhanh, đáng tin cậy trong khi vẫn xác minh UI render data đúng — tránh setup UI chậm và dễ vỡ",
+      "Nó giảm code test bằng cách kết hợp API và UI test vào một file",
+      "GitHub Actions yêu cầu pattern này cho các job test song song"
+    ],
+    answer: 1,
+    explain: "Creating a user via a UI registration form takes 5–10 browser interactions and is prone to flakiness (animations, slow renders, CAPTCHA). Creating the same user via POST /users takes one HTTP call and is deterministic. Integration tests exploit this: API for setup (fast and reliable), UI for assertion (proves the user interface works with real data), API for teardown (no orphaned test data).",
+    explainVi: "Tạo user qua form đăng ký UI mất 5–10 tương tác trình duyệt và dễ bị flaky (animation, render chậm, CAPTCHA). Tạo cùng user qua POST /users chỉ mất một HTTP call và có tính xác định. Test tích hợp khai thác điều này: API cho setup (nhanh và đáng tin cậy), UI để assertion (chứng minh giao diện người dùng hoạt động với data thực), API cho teardown (không có test data mồ côi)."
+  },
+  {
+    q: "Which of the following best describes 'shift-left testing' in the SDLC?",
+    qVi: "Điều nào sau đây mô tả tốt nhất 'shift-left testing' trong SDLC?",
+    choices: [
+      "Moving QA engineers to sit on the left side of the office near developers",
+      "Running tests from right to left in the CI pipeline",
+      "Involving QA earlier in the development lifecycle — in requirements and design — so defects are caught before code is written",
+      "Writing all unit tests before integration tests"
+    ],
+    choicesVi: [
+      "Di chuyển kỹ sư QA ngồi ở phía bên trái văn phòng gần developer",
+      "Chạy test từ phải sang trái trong CI pipeline",
+      "Đưa QA vào sớm hơn trong vòng đời phát triển — trong requirements và thiết kế — để phát hiện lỗi trước khi code được viết",
+      "Viết tất cả unit test trước integration test"
+    ],
+    answer: 2,
+    explain: "In the traditional V-model, testing is a late-stage activity that starts after development is complete. 'Shift-left' moves QA activities earlier: reviewing requirements for ambiguity, participating in design reviews, and writing test cases in parallel with development. A bug found in a requirements document costs minutes to fix; the same bug found in production can cost days.",
+    explainVi: "Trong V-model truyền thống, testing là hoạt động cuối giai đoạn bắt đầu sau khi phát triển hoàn thành. 'Shift-left' di chuyển các hoạt động QA sớm hơn: review requirements để tìm sự mơ hồ, tham gia design review và viết test case song song với phát triển. Một lỗi tìm thấy trong tài liệu requirements mất vài phút để sửa; cùng lỗi đó tìm thấy trong production có thể mất nhiều ngày."
+  },
+  {
+    q: "When mocking an external API in a pytest test using the `responses` library, what problem does mocking solve?",
+    qVi: "Khi mock một API bên ngoài trong pytest test dùng thư viện `responses`, mocking giải quyết vấn đề gì?",
+    choices: [
+      "It makes tests run in parallel automatically",
+      "It removes the need to write assertions",
+      "It makes the test deterministic and fast by replacing real HTTP calls with controlled fake responses — so tests do not depend on network availability or third-party uptime",
+      "It generates test data automatically from the API schema"
+    ],
+    choicesVi: [
+      "Nó tự động làm test chạy song song",
+      "Nó loại bỏ nhu cầu viết assertion",
+      "Nó làm test có tính xác định và nhanh bằng cách thay thế HTTP call thực bằng response giả có kiểm soát — test không phụ thuộc vào tính khả dụng của mạng hoặc uptime bên thứ ba",
+      "Nó tự động tạo test data từ API schema"
+    ],
+    answer: 2,
+    explain: "A test that calls a real external API fails whenever the third party is down, rate-limited, or changes its contract. Mocking replaces the HTTP call with a fake response you control — the test runs in milliseconds, never flakes due to network issues, and can simulate error conditions (500, 429, timeout) that are impossible to trigger reliably against a real API.",
+    explainVi: "Test gọi API bên ngoài thực sẽ thất bại bất cứ khi nào bên thứ ba bị sập, bị rate limit hoặc thay đổi contract. Mocking thay thế HTTP call bằng response giả bạn kiểm soát — test chạy trong mili giây, không bao giờ flaky vì vấn đề mạng và có thể mô phỏng điều kiện lỗi (500, 429, timeout) không thể kích hoạt đáng tin cậy với API thực."
   }
 ]} />
 
@@ -190,5 +803,9 @@ allure serve allure-results
   { title: "ISTQB Certifications", url: "https://www.istqb.org/certifications/certified-tester-foundation-level" },
   { title: "Ministry of Testing — community and learning", url: "https://www.ministryoftesting.com/" },
   { title: "Test Automation University — free courses", url: "https://testautomationu.applitools.com/" },
-  { title: "Martin Fowler — Practical Test Pyramid", url: "https://martinfowler.com/articles/practical-test-pyramid.html" }
+  { title: "Martin Fowler — Practical Test Pyramid", url: "https://martinfowler.com/articles/practical-test-pyramid.html" },
+  { title: "Locust — performance testing in Python", url: "https://locust.io/" },
+  { title: "Pact — contract testing for microservices", url: "https://docs.pact.io/" },
+  { title: "OWASP Testing Guide", url: "https://owasp.org/www-project-web-security-testing-guide/" },
+  { title: "Google API Design Guide", url: "https://cloud.google.com/apis/design" }
 ]} />

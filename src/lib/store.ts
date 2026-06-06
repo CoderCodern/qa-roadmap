@@ -63,6 +63,8 @@ export type ProgressState = {
   setCloudProgress: (data: CloudProgressData) => void
   /** Updates only the server-authoritative streak/points after a server write. */
   setServerStats: (stats: { streak: number; longestStreak: number; pointsBalance: number }) => void
+  /** Sets the points balance directly from a server-authoritative value. */
+  setTotalPoints: (pts: number) => void
   /** Toggles the pending-sync banner. */
   markPendingSync: (val: boolean) => void
   /** Replaces bookmarks with server data. */
@@ -198,6 +200,8 @@ export const useProgressStore = create<ProgressState>()(
 
       setServerStats: ({ streak, longestStreak, pointsBalance }) =>
         set({ streak, longestStreak, totalPoints: pointsBalance }),
+
+      setTotalPoints: (pts) => set({ totalPoints: pts }),
 
       markPendingSync: (val) => set({ pendingSync: val }),
 

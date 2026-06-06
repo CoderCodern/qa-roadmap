@@ -9,245 +9,897 @@ tags: ["capstone", "playwright", "ui"]
 ## Intro
 
 <En>
-Today you add the Playwright UI layer to your capstone framework. This means wiring Playwright into the same project as your API tests, writing Page Objects for at least two user flows, and making the UI tests run alongside the API tests in a single `pytest` command. By the end, one test run covers both API and UI — a professional, integrated test suite.
+Today you add the Playwright UI layer to your capstone framework. This means wiring Playwright into the same project as your API tests, writing Page Objects for Sauce Demo (https://www.saucedemo.com), and making the UI tests run alongside the API tests in a single `pytest` command. By the end, one test run covers both API and UI — a professional, integrated test suite that matches how real QA teams work.
 </En>
 <Vi>
-Hôm nay bạn thêm lớp UI Playwright vào framework capstone. Điều này có nghĩa là kết nối Playwright vào cùng dự án với API test, viết Page Object cho ít nhất hai luồng người dùng và làm cho UI test chạy cùng với API test trong một lệnh `pytest`. Đến cuối, một lần chạy test bao phủ cả API lẫn UI — một bộ test tích hợp chuyên nghiệp.
+Hôm nay bạn thêm lớp UI Playwright vào framework capstone. Điều này có nghĩa là kết nối Playwright vào cùng dự án với API test, viết Page Object cho Sauce Demo (https://www.saucedemo.com), và làm cho UI test chạy cùng với API test trong một lệnh `pytest`. Đến cuối, một lần chạy test bao phủ cả API lẫn UI — một bộ test tích hợp chuyên nghiệp khớp với cách các team QA thực tế làm việc.
 </Vi>
 
 ## Concept
 
 <En>
-**Playwright inside an existing pytest project:**
+**Why Page Objects exist — the real engineering reason:**
 
-Because `pytest-playwright` is just a pytest plugin, it works seamlessly alongside your existing API fixtures. The key is structuring conftest files so browser fixtures are available only where needed:
+Imagine your app moves the login button from `button[name="Login"]` to `button[data-test="login-btn"]`. Without a Page Object, you grep through every test file to update every reference. With a Page Object, you change one line in `LoginPage.__init__` and every test that uses `LoginPage` is instantly fixed.
+
+This is not just about cleanliness. It is about **maintenance cost**. A team running 200 UI tests against a product that ships weekly cannot afford to spend two hours updating locators every sprint. The Page Object pattern concentrates locator knowledge into one place — the page class — so that structural changes in the UI require only structural changes in the page class, not in the tests.
+
+**Why locators live in `__init__` — lazy evaluation explained:**
+
+When you write `self._username = page.get_by_placeholder("Username")` in `__init__`, you are NOT querying the DOM. Playwright locators are descriptions, not live DOM nodes. The actual DOM query happens only when you call an action: `.fill()`, `.click()`, `.text_content()`. This means:
+
+1. The locator object is cheap to create — no network round-trip, no browser call.
+2. The element does not need to exist when `LoginPage(page)` is constructed. It only needs to exist when `.fill()` is called.
+3. Locators automatically retry on each action (up to the timeout). You never call `.wait_for_element()` before every interaction.
+
+**Why `BasePage` centralizes navigation:**
+
+If the base URL ever changes — from `https://www.saucedemo.com` to a staging URL like `https://staging.saucedemo.com` — you change one string in `BasePage.navigate()`. Every page class that calls `self.navigate("/inventory.html")` picks up the new URL automatically. This is the DRY principle applied to test infrastructure: the base URL is information that belongs in one place.
+
+**How the screenshot-on-failure fixture works:**
+
+The fixture uses two pytest mechanisms together:
+
+1. `@pytest.hookimpl(hookwrapper=True)` — This decorator makes `pytest_runtest_makereport` a hook wrapper. pytest calls it at each phase of the test lifecycle (setup, call, teardown). We store the result object on the test item with `setattr(item, "rep_call", rep)`.
+
+2. `autouse=True` fixture that `yield`s — After the test body runs, control returns to the fixture. At that point `request.node.rep_call` exists on the item (because the hook ran first). If `rep_call.failed` is `True`, we call `page.screenshot()` and attach the bytes to Allure.
+
+The result: every failing UI test automatically gets a browser screenshot attached to its Allure report entry — visual evidence of exactly what the browser showed at the moment of failure, with zero boilerplate in the test itself.
+
+**How conftest.py scoping keeps browser fixtures out of API tests:**
+
+`pytest-playwright` provides `browser`, `browser_context`, and `page` fixtures. If you put them in the root `conftest.py` with `autouse=True`, every test — including your fast API tests — would spin up a browser. That would slow the suite dramatically.
+
+The solution is scoping:
 
 ```
 tests/
-├── conftest.py          # shared: api, auth_api fixtures
+├── conftest.py          # shared: api_client, auth headers, screenshot hook
 ├── api/
-│   └── conftest.py      # API-specific fixtures (if any)
+│   └── conftest.py      # (empty or API-only fixtures)
 └── ui/
-    └── conftest.py      # browser_context, page overrides (if any)
+    └── conftest.py      # browser_context, page overrides for UI-only fixtures
 ```
 
-**Two UI flows to implement in Sauce Demo (saucedemo.com):**
-1. Login → inventory page visible
-2. Login → add item to cart → verify cart count
+Fixtures defined in `tests/ui/conftest.py` are only available to tests collected from `tests/ui/`. API tests in `tests/api/` never see the `page` fixture. `pytest-playwright`'s built-in `page` fixture is only activated when a test actually requests it, so API tests are not affected even if `pytest-playwright` is installed globally.
 
 **Why Sauce Demo:**
-- Publicly available, always up
-- Designed for automation practice
-- Has login, inventory, cart, and checkout flows
-- Standard credentials: `standard_user` / `secret_sauce`
 
-**POM structure for capstone:**
+- Publicly available, always up, no account required
+- Designed specifically for automation practice
+- Has login, inventory, cart, and checkout flows covering real user scenarios
+- Standard credentials: `standard_user` / `secret_sauce`
+- Includes intentionally broken user accounts (`locked_out_user`, `error_user`) for negative testing
+
+**POM structure for the capstone:**
 
 ```
 pages/
-├── base_page.py       # wait helpers, common assertions
-├── login_page.py      # fill credentials, click login
-└── inventory_page.py  # item list, add to cart, cart badge
+├── base_page.py       # navigate(), assert_url_contains() — shared helpers
+├── login_page.py      # open(), login(), assert_error_visible()
+└── inventory_page.py  # assert_loaded(), add_first_item_to_cart(), cart_count()
 ```
 </En>
 <Vi>
-**Playwright trong dự án pytest hiện có:**
+**Tại sao Page Object tồn tại — lý do kỹ thuật thực sự:**
 
-Vì `pytest-playwright` chỉ là plugin pytest, nó hoạt động liền mạch cùng với fixture API hiện có. Điều quan trọng là cấu trúc file conftest để browser fixture chỉ khả dụng khi cần:
+Hãy tưởng tượng app của bạn di chuyển nút đăng nhập từ `button[name="Login"]` sang `button[data-test="login-btn"]`. Nếu không có Page Object, bạn phải grep qua mọi file test để cập nhật từng tham chiếu. Với Page Object, bạn chỉ đổi một dòng trong `LoginPage.__init__` và mọi test dùng `LoginPage` được sửa ngay lập tức.
 
-**Hai luồng UI để triển khai:**
-1. Đăng nhập → trang inventory hiển thị
-2. Đăng nhập → thêm mục vào giỏ → xác minh số lượng giỏ hàng
+Đây không chỉ là về sự gọn gàng. Đây là về **chi phí bảo trì**. Một team chạy 200 UI test trên sản phẩm ship hàng tuần không thể dành hai tiếng cập nhật locator mỗi sprint. Pattern Page Object tập trung kiến thức locator vào một nơi — lớp page — để thay đổi cấu trúc UI chỉ yêu cầu thay đổi cấu trúc trong lớp page, không phải trong các test.
+
+**Tại sao locator nằm trong `__init__` — giải thích lazy evaluation:**
+
+Khi bạn viết `self._username = page.get_by_placeholder("Username")` trong `__init__`, bạn KHÔNG query DOM. Playwright locator là mô tả, không phải DOM node trực tiếp. Query DOM thực sự chỉ xảy ra khi bạn gọi action: `.fill()`, `.click()`, `.text_content()`. Điều này có nghĩa là:
+
+1. Đối tượng locator rẻ để tạo — không có network round-trip, không có browser call.
+2. Phần tử không cần tồn tại khi `LoginPage(page)` được tạo. Nó chỉ cần tồn tại khi `.fill()` được gọi.
+3. Locator tự động retry mỗi action (đến timeout). Bạn không bao giờ phải gọi `.wait_for_element()` trước mỗi tương tác.
+
+**Tại sao `BasePage` tập trung navigation:**
+
+Nếu base URL thay đổi — từ `https://www.saucedemo.com` sang URL staging như `https://staging.saucedemo.com` — bạn chỉ đổi một chuỗi trong `BasePage.navigate()`. Mọi lớp page gọi `self.navigate("/inventory.html")` tự động dùng URL mới. Đây là nguyên tắc DRY áp dụng cho test infrastructure: base URL là thông tin thuộc về một nơi.
+
+**Screenshot-on-failure fixture hoạt động như thế nào:**
+
+Fixture dùng hai cơ chế pytest kết hợp:
+
+1. `@pytest.hookimpl(hookwrapper=True)` — Decorator này biến `pytest_runtest_makereport` thành hook wrapper. pytest gọi nó ở mỗi phase của test lifecycle (setup, call, teardown). Chúng ta lưu kết quả trên test item bằng `setattr(item, "rep_call", rep)`.
+
+2. Fixture `autouse=True` có `yield` — Sau khi thân test chạy, control trả về fixture. Lúc đó `request.node.rep_call` tồn tại trên item. Nếu `rep_call.failed` là `True`, chúng ta gọi `page.screenshot()` và đính kèm bytes vào Allure.
+
+Kết quả: mọi UI test thất bại tự động có screenshot browser đính kèm vào Allure report — bằng chứng trực quan về những gì browser hiển thị đúng vào lúc thất bại, không cần boilerplate trong test.
 
 **Cấu trúc POM cho capstone:**
 
 ```
 pages/
-├── base_page.py       # helper chờ, assertion chung
-├── login_page.py      # điền thông tin đăng nhập, nhấp đăng nhập
-└── inventory_page.py  # danh sách mục, thêm vào giỏ, huy hiệu giỏ
+├── base_page.py       # navigate(), assert_url_contains() — helper dùng chung
+├── login_page.py      # open(), login(), assert_error_visible()
+└── inventory_page.py  # assert_loaded(), add_first_item_to_cart(), cart_count()
 ```
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — BasePage: the navigation foundation**
+
+`BasePage` owns the one piece of configuration that all page classes share: the base URL. Every page class inherits from it and calls `self.navigate("/some-path")` rather than hardcoding the full URL. When the URL changes, only `BasePage` needs updating.
+
+</En>
+<Vi>
+
+**Phần 1 — BasePage: nền tảng navigation**
+
+`BasePage` sở hữu phần cấu hình duy nhất mà tất cả lớp page chia sẻ: base URL. Mọi lớp page kế thừa từ nó và gọi `self.navigate("/some-path")` thay vì hardcode URL đầy đủ. Khi URL thay đổi, chỉ `BasePage` cần cập nhật.
+
+</Vi>
+
 ```python
 # pages/base_page.py
 from playwright.sync_api import Page, expect
 
+BASE_URL = "https://www.saucedemo.com"
+
+
 class BasePage:
+    """Shared foundation for all Sauce Demo page objects.
+
+    Centralises the base URL so every subclass calls self.navigate("/path")
+    rather than hardcoding the full URL. One change here updates all pages.
+    """
+
     def __init__(self, page: Page) -> None:
         self.page = page
 
     def navigate(self, path: str = "") -> None:
-        self.page.goto(f"https://www.saucedemo.com{path}")
+        """Navigate to BASE_URL + path.
+
+        Examples:
+            self.navigate("/")               → https://www.saucedemo.com/
+            self.navigate("/inventory.html") → https://www.saucedemo.com/inventory.html
+        """
+        self.page.goto(f"{BASE_URL}{path}")
 
     def assert_url_contains(self, fragment: str) -> None:
+        """Assert the current URL contains the given fragment.
+
+        Uses Playwright's built-in assertion with automatic retry so you
+        do not need an explicit wait before calling this.
+        """
         expect(self.page).to_have_url(lambda url: fragment in url)
+
+    def get_title(self) -> str:
+        """Return the current page <title>."""
+        return self.page.title()
 ```
+
+<En>
+
+**Part 2 — LoginPage: locators and actions**
+
+`LoginPage` stores all locators in `__init__` (lazy — no DOM queries yet) and exposes clean action methods. The test never touches raw Playwright calls — it speaks the language of the product (`login()`, `assert_error_visible()`).
+
+</En>
+<Vi>
+
+**Phần 2 — LoginPage: locator và action**
+
+`LoginPage` lưu tất cả locator trong `__init__` (lazy — chưa có DOM query) và công khai các phương thức action rõ ràng. Test không bao giờ chạm vào Playwright call trực tiếp — nó nói ngôn ngữ của sản phẩm (`login()`, `assert_error_visible()`).
+
+</Vi>
 
 ```python
 # pages/login_page.py
 from playwright.sync_api import Page, expect
 from pages.base_page import BasePage
 
+
 class LoginPage(BasePage):
+    """Page Object for the Sauce Demo login screen.
+
+    All locators are stored as instance attributes in __init__.
+    No DOM query happens here — Playwright locators are lazy descriptors.
+    The query runs only when an action method calls .fill() or .click().
+    """
+
     def __init__(self, page: Page) -> None:
         super().__init__(page)
+        # Role-based and accessible locators are preferred over CSS selectors.
+        # They stay valid even when the CSS class names are refactored.
         self._username = page.get_by_placeholder("Username")
         self._password = page.get_by_placeholder("Password")
         self._login_btn = page.get_by_role("button", name="Login")
-        self._error = page.locator("[data-test='error']")
+        # data-test attributes are the most stable locator strategy —
+        # QA teams negotiate with dev to add them to testable elements.
+        self._error_msg = page.locator("[data-test='error']")
 
     def open(self) -> None:
+        """Navigate to the login page."""
         self.navigate("/")
 
     def login(self, username: str, password: str) -> None:
+        """Fill in credentials and submit the login form.
+
+        Does NOT assert the outcome — the test decides what to check.
+        A helper that only does one thing is easier to reuse in different
+        test scenarios (success, wrong password, locked-out user).
+        """
         self._username.fill(username)
         self._password.fill(password)
         self._login_btn.click()
 
     def assert_error_visible(self, message: str) -> None:
-        expect(self._error).to_contain_text(message)
+        """Assert the login error banner is visible and contains the given text.
+
+        Uses Playwright's built-in expect() which auto-retries for up to
+        the configured timeout (default 30 s). No explicit sleep needed.
+        """
+        expect(self._error_msg).to_be_visible()
+        expect(self._error_msg).to_contain_text(message)
+
+    def assert_login_btn_visible(self) -> None:
+        """Assert the login button is present — useful as a page-load check."""
+        expect(self._login_btn).to_be_visible()
 ```
+
+<En>
+
+**Part 3 — InventoryPage: state and interactions**
+
+`InventoryPage` encapsulates everything about the product list page — how to confirm it loaded, how to add items, and how to read the cart badge count. The cart count method handles the case where the badge is absent (zero items) defensively.
+
+</En>
+<Vi>
+
+**Phần 3 — InventoryPage: trạng thái và tương tác**
+
+`InventoryPage` đóng gói mọi thứ về trang danh sách sản phẩm — cách xác nhận nó đã load, cách thêm item, và cách đọc số lượng huy hiệu giỏ hàng. Phương thức đếm giỏ hàng xử lý phòng thủ trường hợp huy hiệu vắng mặt (không có item).
+
+</Vi>
 
 ```python
 # pages/inventory_page.py
 from playwright.sync_api import Page, expect
 from pages.base_page import BasePage
 
+INVENTORY_URL = "https://www.saucedemo.com/inventory.html"
+
+
 class InventoryPage(BasePage):
+    """Page Object for the Sauce Demo inventory (product listing) page."""
+
     def __init__(self, page: Page) -> None:
         super().__init__(page)
+        # .inventory_item matches every product card on the page.
         self._items = page.locator(".inventory_item")
+        # The cart badge only exists in the DOM when at least one item is in cart.
         self._cart_badge = page.locator(".shopping_cart_badge")
+        self._cart_icon = page.locator(".shopping_cart_link")
 
     def assert_loaded(self) -> None:
-        expect(self.page).to_have_url("https://www.saucedemo.com/inventory.html")
+        """Assert the inventory page has fully loaded.
+
+        Checks both the URL (confirming navigation succeeded) and that
+        at least one product card is visible (confirming data loaded).
+        """
+        expect(self.page).to_have_url(INVENTORY_URL)
         expect(self._items.first).to_be_visible()
 
+    def item_count(self) -> int:
+        """Return the number of product cards on the page."""
+        return self._items.count()
+
     def add_first_item_to_cart(self) -> None:
+        """Click the 'Add to cart' button on the first listed product."""
         self._items.first.get_by_role("button", name="Add to cart").click()
 
+    def add_item_by_name(self, name: str) -> None:
+        """Click 'Add to cart' for the product with the given name.
+
+        Useful for deterministic tests that must add a specific product
+        rather than whichever happens to be listed first.
+        """
+        item = self._items.filter(has_text=name)
+        item.get_by_role("button", name="Add to cart").click()
+
     def cart_count(self) -> int:
-        badge = self._cart_badge
-        if badge.count() == 0:
+        """Return the number shown on the cart badge, or 0 if badge is absent.
+
+        The cart badge element only exists in the DOM when at least one item
+        has been added. Checking .count() == 0 first avoids a timeout error
+        from calling .text_content() on a non-existent element.
+        """
+        if self._cart_badge.count() == 0:
             return 0
-        return int(badge.text_content() or "0")
+        return int(self._cart_badge.text_content() or "0")
+
+    def go_to_cart(self) -> None:
+        """Click the cart icon to navigate to the cart page."""
+        self._cart_icon.click()
 ```
+
+<En>
+
+**Part 4 — test_login.py: the full test file with Allure annotations**
+
+Tests speak product language, not Playwright language. Each step is wrapped in `allure.step()` so the Allure report shows a human-readable narrative of what happened. Note how the test body is clean — all locator details are hidden inside the page objects.
+
+</En>
+<Vi>
+
+**Phần 4 — test_login.py: file test đầy đủ với Allure annotation**
+
+Test nói ngôn ngữ sản phẩm, không phải ngôn ngữ Playwright. Mỗi bước được bọc trong `allure.step()` để Allure report hiển thị tường thuật dễ đọc của con người về những gì đã xảy ra. Lưu ý thân test rất gọn — mọi chi tiết locator được ẩn trong page object.
+
+</Vi>
 
 ```python
 # tests/ui/test_login.py
 import allure
 import pytest
 from playwright.sync_api import Page
+
 from pages.login_page import LoginPage
 from pages.inventory_page import InventoryPage
 
 VALID_USER = "standard_user"
 VALID_PASS = "secret_sauce"
 
+
 @allure.epic("Sauce Demo UI")
 @allure.feature("Login")
 class TestLogin:
+    """UI test suite for the Sauce Demo login flow.
+
+    Uses Page Object Model so tests never reference raw Playwright locators.
+    Run with: pytest tests/ui/ -v --headed
+    """
 
     @allure.story("Happy path")
     @allure.severity(allure.severity_level.CRITICAL)
-    def test_login_success(self, page: Page):
+    @pytest.mark.ui
+    def test_login_success(self, page: Page) -> None:
+        """Valid credentials should navigate to the inventory page."""
         login = LoginPage(page)
         inventory = InventoryPage(page)
 
-        with allure.step("Open login page"):
+        with allure.step("Open the Sauce Demo login page"):
             login.open()
+            login.assert_login_btn_visible()
 
         with allure.step("Enter valid credentials and submit"):
             login.login(VALID_USER, VALID_PASS)
 
-        with allure.step("Verify inventory page is shown"):
+        with allure.step("Verify the inventory page has loaded"):
             inventory.assert_loaded()
 
     @allure.story("Negative")
     @allure.severity(allure.severity_level.NORMAL)
-    def test_login_wrong_password(self, page: Page):
+    @pytest.mark.ui
+    def test_login_wrong_password(self, page: Page) -> None:
+        """Wrong password should display an inline error message."""
         login = LoginPage(page)
 
-        with allure.step("Open and submit wrong credentials"):
+        with allure.step("Open the login page"):
             login.open()
+
+        with allure.step("Submit with correct username but wrong password"):
             login.login(VALID_USER, "wrongpassword")
 
-        with allure.step("Verify error message"):
+        with allure.step("Assert error message is visible with expected text"):
             login.assert_error_visible("Username and password do not match")
+
+    @allure.story("Negative")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.ui
+    def test_login_locked_out_user(self, page: Page) -> None:
+        """Locked-out user should see the locked-out error message."""
+        login = LoginPage(page)
+
+        with allure.step("Open the login page"):
+            login.open()
+
+        with allure.step("Submit with locked_out_user credentials"):
+            login.login("locked_out_user", VALID_PASS)
+
+        with allure.step("Assert locked-out error is shown"):
+            login.assert_error_visible("Sorry, this user has been locked out")
 
     @allure.story("Happy path")
     @allure.severity(allure.severity_level.NORMAL)
-    def test_add_item_to_cart(self, page: Page):
+    @pytest.mark.ui
+    def test_add_item_to_cart(self, page: Page) -> None:
+        """After login, adding the first item should update the cart badge to 1."""
         login = LoginPage(page)
         inventory = InventoryPage(page)
 
-        with allure.step("Log in"):
+        with allure.step("Log in with valid credentials"):
             login.open()
             login.login(VALID_USER, VALID_PASS)
             inventory.assert_loaded()
 
-        with allure.step("Add first item to cart"):
+        with allure.step("Add the first listed item to the cart"):
             inventory.add_first_item_to_cart()
 
-        with allure.step("Verify cart badge shows 1"):
-            assert inventory.cart_count() == 1
+        with allure.step("Verify the cart badge shows exactly 1"):
+            assert inventory.cart_count() == 1, (
+                f"Expected cart count 1, got {inventory.cart_count()}"
+            )
+
+    @allure.story("Happy path")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.ui
+    def test_cart_page_navigation(self, page: Page) -> None:
+        """Clicking the cart icon should navigate to /cart.html."""
+        login = LoginPage(page)
+        inventory = InventoryPage(page)
+
+        with allure.step("Log in and verify inventory loaded"):
+            login.open()
+            login.login(VALID_USER, VALID_PASS)
+            inventory.assert_loaded()
+
+        with allure.step("Add item then click the cart icon"):
+            inventory.add_first_item_to_cart()
+            inventory.go_to_cart()
+
+        with allure.step("Assert URL is the cart page"):
+            inventory.assert_url_contains("/cart.html")
 ```
 
+<En>
+
+**Part 5 — conftest.py: the screenshot-on-failure fixture**
+
+This fixture hooks into pytest's test lifecycle. The `hookimpl` stores the test result at the `call` phase on the item itself. The `autouse` fixture then reads it after `yield` — if the test failed, it captures a screenshot and attaches it to Allure. Zero boilerplate in each test.
+
+</En>
+<Vi>
+
+**Phần 5 — conftest.py: fixture screenshot khi thất bại**
+
+Fixture này hook vào test lifecycle của pytest. `hookimpl` lưu kết quả test ở phase `call` trên chính item. Fixture `autouse` sau đó đọc nó sau `yield` — nếu test thất bại, nó chụp screenshot và đính kèm vào Allure. Không cần boilerplate trong mỗi test.
+
+</Vi>
+
 ```python
-# tests/conftest.py — add screenshot on failure
+# tests/conftest.py
 import pytest
 import allure
+from playwright.sync_api import Page
 
-@pytest.fixture(autouse=True)
-def screenshot_on_failure(page, request):
-    yield
-    if request.node.rep_call.failed if hasattr(request.node, "rep_call") else False:
-        screenshot = page.screenshot()
-        allure.attach(screenshot, name="failure_screenshot",
-                      attachment_type=allure.attachment_type.PNG)
+
+# ---------------------------------------------------------------------------
+# Hook: store test phase results on the item so fixtures can inspect them
+# ---------------------------------------------------------------------------
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
+    """Store the test outcome at each phase on the test item.
+
+    pytest calls this hook three times per test: setup, call, teardown.
+    We capture the 'call' result (the actual test body) so that the
+    screenshot fixture below can check whether the test body failed.
+
+    Without this hook, request.node.rep_call would not exist and the
+    screenshot fixture could not know the test outcome.
+    """
     outcome = yield
     rep = outcome.get_result()
-    setattr(item, "rep_" + rep.when, rep)
+    # Store rep_setup, rep_call, or rep_teardown depending on the phase.
+    setattr(item, f"rep_{rep.when}", rep)
+
+
+# ---------------------------------------------------------------------------
+# Fixture: automatically attach a screenshot to Allure on UI test failure
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def screenshot_on_failure(page: Page, request: pytest.FixtureRequest):
+    """Capture and attach a browser screenshot when a UI test fails.
+
+    autouse=True means this fixture applies to every test that has a
+    'page' fixture in scope — effectively all UI tests.
+
+    How it works:
+    1. yield → the test body runs
+    2. After yield → check if rep_call exists and was a failure
+    3. If failed → call page.screenshot() and attach the PNG bytes to Allure
+
+    The result appears in the Allure report under Attachments for the
+    failed test, giving you a visual snapshot of the browser state at
+    the exact moment the assertion failed.
+    """
+    yield
+    # rep_call is set by pytest_runtest_makereport above.
+    # hasattr guard handles setup failures where rep_call never reaches 'call'.
+    rep_call = getattr(request.node, "rep_call", None)
+    if rep_call is not None and rep_call.failed:
+        screenshot_bytes = page.screenshot(full_page=True)
+        allure.attach(
+            screenshot_bytes,
+            name="failure_screenshot",
+            attachment_type=allure.attachment_type.PNG,
+        )
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Implement all three Page Objects (`BasePage`, `LoginPage`, `InventoryPage`) and run `pytest tests/ui/ -v --headed` to verify all three UI tests pass while watching the browser
-- [ ] Add a fourth UI test: after adding an item to cart, click the cart icon and verify the cart page URL contains `/cart.html`
-- [ ] Run the full suite `pytest tests/ -v` — confirm API tests and UI tests pass together in a single command with one test report
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Implement all three Page Objects and run the UI suite",
+    code: `# FILE: pages/base_page.py
+# TODO (EN): Implement BasePage with:
+#   - __init__(self, page: Page) storing self.page
+#   - navigate(self, path: str = "") calling self.page.goto(BASE_URL + path)
+#   - assert_url_contains(self, fragment: str) using expect(self.page).to_have_url(...)
+# TODO (VI): Triển khai BasePage với:
+#   - __init__ lưu self.page
+#   - navigate gọi self.page.goto(BASE_URL + path)
+#   - assert_url_contains dùng expect(self.page).to_have_url(...)
+
+from playwright.sync_api import Page, expect
+
+BASE_URL = "https://www.saucedemo.com"
+
+class BasePage:
+    def __init__(self, page: Page) -> None:
+        self.page = page
+
+    def navigate(self, path: str = "") -> None:
+        # YOUR IMPLEMENTATION HERE
+        pass
+
+    def assert_url_contains(self, fragment: str) -> None:
+        # YOUR IMPLEMENTATION HERE
+        pass
+
+
+# FILE: pages/login_page.py
+# TODO (EN): Implement LoginPage inheriting from BasePage with:
+#   - locators for username input, password input, login button, error message
+#   - open() method calling self.navigate("/")
+#   - login(username, password) filling and clicking
+#   - assert_error_visible(message) checking error text
+# TODO (VI): Triển khai LoginPage kế thừa BasePage với locator và các phương thức action
+
+# FILE: pages/inventory_page.py
+# TODO (EN): Implement InventoryPage with:
+#   - assert_loaded() checking URL and first item visible
+#   - add_first_item_to_cart() clicking Add to cart on first item
+#   - cart_count() returning int from badge (0 if badge absent)
+# TODO (VI): Triển khai InventoryPage với assert_loaded, add_first_item_to_cart, cart_count
+
+# VERIFY:
+# After implementation, run:
+#   pytest tests/ui/test_login.py -v --headed
+# All 5 tests should pass while you watch the browser execute them.
+# Then run without --headed to confirm headless mode also works:
+#   pytest tests/ui/ -v`
+  },
+  {
+    title: "Exercise 2 — Add screenshot fixture and trigger it intentionally",
+    code: `# FILE: tests/conftest.py
+# TODO (EN): Add the hookimpl and autouse screenshot fixture.
+# Then write a deliberately failing test to confirm the screenshot
+# is attached to the Allure report.
+# TODO (VI): Thêm hookimpl và fixture screenshot autouse.
+# Viết test thất bại có chủ ý để xác nhận screenshot được đính kèm vào Allure.
+
+import pytest
+import allure
+from playwright.sync_api import Page
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    # TODO (EN): implement: yield, get result, setattr(item, f"rep_{rep.when}", rep)
+    # TODO (VI): triển khai: yield, lấy result, setattr(item, f"rep_{rep.when}", rep)
+    pass
+
+
+@pytest.fixture(autouse=True)
+def screenshot_on_failure(page: Page, request: pytest.FixtureRequest):
+    # TODO (EN): yield, then check rep_call.failed and attach screenshot to Allure
+    # TODO (VI): yield, sau đó kiểm tra rep_call.failed và đính kèm screenshot vào Allure
+    yield
+
+
+# FILE: tests/ui/test_screenshot_demo.py
+# Deliberately failing test — delete after verifying the screenshot appears
+
+import pytest
+from playwright.sync_api import Page
+from pages.login_page import LoginPage
+
+@pytest.mark.ui
+def test_intentional_failure_for_screenshot_demo(page: Page) -> None:
+    login = LoginPage(page)
+    login.open()
+    # This assertion will fail intentionally — the page title is "Swag Labs"
+    assert page.title() == "WRONG TITLE", "This test is meant to fail"
+
+# VERIFY:
+# Run: pytest tests/ui/test_screenshot_demo.py -v --alluredir=allure-results
+# Then: allure serve allure-results
+# Open the failed test in Allure and confirm the PNG screenshot is attached.`
+  },
+  {
+    title: "Exercise 3 — Run the full combined suite (API + UI together)",
+    code: `# VERIFY that API tests and UI tests coexist in one pytest run.
+# Prerequisites:
+#   pip install pytest-playwright pytest-allure-adaptor allure-pytest
+#   playwright install chromium
+#   Your capstone API tests must be in tests/api/ and working.
+
+# Step 1: Run only UI tests to verify the UI layer works
+#   pytest tests/ui/ -v --headed
+
+# Step 2: Run only API tests to confirm they are unaffected
+#   pytest tests/api/ -v
+
+# Step 3: Run the full suite together
+#   pytest tests/ -v --alluredir=allure-results
+
+# Step 4: Generate the Allure report
+#   allure serve allure-results
+
+# TODO (EN): Confirm in the terminal output that:
+#   - UI tests show "PASSED" for all 5 test_login.py tests
+#   - API tests show "PASSED" for all API tests
+#   - The summary line shows both counts (e.g. "12 passed")
+#   - The Allure Behaviours view shows both "Sauce Demo UI" and "ReqRes API" epics
+# TODO (VI): Xác nhận trong output terminal rằng:
+#   - UI test hiển thị "PASSED" cho tất cả 5 test trong test_login.py
+#   - API test hiển thị "PASSED" cho tất cả API test
+#   - Dòng tóm tắt hiển thị cả hai số lượng (ví dụ: "12 passed")
+#   - Allure Behaviours view hiển thị cả hai epic "Sauce Demo UI" và "ReqRes API"
+
+# If browser fixtures leak into API tests (slowing them down), check:
+#   1. The screenshot_on_failure fixture — it requests 'page' which will
+#      error for API tests. Scope it to tests/ui/conftest.py instead of
+#      the root tests/conftest.py, OR guard it:
+#
+#      @pytest.fixture(autouse=True)
+#      def screenshot_on_failure(request):
+#          page = request.getfixturevalue("page") if "page" in request.fixturenames else None
+#          yield
+#          if page is None:
+#              return
+#          rep_call = getattr(request.node, "rep_call", None)
+#          if rep_call and rep_call.failed:
+#              allure.attach(page.screenshot(), name="failure_screenshot",
+#                            attachment_type=allure.attachment_type.PNG)
+
+print("Run the commands above in your terminal — this is not a Python script to execute")`
+  }
+]}>
+<En>
+
+**Instructions:**
+
+All exercises require a working capstone project with `pytest-playwright` installed.
+
+Setup:
+```bash
+pip install pytest-playwright allure-pytest
+playwright install chromium
+```
+
+Project structure expected:
+```
+capstone/
+├── pages/
+│   ├── base_page.py
+│   ├── login_page.py
+│   └── inventory_page.py
+├── tests/
+│   ├── conftest.py
+│   ├── api/
+│   └── ui/
+│       └── test_login.py
+└── pytest.ini
+```
+
+- [ ] Exercise 1: Implement all three page objects. Run `pytest tests/ui/ -v --headed` and confirm 5 tests pass with the browser visible.
+- [ ] Exercise 2: Add the `hookimpl` hook and `screenshot_on_failure` fixture. Run the intentional failure test, then open `allure serve allure-results` and confirm the PNG screenshot appears under the failed test's Attachments tab.
+- [ ] Exercise 3: Run `pytest tests/ -v --alluredir=allure-results` (full suite). Confirm both API and UI tests appear in the single report. Verify API test runtime did not increase (no browser being launched for them).
+
+> Note: Run all exercises locally with Playwright installed (`pip install pytest-playwright && playwright install chromium`). Sauce Demo is a live public site — tests should pass without any account setup.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+
+Tất cả bài tập yêu cầu dự án capstone đang hoạt động với `pytest-playwright` đã cài.
+
+Cài đặt:
+```bash
+pip install pytest-playwright allure-pytest
+playwright install chromium
+```
+
+Cấu trúc dự án dự kiến:
+```
+capstone/
+├── pages/
+│   ├── base_page.py
+│   ├── login_page.py
+│   └── inventory_page.py
+├── tests/
+│   ├── conftest.py
+│   ├── api/
+│   └── ui/
+│       └── test_login.py
+└── pytest.ini
+```
+
+- [ ] Bài 1: Triển khai tất cả ba page object. Chạy `pytest tests/ui/ -v --headed` và xác nhận 5 test pass với browser hiển thị.
+- [ ] Bài 2: Thêm hook `hookimpl` và fixture `screenshot_on_failure`. Chạy test thất bại có chủ ý, sau đó mở `allure serve allure-results` và xác nhận screenshot PNG xuất hiện trong tab Attachments của test thất bại.
+- [ ] Bài 3: Chạy `pytest tests/ -v --alluredir=allure-results` (full suite). Xác nhận cả API và UI test xuất hiện trong một report. Xác minh thời gian chạy API test không tăng (không có browser được khởi động cho chúng).
+
+> Lưu ý: Chạy tất cả bài tập cục bộ với Playwright đã cài (`pip install pytest-playwright && playwright install chromium`). Sauce Demo là trang công khai trực tiếp — test sẽ pass mà không cần thiết lập tài khoản.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "Why do Page Object properties return locators rather than calling `.click()` directly in the property?",
+    q: "Why do Page Object locators stored in __init__ NOT cause a DOM query when the page object is constructed?",
+    qVi: "Tại sao locator Page Object được lưu trong __init__ KHÔNG gây DOM query khi page object được tạo?",
     choices: [
-      "Playwright requires deferred locator evaluation",
-      "Returning a locator lets test code choose the action — click, fill, expect — rather than hardcoding it in the POM. This keeps page objects flexible.",
-      "It is faster to return locators",
-      "Locator properties are cached by pytest"
+      "Playwright caches the DOM on page load and reads from the cache",
+      "Playwright locators are lazy descriptors — they only query the DOM when an action like .fill() or .click() is called on them",
+      "pytest defers fixture construction until the test body runs",
+      "The browser tab is not opened until navigate() is called"
+    ],
+    choicesVi: [
+      "Playwright cache DOM khi load trang và đọc từ cache",
+      "Playwright locator là lazy descriptor — chúng chỉ query DOM khi action như .fill() hoặc .click() được gọi",
+      "pytest trì hoãn việc tạo fixture cho đến khi thân test chạy",
+      "Tab browser không được mở cho đến khi navigate() được gọi"
     ],
     answer: 1,
-    explain: "A locator is a description of an element, not an immediate DOM query. Storing locators as properties (self._username = page.get_by_placeholder('Username')) means the test calls the action: login._username.fill(). The POM stays focused on WHERE elements are; the test decides WHAT to do with them."
+    explain: "A Playwright locator is a description of how to find an element, not a reference to an existing DOM node. page.get_by_placeholder('Username') builds a search strategy object, nothing more. The actual DOM lookup and element interaction happen only when you call .fill(), .click(), or expect(). This is why locators are cheap to create and can be stored as instance attributes without any browser interaction.",
+    explainVi: "Playwright locator là mô tả cách tìm phần tử, không phải tham chiếu đến DOM node hiện có. page.get_by_placeholder('Username') tạo đối tượng chiến lược tìm kiếm, không hơn không kém. DOM lookup và tương tác phần tử thực sự chỉ xảy ra khi bạn gọi .fill(), .click(), hoặc expect(). Đây là lý do locator rẻ để tạo và có thể được lưu trữ làm thuộc tính instance mà không có tương tác browser nào."
   },
   {
-    q: "What does the `autouse=True` screenshot fixture do in the capstone conftest?",
+    q: "What is the primary engineering reason to store the base URL in BasePage rather than in each LoginPage and InventoryPage?",
+    qVi: "Lý do kỹ thuật chính để lưu base URL trong BasePage thay vì trong từng LoginPage và InventoryPage là gì?",
     choices: [
-      "Takes a screenshot before every test",
-      "Automatically attaches a screenshot to the Allure report when a UI test fails — without needing to call it explicitly in every test",
-      "Saves screenshots to a local folder",
-      "Prevents tests from running headless"
+      "BasePage is required by pytest-playwright and must contain the URL",
+      "Centralising the URL in one place means a URL change (e.g., to a staging server) requires one edit, not one edit per page class — DRY principle applied to test infrastructure",
+      "Python classes cannot share string constants between modules",
+      "BasePage loads faster than individual page classes"
+    ],
+    choicesVi: [
+      "BasePage được yêu cầu bởi pytest-playwright và phải chứa URL",
+      "Tập trung URL vào một nơi nghĩa là thay đổi URL (ví dụ: sang staging server) chỉ cần một lần chỉnh sửa, không phải một lần cho mỗi lớp page — nguyên tắc DRY áp dụng cho test infrastructure",
+      "Python class không thể chia sẻ chuỗi constant giữa các module",
+      "BasePage load nhanh hơn các lớp page riêng lẻ"
     ],
     answer: 1,
-    explain: "autouse=True makes a fixture apply to every test in scope automatically. Combined with the rep_call.failed check, it captures and attaches a screenshot only on failure — giving you visual evidence of what went wrong without cluttering passing test reports."
+    explain: "DRY (Don't Repeat Yourself) applies to test infrastructure just as much as to production code. If LoginPage, InventoryPage, and CartPage each hardcode 'https://www.saucedemo.com', a switch to a staging URL means editing three files. BasePage.navigate() is the single source of truth for URL composition — change it once, all pages benefit.",
+    explainVi: "DRY (Don't Repeat Yourself) áp dụng cho test infrastructure cũng như code production. Nếu LoginPage, InventoryPage và CartPage mỗi cái hardcode 'https://www.saucedemo.com', chuyển sang staging URL nghĩa là chỉnh sửa ba file. BasePage.navigate() là nguồn sự thật duy nhất cho URL composition — đổi một lần, tất cả page được hưởng lợi."
+  },
+  {
+    q: "What does `autouse=True` on the screenshot_on_failure fixture do, and why does this avoid boilerplate in individual tests?",
+    qVi: "`autouse=True` trên fixture screenshot_on_failure làm gì, và tại sao điều này tránh boilerplate trong các test riêng lẻ?",
+    choices: [
+      "It runs the fixture before the test instead of after",
+      "It automatically applies the fixture to every test in scope without each test needing to declare it as a parameter — the screenshot logic runs for every test without any extra code in the test functions",
+      "It makes the fixture run in a separate thread",
+      "It disables the fixture for tests marked with @pytest.mark.skip"
+    ],
+    choicesVi: [
+      "Nó chạy fixture trước test thay vì sau",
+      "Nó tự động áp dụng fixture cho mọi test trong scope mà không cần mỗi test khai báo nó dưới dạng tham số — logic screenshot chạy cho mọi test mà không có code thêm trong hàm test",
+      "Nó làm cho fixture chạy trong thread riêng biệt",
+      "Nó vô hiệu hoá fixture cho test được đánh dấu bằng @pytest.mark.skip"
+    ],
+    answer: 1,
+    explain: "Without autouse=True, every UI test would need to include 'screenshot_on_failure' in its parameter list to activate the fixture. With autouse=True, pytest injects the fixture automatically for every test in the same scope. The test function signatures stay clean — they only declare the fixtures they directly use (like 'page'), while cross-cutting concerns like failure screenshots are handled transparently.",
+    explainVi: "Nếu không có autouse=True, mỗi UI test cần bao gồm 'screenshot_on_failure' trong danh sách tham số để kích hoạt fixture. Với autouse=True, pytest tự động inject fixture cho mọi test trong cùng scope. Signature hàm test vẫn gọn — chúng chỉ khai báo fixture chúng trực tiếp sử dụng (như 'page'), trong khi các concern xuyên suốt như screenshot thất bại được xử lý minh bạch."
+  },
+  {
+    q: "Why does the pytest_runtest_makereport hookimpl need to exist for the screenshot fixture to work correctly?",
+    qVi: "Tại sao hookimpl pytest_runtest_makereport cần tồn tại để fixture screenshot hoạt động đúng?",
+    choices: [
+      "Without it, Playwright cannot take screenshots",
+      "pytest does not expose test pass/fail status to fixtures by default. The hookimpl stores the call-phase result on the test item so the fixture can read rep_call.failed after yield",
+      "The hookimpl is required by Allure to attach files",
+      "Without the hookimpl, autouse fixtures do not run after test failure"
+    ],
+    choicesVi: [
+      "Không có nó, Playwright không thể chụp screenshot",
+      "pytest không expose trạng thái pass/fail của test cho fixture theo mặc định. hookimpl lưu kết quả call-phase trên test item để fixture có thể đọc rep_call.failed sau yield",
+      "hookimpl được yêu cầu bởi Allure để đính kèm file",
+      "Không có hookimpl, fixture autouse không chạy sau test failure"
+    ],
+    answer: 1,
+    explain: "By default, fixtures cannot know whether the test they ran inside passed or failed — pytest does not pass the test result to the fixture. The hookimpl pattern is the standard workaround: pytest_runtest_makereport fires at each test phase (setup/call/teardown) and we attach the result to the item with setattr. The fixture then reads item.rep_call.failed after its yield to check the outcome.",
+    explainVi: "Theo mặc định, fixture không thể biết test chúng chạy trong đó pass hay fail — pytest không truyền kết quả test cho fixture. Pattern hookimpl là giải pháp tiêu chuẩn: pytest_runtest_makereport kích hoạt ở mỗi test phase (setup/call/teardown) và chúng ta đính kèm kết quả vào item bằng setattr. Fixture sau đó đọc item.rep_call.failed sau yield để kiểm tra kết quả."
+  },
+  {
+    q: "Which locator strategy is most resilient to CSS class name refactoring?",
+    qVi: "Chiến lược locator nào kiên cố nhất trước việc tái cấu trúc tên class CSS?",
+    choices: [
+      "page.locator('.shopping_cart_badge') — CSS class selector",
+      "page.get_by_role('button', name='Login') or page.locator(\"[data-test='login-btn']\") — role-based or data-test attribute selectors",
+      "page.locator('div > form > button:nth-child(2)') — structural CSS path",
+      "page.locator('xpath=//button[contains(@class, \"btn_action\")]') — XPath class match"
+    ],
+    choicesVi: [
+      "page.locator('.shopping_cart_badge') — CSS class selector",
+      "page.get_by_role('button', name='Login') hoặc page.locator(\"[data-test='login-btn']\") — role-based hoặc data-test attribute selector",
+      "page.locator('div > form > button:nth-child(2)') — structural CSS path",
+      "page.locator('xpath=//button[contains(@class, \"btn_action\")]') — XPath class match"
+    ],
+    answer: 1,
+    explain: "Role-based locators (get_by_role, get_by_placeholder, get_by_label) reflect ARIA semantics which change rarely — a submit button stays a submit button even if the CSS class changes from 'btn_action' to 'login-button'. data-test attributes are even more stable because they are added specifically for testing and developers know not to remove them. Pure CSS class selectors and XPath structural paths break whenever a developer renames or restructures the DOM.",
+    explainVi: "Locator dựa trên role (get_by_role, get_by_placeholder, get_by_label) phản ánh ngữ nghĩa ARIA hiếm khi thay đổi — nút submit vẫn là nút submit ngay cả khi CSS class thay đổi từ 'btn_action' sang 'login-button'. Thuộc tính data-test còn ổn định hơn vì chúng được thêm đặc biệt cho testing và developer biết không nên xóa chúng. CSS class selector thuần và XPath structural path bị phá vỡ bất cứ khi nào developer đổi tên hoặc tái cấu trúc DOM."
+  },
+  {
+    q: "If you put the screenshot_on_failure fixture with autouse=True in the ROOT tests/conftest.py, what problem could occur for API tests?",
+    qVi: "Nếu bạn đặt fixture screenshot_on_failure với autouse=True trong ROOT tests/conftest.py, vấn đề nào có thể xảy ra với API test?",
+    choices: [
+      "API tests would fail because they do not use HTTPS",
+      "The fixture requests 'page' which would cause pytest to launch a browser for every API test, slowing the suite and potentially failing tests that do not need a browser",
+      "Allure would generate duplicate reports",
+      "API tests cannot import Playwright so the import would fail"
+    ],
+    choicesVi: [
+      "API test sẽ thất bại vì chúng không dùng HTTPS",
+      "Fixture yêu cầu 'page' khiến pytest phải khởi động browser cho mỗi API test, làm chậm suite và có thể làm thất bại test không cần browser",
+      "Allure sẽ tạo report trùng lặp",
+      "API test không thể import Playwright nên import sẽ thất bại"
+    ],
+    answer: 1,
+    explain: "The screenshot_on_failure fixture declares 'page' as a parameter. When pytest sees a fixture that requests 'page', it activates the browser stack (playwright, browser, browser_context, page) for that test. Placing it in the root conftest.py with autouse=True would make every API test spin up a browser — adding 1-2 seconds each and wasting resources. The fix is to place it in tests/ui/conftest.py, or guard it with 'if page is None: return' after checking request.fixturenames.",
+    explainVi: "Fixture screenshot_on_failure khai báo 'page' là tham số. Khi pytest thấy fixture yêu cầu 'page', nó kích hoạt browser stack (playwright, browser, browser_context, page) cho test đó. Đặt nó trong root conftest.py với autouse=True sẽ khiến mỗi API test khởi động browser — thêm 1-2 giây mỗi cái và lãng phí tài nguyên. Cách sửa là đặt nó trong tests/ui/conftest.py, hoặc bảo vệ nó với 'if page is None: return' sau khi kiểm tra request.fixturenames."
+  },
+  {
+    q: "In `InventoryPage.cart_count()`, why check `self._cart_badge.count() == 0` before calling `.text_content()`?",
+    qVi: "Trong `InventoryPage.cart_count()`, tại sao kiểm tra `self._cart_badge.count() == 0` trước khi gọi `.text_content()`?",
+    choices: [
+      "Playwright's .text_content() throws TypeError for numeric values",
+      "The cart badge element is not present in the DOM when the cart is empty. Calling .text_content() on a locator that matches nothing raises a timeout error — checking .count() first handles the zero-item case without waiting",
+      "The badge shows '0' as text when empty, which needs special parsing",
+      ".count() is required before any text extraction in Playwright"
+    ],
+    choicesVi: [
+      "Playwright's .text_content() ném TypeError cho giá trị số",
+      "Phần tử cart badge không có trong DOM khi giỏ hàng trống. Gọi .text_content() trên locator không khớp gì gây lỗi timeout — kiểm tra .count() trước xử lý trường hợp không có item mà không cần chờ",
+      "Badge hiển thị '0' dưới dạng text khi trống, cần xử lý đặc biệt",
+      ".count() cần thiết trước khi trích xuất text trong Playwright"
+    ],
+    answer: 1,
+    explain: "Sauce Demo only renders the cart badge element when at least one item is in the cart. When the cart is empty, the badge is completely absent from the DOM — there is no element to call .text_content() on. Playwright's .text_content() waits up to the configured timeout for the element to appear before raising a TimeoutError. Checking .count() == 0 first short-circuits instantly and returns 0 without any browser wait.",
+    explainVi: "Sauce Demo chỉ render phần tử cart badge khi có ít nhất một item trong giỏ. Khi giỏ trống, badge hoàn toàn vắng mặt khỏi DOM — không có phần tử nào để gọi .text_content(). Playwright's .text_content() chờ đến timeout được cấu hình để phần tử xuất hiện trước khi ném TimeoutError. Kiểm tra .count() == 0 trước ngắn mạch ngay lập tức và trả về 0 mà không cần chờ browser."
+  },
+  {
+    q: "Why is it better for LoginPage.login() to NOT assert that login succeeded, and instead leave that to the test?",
+    qVi: "Tại sao tốt hơn khi LoginPage.login() KHÔNG assert rằng đăng nhập thành công, mà để lại điều đó cho test?",
+    choices: [
+      "Assertions inside Page Objects cause pytest to skip the test",
+      "login() is called in both success and failure scenarios. If it asserted success, the negative test (wrong password) would fail inside the page object before reaching the test's assertion — the Page Object would contradict itself",
+      "Playwright's Page API does not support assertions inside class methods",
+      "Assertions in Page Objects produce duplicate Allure entries"
+    ],
+    choicesVi: [
+      "Assertion trong Page Object khiến pytest skip test",
+      "login() được gọi trong cả kịch bản thành công và thất bại. Nếu nó assert thành công, test âm (sai mật khẩu) sẽ thất bại bên trong page object trước khi đến assertion của test — Page Object sẽ tự mâu thuẫn",
+      "Playwright Page API không hỗ trợ assertion bên trong class method",
+      "Assertion trong Page Object tạo entry Allure trùng lặp"
+    ],
+    answer: 1,
+    explain: "LoginPage.login() is reused by test_login_success (expects success), test_login_wrong_password (expects failure), and test_login_locked_out (expects a specific error). If login() contained an assertion that the URL changed to /inventory.html, the negative tests would crash inside the page object method instead of reaching their intended assert_error_visible() calls. Page Objects should be action helpers, not oracles. Assertions belong in the test.",
+    explainVi: "LoginPage.login() được tái sử dụng bởi test_login_success (kỳ vọng thành công), test_login_wrong_password (kỳ vọng thất bại) và test_login_locked_out (kỳ vọng lỗi cụ thể). Nếu login() chứa assertion rằng URL đã chuyển sang /inventory.html, các test âm sẽ crash bên trong phương thức page object thay vì đến lời gọi assert_error_visible() dự định. Page Object nên là action helper, không phải oracle. Assertion thuộc về test."
   }
 ]} />
 

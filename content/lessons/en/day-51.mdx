@@ -9,104 +9,241 @@ tags: ["capstone", "reporting"]
 ## Intro
 
 <En>
-A test suite that produces no report is only half-useful. Stakeholders, developers, and product managers need to see test results in a readable format — not raw terminal output. Allure is the most popular test reporting framework for Python. It produces beautiful, interactive HTML reports with charts, step-by-step breakdowns, screenshots, and attachments. Today you integrate Allure into your capstone framework.
+A test suite that produces no report is only half-useful. Stakeholders, developers, and product managers need to see test results in a readable format — not raw terminal output. Allure is the most widely adopted test reporting framework for Python. It produces interactive HTML reports with charts, step-by-step breakdowns, screenshots, and attachments. Today you integrate Allure into your capstone framework and learn why the annotations matter for debugging at scale — not just for presentation.
 </En>
 <Vi>
-Một bộ test không tạo ra báo cáo chỉ hữu ích một nửa. Các bên liên quan, developer và quản lý sản phẩm cần xem kết quả test theo định dạng dễ đọc — không phải đầu ra terminal thô. Allure là framework báo cáo test phổ biến nhất cho Python. Nó tạo ra các báo cáo HTML đẹp, tương tác với biểu đồ, phân tích từng bước, ảnh chụp màn hình và tệp đính kèm. Hôm nay bạn tích hợp Allure vào capstone framework của mình.
+Một bộ test không tạo ra báo cáo chỉ hữu ích một nửa. Các bên liên quan, developer và quản lý sản phẩm cần xem kết quả test theo định dạng dễ đọc — không phải đầu ra terminal thô. Allure là framework báo cáo test được áp dụng rộng rãi nhất cho Python. Nó tạo ra các báo cáo HTML tương tác với biểu đồ, phân tích từng bước, ảnh chụp màn hình và tệp đính kèm. Hôm nay bạn tích hợp Allure vào capstone framework và tìm hiểu tại sao các annotation quan trọng cho việc debug ở quy mô lớn — không chỉ cho mục đích trình bày.
 </Vi>
 
 ## Concept
 
 <En>
-**Install:**
+
+**Installing Allure — two separate pieces:**
+
 ```bash
+# 1. The pytest plugin (Python side — writes raw result JSON)
 pip install allure-pytest
-# Also need the Allure command-line tool:
-# macOS: brew install allure
-# Windows: scoop install allure or download from github.com/allure-framework
+
+# 2. The Allure CLI (Java-based — generates HTML from JSON)
+# macOS:
+brew install allure
+# Windows (Scoop):
+scoop install allure
+# Linux / CI (manual):
+# Download from https://github.com/allure-framework/allure2/releases
+# Extract and add bin/ to your PATH
 ```
 
-**Generate and view reports:**
+**Why two pieces?** pytest with `allure-pytest` writes raw JSON files into an `allure-results/` directory after each test run. Those JSON files contain every test's status, steps, attachments, and labels. The Allure CLI then reads those JSON files and generates the final HTML report. This separation means you can re-generate the HTML from the same result files as many times as you like — without re-running the tests.
+
+**Generating and viewing reports:**
+
 ```bash
+# Step 1: run tests and write raw results
 pytest tests/ --alluredir=allure-results
-allure serve allure-results   # opens browser automatically
-# OR: allure generate allure-results -o allure-report --clean
+
+# Step 2a: development — generates HTML and opens browser automatically
+allure serve allure-results
+
+# Step 2b: CI — generates static HTML into allure-report/ without opening a browser
+allure generate allure-results -o allure-report --clean
 ```
 
-**Allure decorators — enrich reports:**
+`allure serve` is for local development: it starts a temporary web server, generates the HTML, and opens it. `allure generate` is for CI pipelines where there is no browser — it writes the HTML to disk so you can upload it as a build artifact.
+
+**The Allure label hierarchy — epic → feature → story:**
+
+```
+epic: "Blog API"
+ └── feature: "Posts"
+      ├── story: "Read"   — test_get_post, test_get_nonexistent_post
+      └── story: "Create" — test_create_post
+```
+
+These three labels form the "Behaviours" view in the Allure report — a product-readable hierarchy. A stakeholder who has never seen the code can navigate to "Blog API → Posts → Create" and see exactly which scenarios pass and which fail. Without these labels, the report shows raw file paths, which only developers understand.
+
+Why is this useful in practice? When you have 300 tests across a large suite, a plain list of test names in alphabetical order is nearly useless for root cause analysis. The hierarchy lets you spot that "User Authentication → Login → OAuth" has 3 failures in one build while "User Authentication → Login → Username-Password" has none — which immediately tells you the OAuth implementation broke, not the entire login flow.
+
+**Severity levels — and why they affect triage:**
 
 ```python
-import allure
-
-@allure.epic("User Management")
-@allure.feature("User CRUD")
-@allure.story("Create User")
-@allure.severity(allure.severity_level.CRITICAL)
-def test_create_user(api):
-    with allure.step("Send POST /users"):
-        response = api.post("/users", json=payload)
-    with allure.step("Verify status 201"):
-        assert response.status_code == 201
+allure.severity_level.BLOCKER   # system is unusable — deploy must stop
+allure.severity_level.CRITICAL  # core business flow broken — must fix today
+allure.severity_level.NORMAL    # standard functionality impaired — fix in sprint
+allure.severity_level.MINOR     # edge case failure — plan for next sprint
+allure.severity_level.TRIVIAL   # cosmetic or negligible — backlog
 ```
 
-**Attach files to reports:**
-```python
-allure.attach(response.text, name="API Response", attachment_type=allure.attachment_type.JSON)
-allure.attach(page.screenshot(), name="Screenshot", attachment_type=allure.attachment_type.PNG)
+Severity is not just decoration. In CI, you can configure your pipeline to fail the build only on BLOCKER and CRITICAL failures and let MINOR/TRIVIAL failures produce warnings. This means a CSS pixel offset in the UI does not block a backend API deployment. Without severity labels, every failure is treated equally — which either causes alert fatigue (ignore everything because it always fails) or false urgency (panic about a trivial issue).
+
+**Why `allure.step()` is more valuable than raw assertions for debugging:**
+
+When a raw assertion fails in a 40-line test function, the error message is `AssertionError`. You read the traceback, find the line number, correlate it with the test logic, and eventually understand what happened. In a CI report that email was three hours ago, that is expensive.
+
+With `allure.step("Verify status is 201")`, the report shows "Step 4 — Verify status is 201 — FAILED", and every step before it shows PASSED. The analyst immediately knows the request was sent (step 2 passed), the response was received (step 3 passed), but the status was wrong (step 4 failed). The narrowing of the failure to a specific named step eliminates most of the detective work.
+
+**`allure.attach()` — persisting evidence for post-mortem analysis:**
+
+Attaching the response body, screenshots, or log files to a test result means you can debug a failure hours or days later without re-running the test. For a test that fails intermittently (flaky test) this is especially valuable — you may never reproduce it on demand.
+
+**categories.json — grouping failures by type:**
+
+You can create a `categories.json` file in your `allure-results/` directory to define custom failure categories:
+
+```json
+[
+  {
+    "name": "Network errors",
+    "messageRegex": ".*ConnectionError.*",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Schema violations",
+    "messageRegex": ".*Schema validation failed.*",
+    "matchedStatuses": ["failed"]
+  }
+]
 ```
 
-**Allure report structure:**
-- **Overview** — pass/fail counts, trend chart
-- **Suites** — test hierarchy by file/class/function
-- **Behaviours** — grouped by epic → feature → story
-- **Categories** — failed tests grouped by failure type
-- **Timeline** — test execution order and duration
+Without categories, all failures pile into a single "Product Defects" bucket. With categories, the Allure "Categories" tab separates "Network errors" (infrastructure issues, not code bugs) from "Schema violations" (API contract changes) from "Assertion failures" (genuine regressions). This separates noise from signal in large suites.
+
+**The full Allure report structure:**
+
+- **Overview** — pass/fail/broken counts, trend chart across builds
+- **Suites** — test hierarchy by file → class → function
+- **Behaviours** — grouped by epic → feature → story (product-readable)
+- **Categories** — failed tests grouped by failure type (from categories.json)
+- **Timeline** — test execution order and duration (shows parallelism)
+- **Graphs** — severity distribution, status distribution charts
+
 </En>
 <Vi>
-**Cài đặt:**
+
+**Cài đặt Allure — hai phần riêng biệt:**
+
 ```bash
+# 1. Plugin pytest (phía Python — ghi JSON kết quả thô)
 pip install allure-pytest
-# Cũng cần công cụ dòng lệnh Allure
+
+# 2. Allure CLI (dựa trên Java — tạo HTML từ JSON)
+# macOS:
+brew install allure
+# Windows (Scoop):
+scoop install allure
+# Linux / CI (thủ công):
+# Tải từ https://github.com/allure-framework/allure2/releases
+# Giải nén và thêm bin/ vào PATH
 ```
+
+**Tại sao lại có hai phần?** pytest với `allure-pytest` ghi các file JSON thô vào thư mục `allure-results/` sau mỗi lần chạy test. Các file JSON đó chứa trạng thái, bước, tệp đính kèm và nhãn của mỗi test. Allure CLI sau đó đọc các file JSON đó và tạo báo cáo HTML cuối cùng. Sự phân tách này có nghĩa là bạn có thể tái tạo HTML từ cùng các file kết quả bao nhiêu lần tùy thích — mà không cần chạy lại test.
 
 **Tạo và xem báo cáo:**
+
 ```bash
+# Bước 1: chạy test và ghi kết quả thô
 pytest tests/ --alluredir=allure-results
-allure serve allure-results   # tự động mở trình duyệt
+
+# Bước 2a: phát triển — tạo HTML và tự động mở trình duyệt
+allure serve allure-results
+
+# Bước 2b: CI — tạo HTML tĩnh vào allure-report/ mà không mở trình duyệt
+allure generate allure-results -o allure-report --clean
 ```
 
-**Decorator Allure — làm phong phú báo cáo:**
+`allure serve` dành cho phát triển cục bộ. `allure generate` dành cho pipeline CI nơi không có trình duyệt — nó ghi HTML vào đĩa để bạn có thể tải lên như build artifact.
+
+**Hệ thống phân cấp nhãn Allure — epic → feature → story:**
+
+```
+epic: "Blog API"
+ └── feature: "Posts"
+      ├── story: "Read"   — test_get_post, test_get_nonexistent_post
+      └── story: "Create" — test_create_post
+```
+
+Ba nhãn này tạo thành chế độ xem "Behaviours" trong báo cáo Allure — một hệ thống phân cấp mà sản phẩm có thể đọc được. Khi bạn có 300 test trong suite lớn, danh sách tên test theo thứ tự bảng chữ cái gần như vô dụng để phân tích nguyên nhân gốc rễ. Hệ thống phân cấp cho phép bạn phát hiện rằng "User Authentication → Login → OAuth" có 3 lỗi trong một build trong khi "User Authentication → Login → Username-Password" không có — điều này ngay lập tức cho bạn biết việc triển khai OAuth bị lỗi, không phải toàn bộ luồng đăng nhập.
+
+**Mức độ nghiêm trọng — và tại sao chúng ảnh hưởng đến phân loại:**
 
 ```python
-import allure
-
-@allure.epic("User Management")
-@allure.feature("User CRUD")
-@allure.story("Create User")
-@allure.severity(allure.severity_level.CRITICAL)
-def test_create_user(api):
-    with allure.step("Gửi POST /users"):
-        response = api.post("/users", json=payload)
-    with allure.step("Xác minh status 201"):
-        assert response.status_code == 201
+allure.severity_level.BLOCKER   # hệ thống không thể sử dụng — deploy phải dừng
+allure.severity_level.CRITICAL  # luồng nghiệp vụ cốt lõi bị hỏng — phải sửa hôm nay
+allure.severity_level.NORMAL    # chức năng tiêu chuẩn bị suy giảm — sửa trong sprint
+allure.severity_level.MINOR     # lỗi edge case — lên kế hoạch cho sprint tiếp theo
+allure.severity_level.TRIVIAL   # thẩm mỹ hoặc không đáng kể — backlog
 ```
 
-**Đính kèm file vào báo cáo:**
-```python
-allure.attach(response.text, name="API Response", attachment_type=allure.attachment_type.JSON)
-allure.attach(page.screenshot(), name="Screenshot", attachment_type=allure.attachment_type.PNG)
-```
+Mức độ nghiêm trọng không chỉ là trang trí. Trong CI, bạn có thể cấu hình pipeline chỉ fail build trên lỗi BLOCKER và CRITICAL. Nếu không có nhãn mức độ nghiêm trọng, mọi lỗi được xử lý như nhau — gây ra alert fatigue hoặc cấp bách giả.
+
+**Tại sao `allure.step()` có giá trị hơn assertion thô để debug:**
+
+Với `allure.step("Xác minh status là 201")`, báo cáo hiển thị "Bước 4 — Xác minh status là 201 — FAILED", và mọi bước trước đó hiển thị PASSED. Nhà phân tích ngay lập tức biết request đã được gửi (bước 2 passed), response đã được nhận (bước 3 passed), nhưng status sai (bước 4 failed). Việc thu hẹp lỗi xuống bước được đặt tên cụ thể loại bỏ hầu hết công việc thám tử.
+
+**`allure.attach()` — lưu giữ bằng chứng cho phân tích sau sự cố:**
+
+Đính kèm response body, ảnh chụp màn hình hoặc file log vào kết quả test có nghĩa là bạn có thể debug lỗi nhiều giờ hoặc nhiều ngày sau mà không cần chạy lại test. Đối với test thất bại không nhất quán (flaky test) điều này đặc biệt có giá trị.
+
 </Vi>
 
 ## Code / Demo
 
+<En>
+
+**Part 1 — Installation, project setup, and generating your first report**
+
+</En>
+<Vi>
+
+**Phần 1 — Cài đặt, thiết lập dự án và tạo báo cáo đầu tiên**
+
+</Vi>
+
+```bash
+# Install the Python plugin
+pip install allure-pytest requests
+
+# Run tests — writes raw JSON to allure-results/
+pytest tests/ --alluredir=allure-results -v
+
+# Open the report in your browser (development)
+allure serve allure-results
+
+# Generate static HTML without opening browser (CI)
+allure generate allure-results -o allure-report --clean
+open allure-report/index.html  # macOS; use xdg-open on Linux or start on Windows
+```
+
+```
+# Resulting allure-results/ directory structure (auto-generated by the plugin)
+allure-results/
+├── abc123-result.json     # one file per test
+├── def456-result.json
+├── categories.json        # optional: custom failure categories
+└── environment.properties # optional: show Python/pytest versions in report
+```
+
+<En>
+
+**Part 2 — Full annotated test class using JSONPlaceholder (public API, no auth required)**
+
+</En>
+<Vi>
+
+**Phần 2 — Class test được chú thích đầy đủ dùng JSONPlaceholder (API công khai, không cần xác thực)**
+
+</Vi>
+
 ```python
-# tests/api/test_posts_allure.py — with Allure annotations
+# tests/api/test_posts_allure.py
+# Requirements: pip install allure-pytest requests jsonschema
+# Run: pytest tests/api/test_posts_allure.py --alluredir=allure-results -v
+# Then: allure serve allure-results
+
 import allure
 import pytest
 import requests
-from jsonschema import validate
-from api.client import ApiClient
+from jsonschema import validate, ValidationError
 
 BASE_URL = "https://jsonplaceholder.typicode.com"
 
@@ -121,97 +258,638 @@ POST_SCHEMA = {
     },
 }
 
-@pytest.fixture(scope="session")
-def api() -> ApiClient:
-    from api.client import ApiClient
-    return ApiClient()
+COMMENT_SCHEMA = {
+    "type": "object",
+    "required": ["id", "postId", "name", "email", "body"],
+    "properties": {
+        "id":     {"type": "integer"},
+        "postId": {"type": "integer"},
+        "name":   {"type": "string"},
+        "email":  {"type": "string"},
+        "body":   {"type": "string"},
+    },
+}
 
+
+@pytest.fixture(scope="session")
+def session() -> requests.Session:
+    """Shared HTTP session for the entire test run."""
+    s = requests.Session()
+    s.headers.update({"Content-Type": "application/json"})
+    yield s
+    s.close()
+
+
+# ─────────────────────────────────────────────────────────────
+# The @allure.epic / feature / story decorators define WHERE
+# this test appears in the Behaviours tab of the Allure report.
+# Without them every test is an orphan in the Suites view.
+# ─────────────────────────────────────────────────────────────
 @allure.epic("Blog API")
 @allure.feature("Posts")
 class TestPosts:
 
     @allure.story("Read")
     @allure.severity(allure.severity_level.CRITICAL)
-    @allure.title("Get existing post by ID — should return 200 with valid schema")
-    def test_get_post(self, api: ApiClient):
+    @allure.title("GET /posts/1 — should return 200 with valid schema")
+    def test_get_post(self, session: requests.Session) -> None:
         with allure.step("Send GET /posts/1"):
-            response = api.get("/posts/1")
+            response = session.get(f"{BASE_URL}/posts/1")
+            # Attaching the response body means anyone reading the report
+            # later can see the exact payload — no need to re-run the test.
             allure.attach(
                 response.text,
                 name="Response Body",
-                attachment_type=allure.attachment_type.JSON
+                attachment_type=allure.attachment_type.JSON,
             )
 
-        with allure.step("Verify status code is 200"):
-            assert response.status_code == 200
+        with allure.step("Assert status code is 200"):
+            assert response.status_code == 200, (
+                f"Expected 200, got {response.status_code}. Body: {response.text[:200]}"
+            )
 
-        with allure.step("Validate response schema"):
-            validate(instance=response.json(), schema=POST_SCHEMA)
+        with allure.step("Validate response against POST_SCHEMA"):
+            try:
+                validate(instance=response.json(), schema=POST_SCHEMA)
+            except ValidationError as e:
+                raise AssertionError(f"Schema validation failed: {e.message}") from e
 
     @allure.story("Create")
-    @allure.severity(allure.severity_level.NORMAL)
-    @allure.title("Create a new post — should return 201 with ID")
-    def test_create_post(self, api: ApiClient):
-        payload = {"title": "Allure Test Post", "body": "Test body", "userId": 1}
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.title("POST /posts — should return 201 with a generated ID")
+    def test_create_post(self, session: requests.Session) -> None:
+        payload = {"title": "Allure Demo Post", "body": "Testing Allure annotations", "userId": 1}
 
         with allure.step(f"Send POST /posts with title='{payload['title']}'"):
-            response = api.post("/posts", json=payload)
-
-        with allure.step("Verify status is 201 Created"):
-            assert response.status_code == 201
-
-        with allure.step("Verify response contains generated ID"):
-            created = response.json()
-            assert "id" in created
             allure.attach(
-                str(created),
-                name="Created Post",
-                attachment_type=allure.attachment_type.TEXT
+                str(payload),
+                name="Request Payload",
+                attachment_type=allure.attachment_type.TEXT,
+            )
+            response = session.post(f"{BASE_URL}/posts", json=payload)
+
+        with allure.step("Assert status code is 201"):
+            assert response.status_code == 201, (
+                f"Expected 201, got {response.status_code}. Body: {response.text[:200]}"
             )
 
-    @allure.story("Read")
-    @allure.severity(allure.severity_level.MINOR)
-    @allure.title("Get nonexistent post — should return 404")
-    def test_get_nonexistent_post(self, api: ApiClient):
-        with allure.step("Send GET /posts/99999"):
-            response = api.get("/posts/99999")
+        with allure.step("Assert response contains a generated ID"):
+            created = response.json()
+            allure.attach(
+                str(created),
+                name="Created Post Response",
+                attachment_type=allure.attachment_type.TEXT,
+            )
+            assert "id" in created, f"Expected 'id' in response. Got keys: {list(created.keys())}"
+            assert isinstance(created["id"], int), f"Expected id to be int, got {type(created['id'])}"
 
-        with allure.step("Verify status is 404"):
-            assert response.status_code == 404
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("GET /posts/99999 — non-existent post should return 404")
+    def test_get_nonexistent_post(self, session: requests.Session) -> None:
+        with allure.step("Send GET /posts/99999"):
+            response = session.get(f"{BASE_URL}/posts/99999")
+
+        with allure.step("Assert status code is 404"):
+            assert response.status_code == 404, (
+                f"Expected 404 for non-existent resource, got {response.status_code}"
+            )
+
+    @allure.story("Update")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("PUT /posts/1 — should return 200 with updated fields")
+    def test_update_post(self, session: requests.Session) -> None:
+        payload = {"id": 1, "title": "Updated Title", "body": "Updated body", "userId": 1}
+
+        with allure.step("Send PUT /posts/1 with updated payload"):
+            response = session.put(f"{BASE_URL}/posts/1", json=payload)
+
+        with allure.step("Assert status code is 200"):
+            assert response.status_code == 200
+
+        with allure.step("Assert updated fields are reflected in the response"):
+            data = response.json()
+            assert data.get("title") == "Updated Title", (
+                f"Expected title 'Updated Title', got '{data.get('title')}'"
+            )
+
+
+@allure.epic("Blog API")
+@allure.feature("Comments")
+class TestComments:
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("GET /posts/1/comments — should return list with valid schema")
+    def test_get_comments_for_post(self, session: requests.Session) -> None:
+        with allure.step("Send GET /posts/1/comments"):
+            response = session.get(f"{BASE_URL}/posts/1/comments")
+            allure.attach(
+                response.text[:500],
+                name="Response Body (first 500 chars)",
+                attachment_type=allure.attachment_type.JSON,
+            )
+
+        with allure.step("Assert status code is 200"):
+            assert response.status_code == 200
+
+        with allure.step("Assert response is a non-empty list"):
+            data = response.json()
+            assert isinstance(data, list), f"Expected list, got {type(data)}"
+            assert len(data) > 0, "Expected at least one comment"
+
+        with allure.step("Validate first comment against COMMENT_SCHEMA"):
+            try:
+                validate(instance=data[0], schema=COMMENT_SCHEMA)
+            except ValidationError as e:
+                raise AssertionError(f"Comment schema failed: {e.message}") from e
+```
+
+<En>
+
+**Part 3 — categories.json for custom failure grouping in CI**
+
+</En>
+<Vi>
+
+**Phần 3 — categories.json để nhóm lỗi tùy chỉnh trong CI**
+
+</Vi>
+
+```json
+// allure-results/categories.json
+// Place this file in allure-results/ before running `allure generate`
+// Allure reads it automatically and groups failures in the Categories tab
+[
+  {
+    "name": "Network / Infrastructure errors",
+    "messageRegex": ".*ConnectionError.*|.*Timeout.*|.*ReadTimeout.*",
+    "matchedStatuses": ["broken"]
+  },
+  {
+    "name": "Schema violations",
+    "messageRegex": ".*Schema validation failed.*|.*ValidationError.*",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Unexpected status codes",
+    "messageRegex": ".*Expected status \\d+, got \\d+.*",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Missing response fields",
+    "messageRegex": ".*Expected '.*' in response.*|.*not found in response.*",
+    "matchedStatuses": ["failed"]
+  }
+]
+```
+
+```python
+# allure-results/environment.properties
+# Optional: display environment metadata on the Allure Overview tab.
+# Create this file before running `allure generate`.
+# Python=3.12.3
+# pytest=8.2.1
+# allure-pytest=2.13.5
+# Target.API=https://jsonplaceholder.typicode.com
+# Environment=staging
+```
+
+<En>
+
+**Part 4 — GitHub Actions CI: run tests and upload Allure report as artifact**
+
+</En>
+<Vi>
+
+**Phần 4 — GitHub Actions CI: chạy test và tải lên báo cáo Allure như artifact**
+
+</Vi>
+
+```yaml
+# .github/workflows/tests.yml
+name: API Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install allure-pytest requests jsonschema
+
+      - name: Install Allure CLI
+        run: |
+          wget -q https://github.com/allure-framework/allure2/releases/download/2.27.0/allure-2.27.0.tgz
+          tar -xzf allure-2.27.0.tgz
+          echo "$PWD/allure-2.27.0/bin" >> $GITHUB_PATH
+
+      - name: Run tests
+        run: pytest tests/ --alluredir=allure-results -v
+
+      - name: Generate Allure HTML report
+        if: always()   # run even if tests fail — you need the report most when tests fail
+        run: allure generate allure-results -o allure-report --clean
+
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report/
+          retention-days: 14
 ```
 
 ## Exercise
 
-<ExerciseBox>
-- [ ] Install `allure-pytest` and the Allure CLI, run your existing tests with `--alluredir=allure-results`, then view the report with `allure serve allure-results`
-- [ ] Add `@allure.epic`, `@allure.feature`, `@allure.story`, and `@allure.severity` decorators to all tests in your capstone framework — observe how the report organises them by hierarchy
-- [ ] Add `allure.attach(response.text, ...)` to at least 3 tests and verify the attachments appear in the Allure report when you click on those test cases
-</ExerciseBox>
+<CodeExerciseGroup pointsPerExercise={10} exercises={[
+  {
+    title: "Exercise 1 — Add Allure annotations to a plain test and compare the before/after report",
+    code: `# Before: plain test with no Allure annotations
+# After: annotated test — run both and compare how they appear in the report
+# pip install allure-pytest requests
+# pytest test_exercise1.py --alluredir=allure-results -v && allure serve allure-results
+
+import requests
+import allure
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+
+# ─── BEFORE (no annotations) ───────────────────────────────────
+def test_get_user_plain():
+    response = requests.get(f"{BASE_URL}/users/1")
+    assert response.status_code == 200
+    data = response.json()
+    assert "name" in data
+    assert "email" in data
+
+
+# ─── AFTER (your task: add annotations) ────────────────────────
+# TODO (EN): Add @allure.epic, @allure.feature, @allure.story, @allure.severity decorators
+# TODO (EN): Wrap each logical step in allure.step()
+# TODO (EN): Attach the response body using allure.attach()
+# TODO (VI): Thêm decorator @allure.epic, @allure.feature, @allure.story, @allure.severity
+# TODO (VI): Bọc mỗi bước logic trong allure.step()
+# TODO (VI): Đính kèm response body bằng allure.attach()
+
+# @allure.epic("???")
+# @allure.feature("???")
+# @allure.story("???")
+# @allure.severity(allure.severity_level.???)
+def test_get_user_annotated():
+    # Step 1: send request
+    response = requests.get(f"{BASE_URL}/users/1")
+
+    # Step 2: assert status
+    assert response.status_code == 200
+
+    # Step 3: assert required fields
+    data = response.json()
+    assert "name" in data
+    assert "email" in data`
+  },
+  {
+    title: "Exercise 2 — Write a full annotated test suite for /todos with steps and attachments",
+    code: `# tests/test_todos_allure.py
+# JSONPlaceholder /todos endpoint — public, no auth needed
+# pip install allure-pytest requests jsonschema
+# pytest test_exercise2.py --alluredir=allure-results -v
+
+import allure
+import pytest
+import requests
+from jsonschema import validate, ValidationError
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+TODO_SCHEMA = {
+    "type": "object",
+    "required": ["id", "userId", "title", "completed"],
+    "properties": {
+        "id":        {"type": "integer"},
+        "userId":    {"type": "integer"},
+        "title":     {"type": "string"},
+        "completed": {"type": "boolean"},
+    },
+}
+
+
+@pytest.fixture(scope="session")
+def session():
+    s = requests.Session()
+    s.headers.update({"Content-Type": "application/json"})
+    yield s
+    s.close()
+
+
+# TODO (EN): Add @allure.epic("Task Manager API") to the class
+# TODO (EN): Add @allure.feature("Todos") to the class
+# TODO (VI): Thêm @allure.epic("Task Manager API") vào class
+# TODO (VI): Thêm @allure.feature("Todos") vào class
+
+class TestTodos:
+
+    # TODO (EN): Add @allure.story, @allure.severity, @allure.title
+    # TODO (EN): Wrap logic in allure.step() blocks
+    # TODO (EN): Attach response body with allure.attach()
+    # TODO (VI): Thêm @allure.story, @allure.severity, @allure.title
+    # TODO (VI): Bọc logic trong khối allure.step()
+    # TODO (VI): Đính kèm response body bằng allure.attach()
+    def test_get_todo_by_id(self, session):
+        response = session.get(f"{BASE_URL}/todos/1")
+        assert response.status_code == 200
+        try:
+            validate(instance=response.json(), schema=TODO_SCHEMA)
+        except ValidationError as e:
+            raise AssertionError(f"Schema failed: {e.message}") from e
+
+    def test_list_todos_returns_list(self, session):
+        response = session.get(f"{BASE_URL}/todos")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+
+    def test_filter_todos_by_user(self, session):
+        response = session.get(f"{BASE_URL}/todos", params={"userId": 1})
+        assert response.status_code == 200
+        data = response.json()
+        assert all(todo["userId"] == 1 for todo in data), (
+            "Expected all todos to belong to userId=1"
+        )
+
+    def test_get_completed_todos(self, session):
+        response = session.get(f"{BASE_URL}/todos", params={"completed": "true"})
+        assert response.status_code == 200
+        data = response.json()
+        assert all(todo["completed"] for todo in data), (
+            "Expected all returned todos to have completed=true"
+        )`
+  },
+  {
+    title: "Exercise 3 — Create categories.json and verify failure grouping in the report",
+    code: `# categories.json + intentional failure test
+# Place categories.json in allure-results/ BEFORE running allure generate
+# pip install allure-pytest requests
+# pytest test_exercise3.py --alluredir=allure-results -v
+# allure generate allure-results -o allure-report --clean
+# open allure-report/index.html
+
+import allure
+import requests
+
+BASE_URL = "https://jsonplaceholder.typicode.com"
+
+# categories.json content to create in allure-results/:
+CATEGORIES_JSON = """
+[
+  {
+    "name": "Unexpected status codes",
+    "messageRegex": ".*Expected status \\\\d+, got \\\\d+.*",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Schema violations",
+    "messageRegex": ".*Schema validation failed.*",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Missing response fields",
+    "messageRegex": ".*not found in response.*",
+    "matchedStatuses": ["failed"]
+  }
+]
+"""
+
+import json, os
+os.makedirs("allure-results", exist_ok=True)
+with open("allure-results/categories.json", "w") as f:
+    f.write(CATEGORIES_JSON)
+
+
+# TODO (EN): Write 3 intentionally failing tests — one per category above
+# TODO (EN): Use descriptive allure.step() blocks so the failure message matches the regex
+# TODO (VI): Viết 3 test cố tình thất bại — một test cho mỗi category ở trên
+# TODO (VI): Dùng khối allure.step() mô tả để thông báo lỗi khớp với regex
+
+@allure.epic("Blog API")
+@allure.feature("Posts")
+class TestFailureCategories:
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.title("INTENTIONAL FAIL — wrong status code (maps to Unexpected status codes)")
+    def test_wrong_status_intentional(self):
+        response = requests.get(f"{BASE_URL}/posts/1")
+        # TODO (EN): assert the wrong status code so the message matches the regex
+        # TODO (VI): assert status code sai để thông báo lỗi khớp với regex
+        with allure.step("Assert status code is 999 (intentionally wrong)"):
+            status = response.status_code
+            assert status == 999, f"Expected status 999, got {status}"
+
+    @allure.story("Read")
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.title("INTENTIONAL FAIL — missing field (maps to Missing response fields)")
+    def test_missing_field_intentional(self):
+        response = requests.get(f"{BASE_URL}/posts/1")
+        data = response.json()
+        with allure.step("Assert 'nonexistent_field' is present"):
+            field = "nonexistent_field"
+            # TODO (EN): raise AssertionError with a message matching "not found in response"
+            # TODO (VI): raise AssertionError với thông báo khớp "not found in response"
+            pass`
+  }
+]}>
+<En>
+
+**Instructions:**
+- [ ] Exercise 1: Run the plain test first, view the report, then add all annotations and run again — compare how the test appears in "Suites" vs "Behaviours" before and after
+- [ ] Exercise 2: Add `@allure.epic`, `@allure.feature`, `@allure.story`, `@allure.severity`, and `@allure.title` to each method; wrap each logical group in `allure.step()`; attach the response body to at least two tests
+- [ ] Exercise 3: Write the `categories.json`, run the intentional failure tests, generate the HTML report with `allure generate`, and verify that the "Categories" tab groups the failures correctly
+
+> Note: Run this locally with `pip install allure-pytest requests jsonschema`. You need the Allure CLI installed separately (`brew install allure` on macOS). Use `allure serve allure-results` for instant preview after `pytest --alluredir=allure-results`.
+
+</En>
+<Vi>
+
+**Hướng dẫn:**
+- [ ] Bài tập 1: Chạy test đơn giản trước, xem báo cáo, sau đó thêm tất cả annotation và chạy lại — so sánh cách test xuất hiện trong "Suites" vs "Behaviours" trước và sau
+- [ ] Bài tập 2: Thêm `@allure.epic`, `@allure.feature`, `@allure.story`, `@allure.severity` và `@allure.title` vào mỗi method; bọc mỗi nhóm logic trong `allure.step()`; đính kèm response body cho ít nhất hai test
+- [ ] Bài tập 3: Viết `categories.json`, chạy các test thất bại có chủ đích, tạo báo cáo HTML bằng `allure generate` và xác minh rằng tab "Categories" nhóm các lỗi đúng cách
+
+> Lưu ý: Chạy code này cục bộ với `pip install allure-pytest requests jsonschema`. Bạn cần cài Allure CLI riêng (`brew install allure` trên macOS). Dùng `allure serve allure-results` để xem trước ngay sau `pytest --alluredir=allure-results`.
+
+</Vi>
+</CodeExerciseGroup>
 
 ## Quiz
 
 <Quiz questions={[
   {
-    q: "What does `with allure.step('description'):` add to a test?",
+    q: "What does `with allure.step('description'):` add to an Allure report?",
+    qVi: "`with allure.step('description'):` thêm gì vào báo cáo Allure?",
     choices: [
-      "It runs the code block in a separate thread",
-      "It adds a named step to the Allure report — making the test's intent visible step-by-step",
-      "It catches exceptions within the block",
-      "It times the code block and reports the duration"
+      "It runs the code block in a separate thread with a timeout",
+      "It creates a named step visible in the report — when a step fails, the report shows exactly which named step broke, not just a raw assertion error",
+      "It catches all exceptions within the block and converts them to warnings",
+      "It measures the execution time and adds a performance chart to the report"
+    ],
+    choicesVi: [
+      "Nó chạy khối code trong thread riêng với timeout",
+      "Nó tạo ra bước được đặt tên hiển thị trong báo cáo — khi một bước thất bại, báo cáo hiển thị chính xác bước được đặt tên nào bị lỗi, không chỉ là assertion error thô",
+      "Nó bắt tất cả exception trong khối và chuyển đổi chúng thành cảnh báo",
+      "Nó đo thời gian thực thi và thêm biểu đồ hiệu suất vào báo cáo"
     ],
     answer: 1,
-    explain: "allure.step() groups code into named steps visible in the report. Instead of seeing a raw assertion error, reviewers see 'Step 3: Verify status is 201 — FAILED', making root cause analysis faster without reading code."
+    explain: "allure.step() groups code into named steps visible in the report. When a step fails, reviewers see 'Step 3: Verify status is 201 — FAILED' with all previous steps marked PASSED. This eliminates the need to read source code to understand where in the test the failure occurred.",
+    explainVi: "allure.step() nhóm code thành các bước được đặt tên hiển thị trong báo cáo. Khi một bước thất bại, người xem thấy 'Bước 3: Xác minh status là 201 — FAILED' với tất cả bước trước được đánh dấu PASSED. Điều này loại bỏ nhu cầu đọc mã nguồn để hiểu lỗi xảy ra ở đâu trong test."
   },
   {
-    q: "What command generates the Allure HTML report from raw test results?",
+    q: "What is the difference between `allure serve allure-results` and `allure generate allure-results`?",
+    qVi: "Sự khác biệt giữa `allure serve allure-results` và `allure generate allure-results` là gì?",
     choices: [
-      "pytest --allure-report",
-      "allure serve allure-results (or allure generate)",
-      "allure build tests/",
-      "pytest --html allure-results"
+      "allure serve runs tests; allure generate only reads existing results",
+      "allure serve starts a temporary web server and opens the browser automatically — for local development; allure generate writes static HTML to disk without opening a browser — for CI artifact upload",
+      "allure serve requires Java 17; allure generate works with any JVM",
+      "allure serve generates a PDF; allure generate creates an HTML report"
+    ],
+    choicesVi: [
+      "allure serve chạy test; allure generate chỉ đọc kết quả hiện có",
+      "allure serve khởi động web server tạm thời và tự động mở trình duyệt — để phát triển cục bộ; allure generate ghi HTML tĩnh vào đĩa mà không mở trình duyệt — để tải lên CI artifact",
+      "allure serve yêu cầu Java 17; allure generate hoạt động với bất kỳ JVM nào",
+      "allure serve tạo PDF; allure generate tạo báo cáo HTML"
     ],
     answer: 1,
-    explain: "pytest --alluredir=allure-results writes raw JSON result files. Then 'allure serve allure-results' generates and opens the HTML report in a browser. 'allure generate' creates the HTML without opening a browser — useful in CI."
+    explain: "allure serve is for development: it generates and immediately opens the report in a browser. allure generate is for CI: it writes static HTML to disk so the pipeline can upload it as an artifact. Both read from the same allure-results/ directory of raw JSON files.",
+    explainVi: "allure serve dành cho phát triển: nó tạo và ngay lập tức mở báo cáo trong trình duyệt. allure generate dành cho CI: nó ghi HTML tĩnh vào đĩa để pipeline có thể tải lên như artifact. Cả hai đều đọc từ cùng thư mục allure-results/ chứa file JSON thô."
+  },
+  {
+    q: "What is the purpose of the @allure.epic / @allure.feature / @allure.story hierarchy?",
+    qVi: "Mục đích của hệ thống phân cấp @allure.epic / @allure.feature / @allure.story là gì?",
+    choices: [
+      "They control the order in which tests execute",
+      "They group tests in the Behaviours tab by product area — enabling stakeholders to navigate test results by business context rather than file paths",
+      "They assign test priorities for the pytest scheduler",
+      "They determine which tests are included in parametrize runs"
+    ],
+    choicesVi: [
+      "Chúng kiểm soát thứ tự thực thi của các test",
+      "Chúng nhóm test trong tab Behaviours theo khu vực sản phẩm — cho phép các bên liên quan điều hướng kết quả test theo ngữ cảnh nghiệp vụ thay vì đường dẫn file",
+      "Chúng gán ưu tiên test cho bộ lập lịch pytest",
+      "Chúng xác định test nào được đưa vào các lần chạy parametrize"
+    ],
+    answer: 1,
+    explain: "The epic/feature/story labels populate the Behaviours tab in Allure. Without them, the report shows only file paths and class names — readable only by developers. With them, a product manager can open 'Blog API → Posts → Create' and see at a glance whether the create flow is passing — no code knowledge required.",
+    explainVi: "Các nhãn epic/feature/story điền vào tab Behaviours trong Allure. Không có chúng, báo cáo chỉ hiển thị đường dẫn file và tên class — chỉ developer có thể đọc. Với chúng, quản lý sản phẩm có thể mở 'Blog API → Posts → Create' và thấy ngay liệu luồng tạo có pass không — không cần kiến thức code."
+  },
+  {
+    q: "Why should you attach the HTTP response body to a test using allure.attach()?",
+    qVi: "Tại sao bạn nên đính kèm HTTP response body vào test bằng allure.attach()?",
+    choices: [
+      "Because Allure requires at least one attachment per test to generate a valid report",
+      "So that anyone debugging a failure hours or days later can see the exact response that caused it — without re-running the test",
+      "Because attached files are compressed and reduce the size of allure-results/",
+      "Because allure.attach() makes the test run faster by caching the response"
+    ],
+    choicesVi: [
+      "Vì Allure yêu cầu ít nhất một tệp đính kèm cho mỗi test để tạo báo cáo hợp lệ",
+      "Để bất kỳ ai debug lỗi nhiều giờ hoặc nhiều ngày sau có thể thấy response chính xác đã gây ra nó — mà không cần chạy lại test",
+      "Vì các file đính kèm được nén và giảm kích thước allure-results/",
+      "Vì allure.attach() làm test chạy nhanh hơn bằng cách cache response"
+    ],
+    answer: 1,
+    explain: "Attaching the response body preserves evidence. If a test fails intermittently (flaky), you may never reproduce it on demand. The attached response in the report tells you exactly what the API returned when the failure happened — no guessing, no re-running. This is especially valuable in CI where the test environment is ephemeral.",
+    explainVi: "Đính kèm response body bảo tồn bằng chứng. Nếu test thất bại không nhất quán (flaky), bạn có thể không bao giờ tái tạo được nó theo yêu cầu. Response được đính kèm trong báo cáo cho bạn biết chính xác API đã trả về gì khi lỗi xảy ra — không đoán mò, không chạy lại. Điều này đặc biệt có giá trị trong CI nơi môi trường test là tạm thời."
+  },
+  {
+    q: "What is the purpose of categories.json in an Allure report?",
+    qVi: "Mục đích của categories.json trong báo cáo Allure là gì?",
+    choices: [
+      "It defines the color scheme and CSS theme for the generated HTML report",
+      "It groups test failures by type using regex patterns — separating infrastructure failures (network errors) from genuine product bugs",
+      "It controls which test files are included in the run",
+      "It maps test IDs to Jira ticket numbers for traceability"
+    ],
+    choicesVi: [
+      "Nó định nghĩa bảng màu và CSS theme cho báo cáo HTML được tạo",
+      "Nó nhóm các lỗi test theo loại bằng regex pattern — phân tách lỗi cơ sở hạ tầng (lỗi mạng) khỏi lỗi sản phẩm thực sự",
+      "Nó kiểm soát file test nào được đưa vào lần chạy",
+      "Nó ánh xạ test ID sang số Jira ticket để truy xuất nguồn gốc"
+    ],
+    answer: 1,
+    explain: "categories.json defines regex rules that Allure uses to bucket failures into named groups in the Categories tab. Without it, all failures pile into a generic 'Product Defects' bucket. With it, you can immediately separate network timeouts (infrastructure issue, not your code) from schema mismatches (API contract changed) from assertion failures (genuine regression).",
+    explainVi: "categories.json định nghĩa các quy tắc regex mà Allure dùng để phân loại lỗi vào các nhóm được đặt tên trong tab Categories. Không có nó, tất cả lỗi đổ vào bucket 'Product Defects' chung. Với nó, bạn có thể ngay lập tức phân tách network timeout (vấn đề cơ sở hạ tầng, không phải code của bạn) khỏi schema mismatch (API contract đã thay đổi) khỏi assertion failure (hồi quy thực sự)."
+  },
+  {
+    q: "Which Allure severity level should be assigned to a test that validates the core user login flow?",
+    qVi: "Mức độ nghiêm trọng Allure nào nên được gán cho test xác nhận luồng đăng nhập người dùng cốt lõi?",
+    choices: [
+      "TRIVIAL — login is a basic feature that rarely changes",
+      "MINOR — login failures can be worked around by resetting passwords",
+      "CRITICAL — login is a core business flow; its failure blocks all authenticated functionality",
+      "NORMAL — login is important but not urgent"
+    ],
+    choicesVi: [
+      "TRIVIAL — đăng nhập là tính năng cơ bản hiếm khi thay đổi",
+      "MINOR — lỗi đăng nhập có thể được giải quyết bằng cách đặt lại mật khẩu",
+      "CRITICAL — đăng nhập là luồng nghiệp vụ cốt lõi; lỗi của nó chặn tất cả chức năng đã xác thực",
+      "NORMAL — đăng nhập quan trọng nhưng không khẩn cấp"
+    ],
+    answer: 2,
+    explain: "Login is a CRITICAL flow because its failure cascades — if users cannot log in, every feature behind authentication is inaccessible. BLOCKER is reserved for system-wide outages (the entire app is down). CRITICAL is for individual flows that are core to the product value proposition.",
+    explainVi: "Đăng nhập là luồng CRITICAL vì lỗi của nó lan rộng — nếu người dùng không thể đăng nhập, mọi tính năng đằng sau xác thực đều không thể truy cập. BLOCKER được dành cho sự cố toàn hệ thống (toàn bộ ứng dụng ngừng hoạt động). CRITICAL dành cho các luồng riêng lẻ là cốt lõi của đề xuất giá trị sản phẩm."
+  },
+  {
+    q: "Why does pytest write raw JSON files to allure-results/ instead of generating HTML directly?",
+    qVi: "Tại sao pytest ghi file JSON thô vào allure-results/ thay vì tạo HTML trực tiếp?",
+    choices: [
+      "Because HTML generation requires a licensed version of the Allure plugin",
+      "Because the separation allows you to re-generate the HTML report from the same results multiple times, merge results from parallel runs, and keep the CI step lightweight",
+      "Because JSON files are encrypted for security and must be decrypted before HTML generation",
+      "Because pytest cannot produce HTML output without a third-party plugin installed"
+    ],
+    choicesVi: [
+      "Vì tạo HTML yêu cầu phiên bản có license của plugin Allure",
+      "Vì sự phân tách cho phép bạn tái tạo báo cáo HTML từ cùng kết quả nhiều lần, hợp nhất kết quả từ các lần chạy song song và giữ cho bước CI nhẹ",
+      "Vì file JSON được mã hóa để bảo mật và phải được giải mã trước khi tạo HTML",
+      "Vì pytest không thể tạo đầu ra HTML mà không có plugin bên thứ ba"
+    ],
+    answer: 1,
+    explain: "The separation of result collection (pytest plugin → JSON) from report generation (Allure CLI → HTML) is intentional. It allows: (1) re-generating the HTML without re-running tests, (2) merging JSON files from parallel test runs before generating one combined report, and (3) keeping the pytest run fast since JSON serialization is trivial compared to HTML rendering.",
+    explainVi: "Sự phân tách giữa thu thập kết quả (plugin pytest → JSON) và tạo báo cáo (Allure CLI → HTML) là có chủ đích. Nó cho phép: (1) tái tạo HTML mà không cần chạy lại test, (2) hợp nhất file JSON từ các lần chạy test song song trước khi tạo một báo cáo kết hợp, và (3) giữ cho lần chạy pytest nhanh vì tuần tự hóa JSON là nhỏ so với render HTML."
+  },
+  {
+    q: "What is the correct command to run pytest and collect Allure results into a specific directory?",
+    qVi: "Lệnh đúng để chạy pytest và thu thập kết quả Allure vào thư mục cụ thể là gì?",
+    choices: [
+      "pytest tests/ --allure-output=allure-results",
+      "pytest tests/ --alluredir=allure-results",
+      "pytest tests/ --generate-allure allure-results",
+      "allure run tests/ --output allure-results"
+    ],
+    choicesVi: [
+      "pytest tests/ --allure-output=allure-results",
+      "pytest tests/ --alluredir=allure-results",
+      "pytest tests/ --generate-allure allure-results",
+      "allure run tests/ --output allure-results"
+    ],
+    answer: 1,
+    explain: "The --alluredir flag is provided by the allure-pytest plugin and tells pytest where to write the raw JSON result files. The directory is created automatically if it does not exist. After the run, use 'allure serve allure-results' or 'allure generate allure-results' to produce the HTML report.",
+    explainVi: "Flag --alluredir được cung cấp bởi plugin allure-pytest và cho pytest biết nơi ghi các file JSON kết quả thô. Thư mục được tạo tự động nếu không tồn tại. Sau lần chạy, dùng 'allure serve allure-results' hoặc 'allure generate allure-results' để tạo báo cáo HTML."
   }
 ]} />
 

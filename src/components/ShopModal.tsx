@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { X, Star, ShoppingBag, Lock, AlertTriangle, Mail, CheckCircle2 } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { useProgressStore } from '@/lib/store'
 import { SHOP_PRODUCTS } from '@/data/shopProducts'
 import { sendAwardEmail } from '@/lib/sendAwardEmail'
+import { redeemPride } from '@/lib/redeemPride'
 import { cn } from '@/lib/utils'
 
 interface ShopModalProps {
@@ -17,9 +19,11 @@ const SHOP_NAMES = ['All', 'Đảo Matcha', 'Universal Tea'] as const
 type ShopFilter = (typeof SHOP_NAMES)[number]
 
 export function ShopModal({ open, onClose }: ShopModalProps) {
-  const { totalPoints, spendPoints, language } = useProgressStore()
+  const { data: session } = useSession()
+  const { totalPoints, setTotalPoints, language } = useProgressStore()
   const [justPurchased, setJustPurchased] = useState<number | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [redeeming, setRedeeming] = useState<number | null>(null)
   const [selectedShop, setSelectedShop] = useState<ShopFilter>('All')
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -39,31 +43,46 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  // Cancel confirmation when modal closes
   useEffect(() => { if (!open) setConfirmingId(null) }, [open])
 
   const handleRedeemClick = (productId: number) => {
-    if (confirmingId === productId) return // already confirming
+    if (confirmingId === productId) return
     setConfirmingId(productId)
   }
 
-  const handleConfirmRedeem = (productId: number, points: number) => {
-    const ok = spendPoints(points, productId)
-    if (ok) {
+  const handleConfirmRedeem = async (productId: number, points: number) => {
+    const product = SHOP_PRODUCTS.find((p) => p.id === productId)
+    if (!product) return
+
+    setRedeeming(productId)
+    setConfirmingId(null)
+
+    const result = await redeemPride({
+      productId,
+      productName: product.name,
+      productNameVi: product.nameVi,
+      price: product.price,
+      pointsSpent: points,
+      type: 'shop',
+    })
+
+    setRedeeming(null)
+
+    if (result.success) {
+      if (result.newPointsBalance !== undefined) {
+        setTotalPoints(result.newPointsBalance)
+      }
       setJustPurchased(productId)
       setTimeout(() => setJustPurchased(null), 4000)
-      const product = SHOP_PRODUCTS.find((p) => p.id === productId)
-      if (product) {
-        sendAwardEmail({
-          productName: product.name,
-          productNameVi: product.nameVi,
-          price: product.price,
-          points,
-          type: 'shop',
-        })
-      }
+      sendAwardEmail({
+        productName: product.name,
+        productNameVi: product.nameVi,
+        price: product.price,
+        points,
+        type: 'shop',
+        userEmail: session?.user?.email ?? undefined,
+      })
     }
-    setConfirmingId(null)
   }
 
   if (!open) return null
@@ -150,6 +169,7 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
               const canAfford = totalPoints >= product.points
               const isJust = justPurchased === product.id
               const isConfirming = confirmingId === product.id
+              const isRedeeming = redeeming === product.id
 
               return (
                 <div
@@ -194,8 +214,11 @@ export function ShopModal({ open, onClose }: ShopModalProps) {
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         {language === 'vi' ? 'Đã đổi!' : 'Redeemed!'}
                       </div>
+                    ) : isRedeeming ? (
+                      <div className="mt-1 flex items-center justify-center rounded-lg bg-gray-100 py-1.5 text-xs text-gray-400 dark:bg-gray-700">
+                        {language === 'vi' ? 'Đang xử lý…' : 'Processing…'}
+                      </div>
                     ) : isConfirming ? (
-                      /* Confirmation panel */
                       <div className="mt-1 space-y-1.5 rounded-lg border border-yellow-200 bg-yellow-50 p-2 dark:border-yellow-800 dark:bg-yellow-950/40">
                         <div className="flex items-center gap-1 text-xs font-semibold text-yellow-700 dark:text-yellow-400">
                           <AlertTriangle className="h-3 w-3" />
